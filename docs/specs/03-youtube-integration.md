@@ -146,6 +146,38 @@ YouTube 이용약관(`https://www.youtube.com/static?template=terms`, 2023년 12
 - 참고로 참여자 전원이 YouTube Premium이어야 하는지 여부는 이 결론과 별개다 — 각자 로컬로 재생하는 모델에서는 광고 노출 여부만 각자의 Premium 가입 여부에 달려 있을 뿐, 세션 참여 자체(재생 명령 동기화)에는 Premium이 필수 조건은 아니다(Spotify처럼 "곡 지정 재생 자체가 막히는" 제약은 YouTube Data API/IFrame Player 쪽에는 없음). 이 부분은 기존 문서 4)절/`06-mvp-scope-and-tech-stack.md`와 일관된다.
 - 이번 조사로 얻은 새로운 시사점: 만약 향후 다른 서비스(예: Apple Music 등)에 대해서도 유사한 "호스트 중계" 아이디어가 제안된다면, 매번 개별 서비스의 이용약관에서 "개인적 시청/재배포 금지" 문구를 먼저 찾아 확인하는 것이 이 모델의 채택 가능 여부를 가장 빠르게 판별하는 방법이라는 점을 리더/사용자에게 참고로 남긴다.
 
+## 7) [추가 조사 — 2026-07-23] 단일 질문 심화 검증: "전원 Premium이면 우리 앱(서드파티 재생 환경)에서 광고 없이 재생되는가?"
+
+> 배경: 3)절에서 "확인 필요"로 남겨둔 항목("Premium 무광고 혜택이 임베드에서 보장되는가")을 리더 지시로 범위를 좁혀 재조사했다. 3)절의 결론(정황상 불리)을 뒤집는 새 증거는 없었으나, (1) 공식 문서/이슈트래커에서의 명시적 언급 유무, (2) WebView 임베드가 아니라 **기기의 공식 YouTube 앱으로 재생을 통째로 넘기는 경로(딥링크/인텐트)** 라는 별도 대안까지 포함해 결론을 더 명확히 정리한다.
+
+### 7-1. 결론 요약 (3가지 중 선택)
+
+**우리가 채택하려는 아키텍처(WebView 안에 IFrame Player를 임베드하는 방식, 대안 A)에 대해서는 사실상 (a) "전원 Premium이어도 광고가 뜬다"로 판단한다.** 다만 이를 100% 확언하는 단일 공식 문서는 찾지 못했으므로 확실성 등급은 **"중간~높음"** 으로 표기한다 (근거는 7-2). 반면 **"기기에 이미 설치된 공식 YouTube 앱으로 재생을 완전히 위임하는 별도 경로"(딥링크/인텐트, 대안 B)에 대해서는 (b) "광고 없이 가능하다"** 로 판단한다 — 단, 이 경로는 우리 앱이 재생을 전혀 제어하지 못하게 되어 프로젝트의 핵심 요구사항(저지연 재생 동기화)을 충족할 수 없으므로, 실질적으로 채택 가능한 대안이 아니다(7-3).
+
+### 7-2. WebView + IFrame 임베드 경로 — 근거 정리
+
+1. **공식 문서의 침묵과 그 함의**: YouTube 공식 "Ads on embedded videos" 도움말(`support.google.com/youtube/answer/132596`)을 원문 대조했으나, 시청자의 로그인 상태·Premium 여부가 임베드 광고 노출에 영향을 준다는 언급은 **전혀 없다**. 이 문서는 임베드 광고 노출 여부를 "영상 제작자가 설정한 수익화(광고 활성화) 옵션"에 연결시킬 뿐, 시청자 계정 상태는 언급하지 않는다 — 즉 공식 문서가 설명하는 임베드 광고 로직 자체가 "시청자가 누구인지"가 아니라 "영상에 광고가 켜져 있는지"를 기준으로 삼고 있다는 뜻이다.
+2. **프라이버시 강화 모드(youtube-nocookie.com)에서도 광고는 사라지지 않음**: youtube-nocookie.com은 재생 전까지 쿠키를 심지 않는 모드일 뿐이며, 관련 자료들은 "이 모드에서도 광고 자체는 여전히 뜰 수 있고, 차이는 개인화 여부(비개인화 광고로 대체)뿐"이라고 설명한다. 즉 임베드 환경에서 "쿠키/로그인 컨텍스트 유무"가 바꾸는 것은 광고 타겟팅 방식이지, 광고의 존재 자체가 아니라는 정황이다 — 이는 "로그인 세션이 임베드에 전달되면 Premium 무광고가 적용된다"는 가설에 불리한 방향의 증거다.
+3. **"광고 없는 임베드를 위한 인증 토큰 파라미터를 달라"는 개발자 요청이 있었고, 공식 채택된 적이 없다**: Google 이슈트래커(`issuetracker.google.com/issues/35166088`, 원제 "allow auth token as YouTube player parameter", 2008년 등록)에 정확히 이 문제의식(임베드 플레이어에 인증 토큰을 전달해 로그인/유료 계정 혜택을 반영해달라)을 담은 오래된 기능 요청이 존재한다. 이슈트래커 상세 내용은 로그인 필요로 원문 전체를 확인하지 못했으나(확실성 낮음, 정황 증거로만 인용), 공식 IFrame Player API/Embedded Players 파라미터 문서(`developers.google.com/youtube/player_parameters`) 어디에도 "인증 토큰" 또는 "로그인 세션을 임베드에 전달"하는 공식 파라미터가 **현재까지 존재하지 않는다** — 즉 2008년부터 제기된 요구가 지금까지 공식 기능으로 채택되지 않았다는 뜻이며, 이는 "그런 기능이 없다"는 쪽에 무게를 싣는 정황이다.
+4. **애초에 로그인 자체가 임베드 WebView 안에서 막혀 있다 (3)절 기존 사실 재확인)**: 2023-07-24부터 Google이 임베디드 웹뷰 안에서의 OAuth/로그인을 전면 차단한 사실은 이 결론을 사실상 결정적으로 뒷받침한다. 우리 앱의 WebView 안에서 사용자가 자신의 Google/YouTube Premium 계정으로 새로 로그인하는 것 자체가 안 되므로, "임베드가 Premium 세션을 인식해 광고를 없앤다"는 가설이 성립하려면 최소한 "로그인된 세션/쿠키가 임베드 컨텍스트로 안전하게 전달"되어야 하는데 이를 공식적으로 지원하는 수단이 없다. 이론상 시스템 브라우저로 먼저 로그인시킨 뒤 쿠키를 앱 WebView로 옮기는 우회가 있을 수 있으나, 이는 (a) 공식적으로 지원/문서화된 방법이 아니고 (b) Google의 계정 보안 정책을 우회하려는 시도로 해석될 위험이 있어 채택 대상에서 제외한다(기존 3)절 결론과 동일).
+5. **개발자 커뮤니티의 실사용 보고**: Stack Overflow, Reddit, 개발자 블로그를 검색한 결과 "IFrame Player를 Premium 계정으로 로그인한 상태로 사용해서 광고가 사라졌다"는 구체적·검증 가능한 사용자 보고는 찾지 못했다. 유일하게 나온 관련 언급(Quora 답변, 비공식·비전문가 출처)은 "로그인된 Premium 사용자는 임베드를 포함해 어디서도 광고를 안 본다"는 취지였으나, 이는 근거 인용 없는 일반론적 주장이고, "PC 브라우저에서 youtube.com에 로그인한 채로 같은 브라우저 안의 임베드를 보는 상황"(1st-party 컨텍스트)과 "모바일 앱의 격리된 WebView 안에 임베드된 상황"(우리 시나리오, 3rd-party·로그인 자체가 막힌 컨텍스트)을 구분하지 않고 있어 신뢰도가 낮다고 판단해 결론에 반영하지 않았다.
+
+### 7-3. 대안 경로 — 기기에 설치된 공식 YouTube 앱으로 재생을 위임(딥링크/인텐트)
+
+- 이 경로는 우리 앱이 videoId가 포함된 딥링크(Android: `intent://` 또는 `vnd.youtube:`, iOS: Universal Link `https://www.youtube.com/watch?v=...`)를 실행해, **기기에 이미 설치되어 있고 이미 사용자 계정으로 로그인되어 있는 공식 YouTube 앱**으로 재생을 완전히 넘기는 방식이다. 이는 임베드가 아니다 — 우리 앱 안에서 아무것도 렌더링하지 않고, 순수 네이티브 YouTube 앱이 그 자체로 실행되는 것이므로 "사용자가 평소 유튜브 앱을 직접 열어 볼 때"와 완전히 동일한 경험이다.
+- 이 경로에서는 이미 문서 3)절에서 확인한 사실("공식 유튜브 앱... 에서는 Premium 로그인 시 광고가 확실히 제거된다")이 그대로 적용된다. 즉 **참여자 전원이 각자 기기에서 각자 Premium 계정으로 로그인된 공식 YouTube 앱을 갖고 있다면, 이 경로로는 광고 없이 재생된다** — (b)에 해당한다. 이는 "임베드 안에서 로그인을 흉내 낸 것"이 아니라 애초에 앱을 그대로 사용하는 것이므로 별도의 공식 출처 인용이 필요 없는 자명한 플랫폼 동작이다.
+- **그러나 이 경로는 우리 프로젝트의 핵심 요구사항과 양립할 수 없다.** 딥링크로 넘어간 순간부터 재생은 전적으로 사용자 기기의 네이티브 YouTube 앱이 소유하며, 우리 앱은 그 앱의 재생/일시정지/탐색(seek)을 프로그래밍적으로 제어하거나 현재 재생 위치를 조회할 수 있는 어떠한 공식 인터페이스도 갖지 못한다(이미 2)절에서 확인한 "네이티브 재생 제어 SDK 전부 단종/아카이브" 사실과 궤를 같이함). 즉 이 경로를 택하면 "광고 문제는 해결"되지만 "저지연 재생 동기화"라는 이 프로젝트의 핵심 비기능 요구사항 자체를 포기해야 한다 — 참여자 각자가 각자의 YouTube 앱에서 수동으로 같은 지점을 찾아 재생을 눌러야 하는 것과 사실상 다르지 않다.
+- 따라서 이 경로는 "광고 유무" 질문에 대한 답으로서는 (b)이지만, 프로젝트 전체 요구사항 관점에서는 채택 불가능한 대안으로 남긴다. 기존 대안 A(WebView 임베드 + 명령 동기화)를 대체할 수 없다.
+
+### 7-4. 최종 정리
+
+| 경로 | 광고 노출 여부 (전원 Premium 가정) | 판정 | 재생 동기화 제어 가능 여부 |
+|---|---|---|---|
+| WebView + IFrame Player 임베드 (계획된 대안 A) | 광고가 뜰 가능성이 높음 | **(a)**, 확실성 중간~높음 (7-2) | 가능 (JS 브릿지로 제어) |
+| 기기 설치 공식 YouTube 앱으로 딥링크 위임 | 광고 없이 재생됨 | **(b)**, 확실성 높음(자명한 플랫폼 동작) | **불가능** — 우리 앱이 재생을 소유하지 않음 |
+
+**종합 결론**: 우리가 실제로 채택하려는 아키텍처(WebView 임베드)를 기준으로 하면 답은 (a)에 가깝다 — "전원 Premium이어도 우리 앱 안에서는 광고가 뜰 가능성이 높다"고 보고 제품 기대치/카피를 관리해야 한다. 광고 없이 재생되는 경로(b, 네이티브 앱 딥링크)는 존재하지만 동기화 기능을 포기해야 하므로 실질적 해법이 아니다. 100% 확정적인 공식 문서 인용(예: "임베드에서는 시청자의 Premium 여부와 무관하게 항상 광고가 뜬다"는 명시적 한 문장)은 끝내 찾지 못했으므로, 기존 3)절의 권고와 동일하게 **구현 착수 전 실기기 스파이크 테스트로 최종 확인할 것을 재차 권고**한다(신뢰도를 (a)의 "중간~높음"에서 "확정"으로 올리는 유일한 방법).
+
 ## 참고자료
 - YouTube IFrame Player API Reference: https://developers.google.com/youtube/iframe_api_reference
 - YouTube Embedded Players and Player Parameters: https://developers.google.com/youtube/player_parameters
@@ -165,3 +197,10 @@ YouTube 이용약관(`https://www.youtube.com/static?template=terms`, 2023년 12
 - Android 오디오 재생 캡처(Android 10, `AudioPlaybackCaptureConfiguration`) 공식 가이드: https://developer.android.com/media/platform/av-capture , 공식 블로그: https://android-developers.googleblog.com/2019/07/capturing-audio-in-android-q.html
 - iOS FairPlay 보호 콘텐츠의 화면 캡처(검은 화면) 관련 Apple 개발자 포럼 논의: https://developer.apple.com/forums/thread/63725 , https://developer.apple.com/forums/thread/86521
 - Spotify 이용약관(재배포·개인적 이용 제한 조항): https://www.spotify.com/us/legal/end-user-agreement/plain/
+
+### 7절(전원 Premium + 임베드 광고 여부 심화 검증) 관련 추가 참고자료
+- YouTube 공식 도움말 "Ads on embedded videos": https://support.google.com/youtube/answer/132596?hl=en (원문 대조: Premium/로그인 관련 언급 없음, 광고 노출은 영상 제작자의 수익화 설정에 연동됨)
+- YouTube Embedded Players and Player Parameters (공식 파라미터 문서, "인증 토큰" 류 파라미터 부재 확인): https://developers.google.com/youtube/player_parameters
+- "allow auth token as YouTube player parameter" 기능 요청(2008년 등록, 공식 채택 안 됨 — 정황 증거, 이슈트래커 로그인 필요로 원문 전체 미확인): https://issuetracker.google.com/issues/35166088
+- 프라이버시 강화 모드(youtube-nocookie.com)에서도 광고 자체는 유지되고 개인화 여부만 달라진다는 설명: https://infotrust.com/articles/are-your-embedded-youtube-videos-compliant-discover-privacy-enhanced-mode/ , https://swarmify.com/blog/what-is-youtube-nocookie/
+- (참고, 신뢰도 낮음으로 최종 결론에 미반영) "로그인 Premium 사용자는 임베드에서도 광고를 안 본다"는 비공식·미검증 주장: https://www.quora.com/Do-ads-appear-on-embedded-YouTube-Videos

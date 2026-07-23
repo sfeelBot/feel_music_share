@@ -86,3 +86,7 @@ Spotify는 "공식적으로 서드파티가 하라고 만들어준 일"을 하�
 - 저지연 동기화가 최우선 비기능 요구사항인 점을 감안하면, 실시간 계층은 커스터마이징 자유도가 높은 **자체 WebSocket 서버**(Node.js/NestJS 또는 Go) 쪽에 무게가 실리지만, 팀 규모/일정에 따라 관리형 서비스로 초기 MVP를 검증한 뒤 자체 서버로 전환하는 단계적 접근도 합리적인 대안이다.
 - 모바일 프레임워크는 React Native/Flutter 모두 실현 가능하나, Spotify App Remote 및 YouTube WebView 브릿지 모두 결국 네이티브 모듈 작성이 필요하므로, "크로스플랫폼으로 얻는 이득"과 "네이티브 SDK 연동 마찰"을 사용자가 팀 상황에 맞춰 저울질해야 한다.
 - 이 모든 후보는 제안일 뿐이며, 확정 시 CLAUDE.md의 "기술 스택: 미정" 섹션을 갱신하는 것을 제안한다(리더가 사용자 확인 후 처리).
+
+## 추가 참고 — Spotify/YouTube 외 대안 서비스 조사 (2026-07-23 추가)
+
+Spotify/YouTube를 제외한 다른 음악 서비스(SoundCloud, Deezer, Tidal, Apple Music, Audius, Jamendo, Free Music Archive/ccMixter, Amazon Music, Napster, Bandcamp 등)를 대상으로 "참여자 전원 무료 + 메인스트림 상업 카탈로그 + 공식 API 재생 제어"를 모두 만족하는 서비스가 있는지 별도 조사했다. **결론: 세 조건을 모두 만족하는 서비스는 없다** — 완전 무료 서비스(Audius/Jamendo)는 카탈로그가 CC/인디 음원에 국한되고, 메인스트림 카탈로그를 가진 서비스(Deezer/Tidal/Apple Music)는 전곡 재생에 예외 없이 유료 구독을 요구한다(Spotify와 동일 구조). SoundCloud는 중간 지점이나 인기곡의 API 접근 제한과 ToS(다중 사용자 온디맨드 집계 서비스 금지 조항) 리스크가 있다. 상세 비교표와 구조적 이유, 권고안은 `docs/specs/07-alternative-services.md` 참고.
