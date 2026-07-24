@@ -33,4 +33,13 @@
 - 결과: (a) 완료. (b) 진행 중 — 완료되면 이 로그에 후속 항목 추가 예정.
 - 외부 액션: `CLAUDE.md` 수정은 아직 커밋하지 않음(planner 결과와 함께 한 번에 커밋할 예정, 사용자 확인 후 push).
 
-- 결과(planner 완료, 후속 기록): `06-mvp-scope-and-tech-stack.md`(기술 스택 확정 절), `04-playlist.md`(세션 정원/권한 체계/Free 계정 처리/디자인 전달 사항), `01-user-stories.md`(US-106, US-207~US-210) 갱신 완료. "확인 필요"로 남긴 항목 다수(관리자 임명 방식, 정원 사후 변경 가능 여부, Free 계정 세션 참여 자체 허용 여부 등) — 사용자 확인 대기 중. 커밋 여부는 사용자 확인 후 결정 예정.
+- 결과(planner 완료, 후속 기록): `06-mvp-scope-and-tech-stack.md`(기술 스택 확정 절), `04-playlist.md`(세션 정원/권한 체계/Free 계정 처리/디자인 전달 사항), `01-user-stories.md`(US-106, US-207~US-210) 갱신 완료. "확인 필요"로 남긴 항목 다수(관리자 임명 방식, 정원 사후 변경 가능 여부, Free 계정 세션 참여 자체 허용 여부 등)는 사용자에게 7개 질문으로 다시 물었으나, 사용자가 세부 답변 대신 "커밋만 진행하고 진행해"로 응답 — 커밋 후 다음 단계(디자인) 진행을 지시한 것으로 해석하고, 미확정 항목은 planner의 잠정 제안대로 둔 채(문서에 "확인 필요"로 명시된 상태 유지) designer에게 다음 작업을 위임함.
+- 외부 액션: 커밋 `d11bf20`("Finalize tech stack, add session capacity/role/free-tier specs") 생성. **push는 하지 않음** (사용자가 "커밋만" 이라고 명시).
+- 후속 분배: designer에게 `04-playlist.md` "디자인 에이전트 전달 사항" 6개 항목(역할 배지, 정원 설정 UI, 참여/재생 인원 구분, Free 안내, 관리자 임명 UI, 서비스 전환 버튼 권한별 노출) 반영 위임(백그라운드 실행 중 — 완료 통보 대기).
+
+- 요청: 사용자가 "현재 요구사항이 다 받아들여지면" Claude Artifact 링크(`https://claude.ai/code/artifact/fc3c834b-38c2-4218-88a1-ea3c0be4fb4b`, 사용자 소유)와 같은 형태로 디자인을 제출해달라고 요청. WebFetch로 확인한 결과, 이 Artifact는 `docs/design/03-screen-mockups.html`과 동일 내용(폰 프레임 목업 갤러리)이었음 — 즉 사용자가 예전에 이 파일을 Artifact로 퍼블리시해 링크를 갖고 있었던 것으로 파악.
+- 계획(대기 중, 아직 실행 안 함): 현재 진행 중인 designer 배경 작업(역할 배지 등, `03-screen-mockups.html`은 이번 라운드에서 의도적으로 제외)이 끝나고 **사용자가 결과를 검토·승인**하면, 그 다음 designer에게 `03-screen-mockups.html`에 신규 화면(정원 설정, 역할 배지, Free 안내 등) 시각 목업을 추가하도록 위임 → 완료 후 Artifact 도구로 같은 URL(`fc3c834b-...`)에 업데이트 발행하여 링크 유지.
+- 외부 액션: 없음 (Artifact 발행은 위 조건 충족 후 진행 예정).
+
+- 결과(designer 완료, 후속 기록): `02-key-ui-patterns.md`(6~10절: 역할 배지, 정원 스테퍼, 참여/재생 인원 표시, Free 안내 3형태, 서비스 전환 버튼 상태), `00-ux-flow.md`(정원 스테퍼, Free 안내 2.4b, 참여자 목록/세션 설정 갱신), `01-style-guide.md`(역할 배지 컬러 신규)까지 갱신 완료. `03-screen-mockups.html`은 지시대로 건드리지 않음. 사용자 검토·승인 대기 중 — 승인되면 (1) 커밋 여부 확인, (2) `03-screen-mockups.html`에 신규 화면 시각 목업 추가 후 Artifact(`fc3c834b-...`) 갱신 발행 예정.
+- 외부 액션: 없음(아직 커밋하지 않음).
