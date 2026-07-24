@@ -1,0 +1,1494 @@
+<title>feel_music_share — 화면 목업</title>
+
+<style>
+  /* ==========================================================================
+     feel_music_share 정적 화면 목업
+     - 색상은 CSS custom property 토큰으로 정의, 컴포넌트는 토큰만 참조
+     - 라이트/다크: @media (prefers-color-scheme) + :root[data-theme] 양쪽 재정의
+     - 외부 폰트/이미지/스크립트 참조 없음 (시스템 폰트 스택만 사용)
+     ========================================================================== */
+
+  .fms-mockup, .fms-mockup *, .fms-mockup *::before, .fms-mockup *::after {
+    box-sizing: border-box;
+  }
+
+  :root {
+    /* 정적 값 (테마와 무관) */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", "Malgun Gothic", sans-serif;
+    --radius-lg: 28px;
+    --radius-md: 16px;
+    --radius-sm: 10px;
+    --radius-pill: 999px;
+
+    /* 참여자 선곡자 컬러 링 (02-key-ui-patterns.md 1.2 예시: 지은=코랄, 민준=앰버, 수아=틸) */
+    --color-picker-coral: #FF6F61;
+    --color-picker-amber: #FFB25B;
+    --color-picker-teal: #2E9C8F;
+
+    /* Spotify 브랜드 컬러 — Spotify 연동 요소에만 한정 사용 */
+    --color-spotify-green: #1DB954;
+
+    /* 동기화 상태 컬러 (01-style-guide.md 2절) */
+    --color-sync-green: #3FB68B;
+    --color-amber-alert: #F2A93B;
+    --color-muted-red: #E4573D;
+
+    /* 브랜드 컬러 (01-style-guide.md 2절) */
+    --color-primary: #FF6F61;      /* Dusk Coral */
+    --color-primary-dark: #4A2545; /* Deep Plum */
+    --color-secondary: #FFB25B;    /* Warm Amber */
+
+    /* 기기 프레임(베젤)은 실물 폰 프레임을 흉내낸 장식 요소라 테마와 무관하게 고정 */
+    --frame-bezel: #121016;
+    --frame-bezel-highlight: rgba(255, 255, 255, 0.08);
+  }
+
+  /* 라이트 모드 토큰 (기본값) */
+  :root,
+  :root[data-theme="light"] {
+    --color-bg: #FFF8F2;            /* Soft Cream */
+    --color-bg-elevated: #FFFFFF;
+    --color-card-bg: #FFFFFF;
+    --color-header-bg: #4A2545;
+    --color-header-text: #FBF3EC;
+    --color-text: #2B1E2E;          /* Charcoal Plum */
+    --color-text-secondary: rgba(43, 30, 46, 0.62);
+    --color-border: rgba(43, 30, 46, 0.10);
+    --color-overlay: rgba(43, 30, 46, 0.55);
+    --color-track-bg: rgba(43, 30, 46, 0.12);
+    --color-focus-ring: #4A2545;
+    --color-statusbar-text: #2B1E2E;
+    --color-shadow: rgba(74, 37, 69, 0.18);
+    --color-sync-green-bg: rgba(63, 182, 139, 0.14);
+    --color-amber-alert-bg: rgba(242, 169, 59, 0.16);
+    --color-muted-red-bg: rgba(228, 87, 61, 0.14);
+    --page-bg: #F1E7DD;
+  }
+
+  /* 다크 모드 토큰 — 시스템 설정을 따르는 기본 동작 */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #1E1730;           /* Midnight Indigo */
+      --color-bg-elevated: #2A2140;
+      --color-card-bg: #281F3D;
+      --color-header-bg: #150F24;
+      --color-header-text: #FBF3EC;
+      --color-text: #FBF3EC;         /* Cream White */
+      --color-text-secondary: rgba(251, 243, 236, 0.65);
+      --color-border: rgba(251, 243, 236, 0.14);
+      --color-overlay: rgba(0, 0, 0, 0.62);
+      --color-track-bg: rgba(251, 243, 236, 0.18);
+      --color-focus-ring: #FFB25B;
+      --color-statusbar-text: #FBF3EC;
+      --color-shadow: rgba(0, 0, 0, 0.55);
+      --color-sync-green-bg: rgba(63, 182, 139, 0.22);
+      --color-amber-alert-bg: rgba(242, 169, 59, 0.22);
+      --color-muted-red-bg: rgba(228, 87, 61, 0.22);
+      --page-bg: #14101F;
+    }
+  }
+
+  /* 명시적 테마 강제 전환 (테마 토글 버튼이 이 attribute를 설정) — 미디어쿼리보다 항상 우선 적용됨 */
+  :root[data-theme="dark"] {
+    --color-bg: #1E1730;
+    --color-bg-elevated: #2A2140;
+    --color-card-bg: #281F3D;
+    --color-header-bg: #150F24;
+    --color-header-text: #FBF3EC;
+    --color-text: #FBF3EC;
+    --color-text-secondary: rgba(251, 243, 236, 0.65);
+    --color-border: rgba(251, 243, 236, 0.14);
+    --color-overlay: rgba(0, 0, 0, 0.62);
+    --color-track-bg: rgba(251, 243, 236, 0.18);
+    --color-focus-ring: #FFB25B;
+    --color-statusbar-text: #FBF3EC;
+    --color-shadow: rgba(0, 0, 0, 0.55);
+    --color-sync-green-bg: rgba(63, 182, 139, 0.22);
+    --color-amber-alert-bg: rgba(242, 169, 59, 0.22);
+    --color-muted-red-bg: rgba(228, 87, 61, 0.22);
+    --page-bg: #14101F;
+  }
+
+  :root[data-theme="light"] {
+    --color-bg: #FFF8F2;
+    --color-bg-elevated: #FFFFFF;
+    --color-card-bg: #FFFFFF;
+    --color-header-bg: #4A2545;
+    --color-header-text: #FBF3EC;
+    --color-text: #2B1E2E;
+    --color-text-secondary: rgba(43, 30, 46, 0.62);
+    --color-border: rgba(43, 30, 46, 0.10);
+    --color-overlay: rgba(43, 30, 46, 0.55);
+    --color-track-bg: rgba(43, 30, 46, 0.12);
+    --color-focus-ring: #4A2545;
+    --color-statusbar-text: #2B1E2E;
+    --color-shadow: rgba(74, 37, 69, 0.18);
+    --color-sync-green-bg: rgba(63, 182, 139, 0.14);
+    --color-amber-alert-bg: rgba(242, 169, 59, 0.16);
+    --color-muted-red-bg: rgba(228, 87, 61, 0.14);
+    --page-bg: #F1E7DD;
+  }
+
+  /* ---------- 레이아웃 루트 ---------- */
+  .fms-mockup {
+    font-family: var(--font-sans);
+    color: var(--color-text);
+    background: var(--page-bg);
+    max-width: 100%;
+    overflow-x: hidden;
+    padding: 32px 20px 64px;
+  }
+
+  .fms-mockup button {
+    font-family: var(--font-sans);
+  }
+
+  .fms-mockup button:focus-visible,
+  .fms-mockup a:focus-visible,
+  .fms-mockup [tabindex]:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .fms-header {
+    max-width: 1080px;
+    margin: 0 auto 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .fms-header h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+
+  .fms-header p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    max-width: 560px;
+  }
+
+  .theme-toggle {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    padding: 10px 18px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px var(--color-shadow);
+    flex: 0 0 auto;
+  }
+
+  /* ---------- 앱 아이콘 섹션 ---------- */
+  .icon-showcase {
+    max-width: 1080px;
+    margin: 28px auto 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .icon-showcase .app-icon-svg {
+    width: 192px;
+    height: 192px;
+    border-radius: 44px;
+    box-shadow: 0 18px 40px var(--color-shadow);
+    display: block;
+  }
+
+  .icon-showcase figcaption {
+    max-width: 520px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  .icon-showcase h2 {
+    font-size: 15px;
+    margin: 0;
+  }
+
+  /* ---------- 갤러리 ---------- */
+  .gallery {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 40px;
+  }
+
+  .phone-frame {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(300px, 88vw);
+  }
+
+  .phone-frame figcaption {
+    margin-top: 16px;
+    text-align: center;
+  }
+
+  .phone-frame figcaption strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .phone-frame figcaption span {
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    display: block;
+    max-width: 280px;
+  }
+
+  /* ---------- 기기 프레임 ---------- */
+  .device {
+    width: min(300px, 88vw);
+    height: 622px;
+    background: var(--frame-bezel);
+    border-radius: 46px;
+    padding: 12px;
+    position: relative;
+    box-shadow: 0 22px 46px var(--color-shadow), inset 0 0 0 1px var(--frame-bezel-highlight);
+  }
+
+  .device__notch {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 86px;
+    height: 22px;
+    background: var(--frame-bezel);
+    border-radius: 14px;
+    z-index: 5;
+  }
+
+  .device__home-indicator {
+    position: absolute;
+    bottom: 7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 108px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-text);
+    opacity: 0.35;
+    z-index: 5;
+  }
+
+  .device__screen {
+    width: 100%;
+    height: 100%;
+    background: var(--color-bg);
+    border-radius: 34px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    color: var(--color-text);
+  }
+
+  .status-bar {
+    flex: 0 0 auto;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 22px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-statusbar-text);
+  }
+
+  .status-bar__icons {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-statusbar-text);
+  }
+
+  .screen-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- 공통 버튼 ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    border-radius: var(--radius-pill);
+    font-weight: 700;
+    font-size: 14.5px;
+    padding: 13px 20px;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  .btn-primary {
+    background: var(--color-primary);
+    color: #FFFFFF;
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--color-text);
+    border: 1.5px solid var(--color-border);
+  }
+
+  .btn-spotify {
+    background: var(--color-spotify-green);
+    color: #FFFFFF;
+  }
+
+  .btn-text-link {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  /* ---------- 온보딩 ---------- */
+  .onboard {
+    padding: 28px 24px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sync-illustration {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 10px 0 26px;
+  }
+
+  .sync-illustration__phone {
+    width: 60px;
+    height: 100px;
+    border-radius: 14px;
+    background: var(--color-bg-elevated);
+    border: 2px solid var(--color-border);
+    box-shadow: 0 6px 16px var(--color-shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sync-illustration__speaker {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, var(--color-secondary), var(--color-primary));
+    position: relative;
+  }
+
+  .sync-illustration__speaker::before,
+  .sync-illustration__speaker::after {
+    content: "";
+    position: absolute;
+    border: 2px solid var(--color-primary);
+    border-radius: 50%;
+    opacity: 0.45;
+    top: 50%;
+    left: 50%;
+  }
+
+  .sync-illustration__speaker::before {
+    width: 42px;
+    height: 42px;
+    transform: translate(-50%, -50%);
+  }
+
+  .sync-illustration__speaker::after {
+    width: 54px;
+    height: 54px;
+    transform: translate(-50%, -50%);
+    opacity: 0.25;
+  }
+
+  .sync-illustration__link {
+    color: var(--color-primary);
+    display: flex;
+  }
+
+  .onboard h3 {
+    font-size: 21px;
+    line-height: 1.45;
+    margin: 0 0 10px;
+    text-align: center;
+  }
+
+  .onboard p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    text-align: center;
+    margin: 0 0 auto;
+  }
+
+  .onboard-footer {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .onboard-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .onboard-dots span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-border);
+  }
+
+  .onboard-dots span.is-active {
+    background: var(--color-primary);
+    width: 20px;
+    border-radius: 4px;
+  }
+
+  /* ---------- Spotify 연동 안내 ---------- */
+  .spotify-screen {
+    padding: 32px 24px 24px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .icon-spotify {
+    color: var(--color-spotify-green);
+    margin-bottom: 18px;
+  }
+
+  .spotify-screen h3 {
+    font-size: 19px;
+    line-height: 1.4;
+    margin: 0 0 18px;
+  }
+
+  .spotify-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 auto;
+    width: 100%;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .spotify-bullets li {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--color-text-secondary);
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .spotify-cta {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  /* ---------- 세션 헤더 & 탭 ---------- */
+  .session-header {
+    flex: 0 0 auto;
+    background: var(--color-header-bg);
+    color: var(--color-header-text);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 14.5px;
+  }
+
+  .session-header__menu {
+    font-size: 18px;
+    opacity: 0.85;
+  }
+
+  .tab-switcher {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    background: var(--color-bg);
+  }
+
+  .tab-switcher button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    padding: 8px 4px;
+    font-size: 12.5px;
+    font-weight: 700;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+  }
+
+  .tab-switcher button.is-active {
+    background: var(--color-primary);
+    color: #FFFFFF;
+  }
+
+  /* ---------- Now Playing ---------- */
+  .now-playing {
+    flex: 1;
+    padding: 18px 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .album-art {
+    width: 190px;
+    height: 190px;
+    border-radius: 22px;
+    background: linear-gradient(150deg, var(--color-secondary) 0%, var(--color-primary) 55%, var(--color-primary-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 14px 30px var(--color-shadow);
+    margin-bottom: 18px;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .track-title {
+    font-size: 19px;
+    font-weight: 700;
+    margin: 0 0 2px;
+    text-align: center;
+  }
+
+  .track-artist {
+    font-size: 13.5px;
+    color: var(--color-text-secondary);
+    margin: 0 0 14px;
+    text-align: center;
+  }
+
+  .picker-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    background: var(--color-card-bg);
+    padding: 7px 14px 7px 7px;
+    border-radius: var(--radius-pill);
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .avatar {
+    --ring-color: var(--color-primary);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    font-weight: 700;
+    font-size: 13px;
+    box-shadow: 0 0 0 3px var(--ring-color);
+    flex: 0 0 auto;
+  }
+
+  .avatar--sm {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+    box-shadow: 0 0 0 2px var(--ring-color);
+  }
+
+  .progress {
+    width: 100%;
+    margin-bottom: 14px;
+  }
+
+  .progress__track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-track-bg);
+    position: relative;
+  }
+
+  .progress__fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--color-primary);
+    width: 40%;
+  }
+
+  .progress__fill::after {
+    content: "";
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 1px 4px var(--color-shadow);
+  }
+
+  .progress__labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--color-text-secondary);
+    margin-top: 8px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    margin-bottom: 18px;
+  }
+
+  .control-btn {
+    background: none;
+    border: none;
+    color: var(--color-text);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 6px;
+  }
+
+  .control-btn--main {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 10px 22px var(--color-shadow);
+  }
+
+  /* ---------- 동기화 상태 배지 ---------- */
+  .sync-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: var(--radius-pill);
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.1px;
+    margin-bottom: 16px;
+  }
+
+  .sync-badge--synced {
+    background: var(--color-sync-green-bg);
+    color: var(--color-sync-green);
+  }
+
+  .sync-badge--tuning,
+  .sync-badge--delayed {
+    background: var(--color-amber-alert-bg);
+    color: var(--color-amber-alert);
+  }
+
+  .sync-badge--disconnected {
+    background: var(--color-muted-red-bg);
+    color: var(--color-muted-red);
+  }
+
+  .sync-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: 0 0 auto;
+  }
+
+  .sync-icon--pulse {
+    animation: syncPulse 1.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sync-icon--pulse {
+      animation: none;
+    }
+  }
+
+  @keyframes syncPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.55; }
+  }
+
+  .sync-icon--svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+  }
+
+  .avatar-stack {
+    display: flex;
+    margin-top: 4px;
+  }
+
+  .avatar-stack .avatar {
+    margin-left: -10px;
+    border: 2px solid var(--color-bg);
+  }
+
+  .avatar-stack .avatar:first-child {
+    margin-left: 0;
+  }
+
+  /* ---------- 상태 배지 참고 패널 ---------- */
+  .status-legend {
+    max-width: 1080px;
+    margin: 8px auto 56px;
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 22px 24px;
+    box-shadow: 0 4px 18px var(--color-shadow);
+  }
+
+  .status-legend h2 {
+    font-size: 15px;
+    margin: 0 0 4px;
+  }
+
+  .status-legend > p {
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    margin: 0 0 16px;
+  }
+
+  .status-legend__grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .status-legend__item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .status-legend__item span.legend-caption {
+    font-size: 11.5px;
+    color: var(--color-text-secondary);
+  }
+
+  /* ---------- 플레이리스트 탭 ---------- */
+  .mini-player {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .mini-player__art {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(150deg, var(--color-secondary), var(--color-primary));
+    flex: 0 0 auto;
+  }
+
+  .mini-player__title {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mini-player__toggle {
+    background: none;
+    border: none;
+    color: var(--color-text);
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .playlist-body {
+    padding: 16px 16px 24px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .playlist-section-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    margin: 4px 0 10px;
+    text-transform: none;
+  }
+
+  .track-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 12px;
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .track-item.is-playing {
+    box-shadow: 0 0 0 1.5px var(--color-primary), 0 2px 8px var(--color-shadow);
+  }
+
+  .track-item__now {
+    color: var(--color-primary);
+    font-size: 15px;
+    flex: 0 0 auto;
+  }
+
+  .track-item__handle {
+    color: var(--color-text-secondary);
+    font-size: 16px;
+    flex: 0 0 auto;
+  }
+
+  .track-item__info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .track-item__title {
+    font-weight: 700;
+    font-size: 13.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-item__artist {
+    font-size: 11.5px;
+    color: var(--color-text-secondary);
+    margin: 1px 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-item__picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+
+  .history-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--color-border);
+    padding: 14px 4px;
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+
+  .add-track-btn {
+    position: sticky;
+    bottom: 0;
+    margin-top: 16px;
+  }
+
+  /* ---------- 참여자 바텀시트 ---------- */
+  .sheet-backdrop-content {
+    flex: 1;
+    padding: 18px 24px;
+    opacity: 0.5;
+    filter: blur(1px);
+    pointer-events: none;
+  }
+
+  .sheet-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--color-overlay);
+    display: flex;
+    align-items: flex-end;
+    z-index: 10;
+  }
+
+  .bottom-sheet {
+    width: 100%;
+    background: var(--color-bg-elevated);
+    border-radius: 24px 24px 0 0;
+    padding: 14px 22px 26px;
+    box-shadow: 0 -10px 30px var(--color-shadow);
+  }
+
+  .bottom-sheet__grabber {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--color-border);
+    margin: 0 auto 16px;
+  }
+
+  .bottom-sheet__title {
+    font-size: 16px;
+    margin: 0 0 12px;
+  }
+
+  .participant-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .participant-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .participant-list li:last-child {
+    border-bottom: none;
+  }
+
+  .participant-name {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .participant-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-left: 4px;
+  }
+
+  .participant-status {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .participant-status--ok { color: var(--color-sync-green); }
+  .participant-status--delayed { color: var(--color-amber-alert); }
+
+  /* 아주 좁은 화면에서도 body 가로 스크롤이 생기지 않도록 안전장치 */
+  @media (max-width: 380px) {
+    .device, .phone-frame { width: 88vw; }
+  }
+</style>
+
+<div class="fms-mockup">
+
+  <header class="fms-header">
+    <div>
+      <h1>feel_music_share — 화면 목업</h1>
+      <p>`docs/design/00~02` 문서의 와이어프레임·스타일 가이드를 실제 화면처럼 시각화한 정적 프로토타입입니다. 클릭 동작은 없습니다.</p>
+    </div>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">🌙 다크 모드로 보기</button>
+  </header>
+
+  <!-- ============================== 앱 아이콘 ============================== -->
+  <figure class="icon-showcase">
+    <svg class="app-icon-svg" viewBox="0 0 192 192" role="img" aria-label="feel_music_share 앱 아이콘: 노을빛 그라디언트 위에 겹쳐진 두 개의 원">
+      <defs>
+        <linearGradient id="duskBg" x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0%" stop-color="#FFB25B" />
+          <stop offset="52%" stop-color="#FF6F61" />
+          <stop offset="100%" stop-color="#4A2545" />
+        </linearGradient>
+        <radialGradient id="circleGradA" cx="35%" cy="35%" r="75%">
+          <stop offset="0%" stop-color="#FFF8F2" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#FFF8F2" stop-opacity="0.45" />
+        </radialGradient>
+      </defs>
+      <rect x="0" y="0" width="192" height="192" rx="44" fill="url(#duskBg)" />
+      <line x1="20" y1="138" x2="172" y2="138" stroke="#FBF3EC" stroke-opacity="0.28" stroke-width="2" />
+      <circle cx="76" cy="94" r="44" fill="url(#circleGradA)" />
+      <circle cx="118" cy="94" r="44" fill="#FBF3EC" fill-opacity="0.4" style="mix-blend-mode:screen" />
+      <g stroke="#4A2545" stroke-width="4.5" stroke-linecap="round" opacity="0.55">
+        <line x1="87" y1="82" x2="87" y2="106" />
+        <line x1="97" y1="72" x2="97" y2="116" />
+        <line x1="107" y1="82" x2="107" y2="106" />
+      </g>
+      <circle cx="150" cy="46" r="7" fill="#FFF8F2" fill-opacity="0.85" />
+    </svg>
+    <h2>앱 아이콘 컨셉 — "노을 아래, 겹치는 두 순간"</h2>
+    <figcaption>
+      노을(Warm Amber → Dusk Coral → Deep Plum) 그라디언트 위에 반투명한 두 개의 원을 겹쳐, 서로 다른 곳에 있는 두 사람이 같은 순간의 소리를 공유하는 모습을 표현했습니다.
+      원 안의 얇은 파형은 "지금 같은 곡을 듣고 있다"는 실시간성을, 하단의 수평선과 작은 원은 하루 중 다른 시간대(낮/밤)에 있어도 같은 하늘 아래 있다는 은유를 담았습니다.
+    </figcaption>
+  </figure>
+
+  <!-- ============================== 갤러리 ============================== -->
+  <div class="gallery">
+
+    <!-- 1. 온보딩 3컷 중 마지막 컷: 투명성 카드 -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="onboard">
+            <div class="sync-illustration" aria-hidden="true">
+              <div class="sync-illustration__phone"><span class="sync-illustration__speaker"></span></div>
+              <div class="sync-illustration__link">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5.5 15a8 8 0 0 0 13.9 3.5M18.5 9A8 8 0 0 0 4.6 5.5"/></svg>
+              </div>
+              <div class="sync-illustration__phone"><span class="sync-illustration__speaker"></span></div>
+            </div>
+            <h3>재생은 각자의 Spotify 앱에서 이뤄져요.<br />feel_music_share는 그걸 맞춰주는 역할이에요.</h3>
+            <p>우리 서버가 음악을 직접 스트리밍하지 않아요. 각자 기기의 Spotify가 로컬로 재생하고, 저희는 그 타이밍만 맞춰드려요.</p>
+            <div class="onboard-footer">
+              <div class="onboard-dots"><span></span><span></span><span class="is-active"></span></div>
+              <button type="button" class="btn btn-primary">Spotify로 시작하기</button>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>온보딩 · 투명성 카드 (3/3)</strong>
+        <span>00-ux-flow.md 2.2절 — 서버가 오디오를 흘려보내지 않는다는 사실을 시각적으로 강조</span>
+      </figcaption>
+    </figure>
+
+    <!-- 2. Spotify 연동 안내 화면 -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="spotify-screen">
+            <svg class="icon-spotify" width="60" height="60" viewBox="0 0 64 64" aria-hidden="true">
+              <circle cx="32" cy="32" r="32" fill="currentColor" />
+              <path d="M17 24c9-3 21-2 29 4" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none" />
+              <path d="M18 33c8-2 18-1 25 4" stroke="#fff" stroke-width="3.6" stroke-linecap="round" fill="none" />
+              <path d="M19 42c6-1.5 14-1 19 3" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none" />
+            </svg>
+            <h3>feel_music_share는 Spotify Premium 계정이 필요해요</h3>
+            <ul class="spotify-bullets">
+              <li>곡을 직접 골라 재생하려면 Premium이 필요합니다</li>
+              <li>계정 정보는 로그인 시 안전하게 확인해요</li>
+            </ul>
+            <div class="spotify-cta">
+              <button type="button" class="btn btn-spotify">Spotify로 로그인</button>
+              <button type="button" class="btn-text-link">Premium이 없으신가요? →</button>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Spotify 연동 안내</strong>
+        <span>00-ux-flow.md 2.3절 — Premium 필요 안내 + 공식 OAuth 로그인 CTA (Spotify 그린은 이 화면에 한정)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 3. 세션 메인 - Now Playing (동기화됨) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button" class="is-active">Now Playing</button>
+            <button type="button">플레이리스트</button>
+          </div>
+          <div class="now-playing">
+            <div class="album-art" aria-hidden="true">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+            </div>
+            <p class="track-title">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스</p>
+            <div class="picker-line">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              이 곡은 민준님이 선곡
+            </div>
+            <div class="progress">
+              <div class="progress__track"><div class="progress__fill"></div></div>
+              <div class="progress__labels"><span>1:32</span><span>3:45</span></div>
+            </div>
+            <div class="controls">
+              <button type="button" class="control-btn" aria-label="이전 곡">⏮</button>
+              <button type="button" class="control-btn control-btn--main" aria-label="일시정지">⏸</button>
+              <button type="button" class="control-btn" aria-label="다음 곡">⏭</button>
+            </div>
+            <div class="sync-badge sync-badge--synced">
+              <span class="sync-icon" aria-hidden="true"></span>
+              동기화됨 · 3명 함께 듣는 중
+            </div>
+            <div class="avatar-stack" aria-hidden="true">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Now Playing · 동기화됨</strong>
+        <span>00-ux-flow.md 2.10a절 — 선곡자 배지 + 정적인 초록 점(정상 상태) + 참여자 아바타 스택</span>
+      </figcaption>
+    </figure>
+
+    <!-- 4. 세션 메인 - Now Playing (맞추는 중) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button" class="is-active">Now Playing</button>
+            <button type="button">플레이리스트</button>
+          </div>
+          <div class="now-playing">
+            <div class="album-art" aria-hidden="true">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+            </div>
+            <p class="track-title">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스</p>
+            <div class="picker-line">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              이 곡은 민준님이 선곡
+            </div>
+            <div class="progress">
+              <div class="progress__track"><div class="progress__fill" style="width:41%"></div></div>
+              <div class="progress__labels"><span>1:33</span><span>3:45</span></div>
+            </div>
+            <div class="controls">
+              <button type="button" class="control-btn" aria-label="이전 곡">⏮</button>
+              <button type="button" class="control-btn control-btn--main" aria-label="일시정지">⏸</button>
+              <button type="button" class="control-btn" aria-label="다음 곡">⏭</button>
+            </div>
+            <div class="sync-badge sync-badge--tuning">
+              <span class="sync-icon sync-icon--pulse" aria-hidden="true"></span>
+              맞추는 중... · 3명 함께 듣는 중
+            </div>
+            <div class="avatar-stack" aria-hidden="true">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Now Playing · 맞추는 중</strong>
+        <span>02-key-ui-patterns.md 2.2절 — 곡 전환/드리프트 보정 중 짧게 나타나는 상태(펄스 애니메이션 점, 접근성을 위해 모양이 다름)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 5. 세션 메인 - 플레이리스트 탭 -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button">Now Playing</button>
+            <button type="button" class="is-active">플레이리스트</button>
+          </div>
+          <div class="mini-player">
+            <div class="mini-player__art" aria-hidden="true"></div>
+            <span class="mini-player__title">우리가 걷던 밤 — 코스모스</span>
+            <button type="button" class="mini-player__toggle" aria-label="일시정지">⏸</button>
+          </div>
+          <div class="playlist-body">
+            <p class="playlist-section-title">다음 곡들</p>
+
+            <div class="track-item is-playing">
+              <span class="track-item__now" aria-hidden="true">▶</span>
+              <div class="track-item__info">
+                <div class="track-item__title">우리가 걷던 밤</div>
+                <div class="track-item__artist">코스모스</div>
+                <span class="track-item__picker">
+                  <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+                  민준
+                </span>
+              </div>
+            </div>
+
+            <div class="track-item">
+              <span class="track-item__handle" aria-hidden="true">⠿</span>
+              <div class="track-item__info">
+                <div class="track-item__title">새벽의 파도</div>
+                <div class="track-item__artist">하늘소리</div>
+                <span class="track-item__picker">
+                  <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지</span>
+                  지은
+                </span>
+              </div>
+            </div>
+
+            <div class="track-item">
+              <span class="track-item__handle" aria-hidden="true">⠿</span>
+              <div class="track-item__info">
+                <div class="track-item__title">여름, 그날</div>
+                <div class="track-item__artist">잔잔한 파도</div>
+                <span class="track-item__picker">
+                  <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+                  나(수아)
+                </span>
+              </div>
+            </div>
+
+            <button type="button" class="history-toggle">
+              <span>재생 완료 (2곡)</span>
+              <span aria-hidden="true">▾</span>
+            </button>
+
+            <button type="button" class="btn btn-primary add-track-btn">+ 곡 추가</button>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>플레이리스트 탭</strong>
+        <span>00-ux-flow.md 2.10b절 — 재생 중 곡 강조 + 드래그 핸들(⠿) + 참여자별 컬러 링 + 접힌 재생완료 섹션</span>
+      </figcaption>
+    </figure>
+
+    <!-- 6. 참여자 목록 바텀시트 -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="sheet-backdrop-content" aria-hidden="true">
+            <div class="album-art" style="width:120px;height:120px;margin:8px auto 14px;"></div>
+            <p class="track-title" style="font-size:15px;">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스</p>
+          </div>
+          <div class="sheet-overlay">
+            <div class="bottom-sheet">
+              <div class="bottom-sheet__grabber"></div>
+              <h3 class="bottom-sheet__title">참여자 (3)</h3>
+              <ul class="participant-list">
+                <li>
+                  <span class="avatar" style="--ring-color:var(--color-picker-coral)">지</span>
+                  <span class="participant-name">지은<span class="participant-tag">(호스트)</span></span>
+                  <span class="participant-status participant-status--ok">
+                    <span class="sync-icon" aria-hidden="true"></span>정상
+                  </span>
+                </li>
+                <li>
+                  <span class="avatar" style="--ring-color:var(--color-picker-amber)">민</span>
+                  <span class="participant-name">민준</span>
+                  <span class="participant-status participant-status--delayed">
+                    <svg class="sync-icon--svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                    지연 1.2초
+                  </span>
+                </li>
+                <li>
+                  <span class="avatar" style="--ring-color:var(--color-picker-teal)">수</span>
+                  <span class="participant-name">나(수아)</span>
+                  <span class="participant-status participant-status--ok">
+                    <span class="sync-icon" aria-hidden="true"></span>정상
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>참여자 목록 (바텀시트)</strong>
+        <span>00-ux-flow.md 2.12절 — 참여자별 연결 상태를 개인 단위로 상세 표시(전체 요약 배지와 상호보완)</span>
+      </figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ============================== 동기화 상태 4단계 참고 패널 ============================== -->
+  <section class="status-legend">
+    <h2>동기화 상태 배지 — 4단계 참고</h2>
+    <p>02-key-ui-patterns.md 2.2절: 색상만이 아니라 아이콘 "모양"과 텍스트 라벨을 항상 함께 제공합니다(색맹 접근성).</p>
+    <div class="status-legend__grid">
+      <div class="status-legend__item">
+        <div class="sync-badge sync-badge--synced">
+          <span class="sync-icon" aria-hidden="true"></span>동기화됨
+        </div>
+        <span class="legend-caption">정상 · 정적인 점</span>
+      </div>
+      <div class="status-legend__item">
+        <div class="sync-badge sync-badge--tuning">
+          <span class="sync-icon sync-icon--pulse" aria-hidden="true"></span>맞추는 중...
+        </div>
+        <span class="legend-caption">곡 전환/보정 중 · 펄스 점</span>
+      </div>
+      <div class="status-legend__item">
+        <div class="sync-badge sync-badge--delayed">
+          <svg class="sync-icon--svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          지연 1.2초
+        </div>
+        <span class="legend-caption">지연 · 시계 아이콘</span>
+      </div>
+      <div class="status-legend__item">
+        <div class="sync-badge sync-badge--disconnected">
+          <svg class="sync-icon--svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l16 16M8.5 5.3A9 9 0 0 1 20.6 12M3.4 12A9 9 0 0 1 6 7.3M6.8 15.6a5 5 0 0 1 6.6-.4M9.5 18.3a2.3 2.3 0 0 1 3 0"/></svg>
+          연결 끊김 · 재접속 중
+        </div>
+        <span class="legend-caption">끊김 · 끊긴 선 아이콘</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    var mql = window.matchMedia('(prefers-color-scheme: dark)');
+    var current = mql.matches ? 'dark' : 'light';
+
+    function render() {
+      if (current === 'dark') {
+        btn.textContent = '☀ 라이트 모드로 보기';
+        btn.setAttribute('aria-pressed', 'true');
+      } else {
+        btn.textContent = '\u{1F319} 다크 모드로 보기';
+        btn.setAttribute('aria-pressed', 'false');
+      }
+    }
+
+    render();
+
+    btn.addEventListener('click', function () {
+      current = current === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', current);
+      render();
+    });
+  })();
+</script>
