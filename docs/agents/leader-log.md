@@ -61,3 +61,11 @@
 - 후속 분배: "구현팀·디자인팀 시작" 지시에 따라 두 에이전트를 병행 실행(백그라운드) — (1) implementer: Spotify 전용 세션 MVP 핵심 화면(온보딩·Spotify 연동·세션 생성·Now Playing·플레이리스트·참여자 시트) 실제 RN 코드 구현 착수, Firebase/Spotify 실제 키 연동은 구조만 준비. (2) designer: `03-screen-mockups.html`에 아직 없는 YouTube·혼합 세션 화면(YouTube Now Playing, 매칭 확인 카드 등) 추가해 구현보다 한 걸음 앞서도록 보강. 둘 다 커밋은 하지 않도록 지시(리더가 검토 후 커밋).
 - 결과(designer 완료, implementer는 계속 진행 중): `03-screen-mockups.html`에 신규 화면 5개 추가(YouTube 광고 상태 Now Playing, 혼합 세션 플랫폼 선택, 매칭 확인 카드, 혼합 모드 Now Playing, 서비스 전환 확인 다이얼로그) + 매칭 신뢰도 등급 참고 패널. 2.11a/c/d, 2.13b는 다음 라운드로 미룸(designer 자체 판단).
 - 외부 액션: 커밋 `14fe218`("Add YouTube and mixed-mode screens to mockup gallery") 생성(push 안 함 — implementer 결과와 함께 처리할지 판단 예정). `apps/mobile/`은 implementer가 아직 작업 중(중간 상태로 `git status`에 삭제/신규 파일 감지됨)이라 건드리지 않음.
+
+- 결과(implementer 완료): Spotify 전용 세션 MVP 핵심 화면(온보딩, Spotify 연동, 세션 생성, Now Playing, 플레이리스트, 참여자 시트) 구현 완료. 기존 커스텀 REST/WebSocket 스캐폴딩 제거, Firebase 자리(TODO 명시)로 대체. Spotify Web API 검색은 실제 연동, App Remote SDK·Firebase 실연동·드래그 재정렬·YouTube/혼합 화면은 다음 라운드로 명시.
+- 검증: 리더가 커밋 전 `tsc --noEmit`(0 errors)·`eslint`(0 errors, 12 warnings)·`jest`(1/1 pass)를 직접 재현해 implementer 보고를 검증했고, `firebaseClient.ts`·`.env.example` 등 스텁 처리도 확인(실제 Firebase 패키지 미설치 상태이므로 빌드가 깨지지 않음 확인).
+- 외부 액션: 커밋 `e4057fe`("Implement Spotify-only MVP screens (onboarding through playlist)") 생성(push 안 함).
+- 후속 분배: CLAUDE.md 규칙("구현 완료 후 검증 필수, iOS/Android 둘 다 체크리스트 통과 전까지 완료 아님")에 따라 verifier에게 이번 구현 라운드 검증을 위임(백그라운드 실행 중) — 정적 검증 재현, Android 빌드 시도, iOS는 Windows 환경 제약으로 빌드 불가함을 명시하고 코드 리뷰 수준까지만, 기획/디자인 요구사항 대조, `docs/qa/`에 체크리스트 산출.
+- 결과(verifier 완료): **통과 20 / 실패 3 / 미검증(환경 제약) 3 / 의도적 범위 밖 2 — "완료" 반려, 구현 라운드 되돌림 권고.** 실패 3건: (1) `SessionContext.tsx`의 `removeTrack`이 현재 재생 곡 삭제 시 다음 곡으로 자동 전환 안 함(04-playlist.md 위반), (2) `NowPlayingView.tsx` "이전 곡" 버튼에 onPress 핸들러 없음, (3) `mockSessionSeed.ts`가 정원(기본 2명)과 무관하게 항상 참여자 3명 시드. 경미 이슈: Free 배너의 "Spotify 세션에서만 표시" 조건이 서비스 타입을 직접 가드하지 않고 이번 라운드가 Spotify 전용이라 우연히 성립 — YouTube 라운드 전 반드시 보강 필요. Android는 JDK 부재로 빌드 미검증(환경 제약, 정직하게 기록됨), iOS는 Windows 특성상 구조적으로 빌드 불가.
+- 외부 액션: 커밋 `e6dc6ce`("Add round-1 verification checklist for Spotify MVP screens") 생성(push 안 함). `docs/qa/spotify-mvp-round1-checklist.md` 신규.
+- 후속 분배: verifier가 발견한 실패 3건 수정을 implementer에게 되돌림(백그라운드 실행 중) — CLAUDE.md 규칙상 검증 통과 전까지 "완료" 아님, 재검증 라운드까지 이어질 예정.

@@ -46,6 +46,7 @@ interface SessionContextValue {
   requestPlay: () => void;
   requestPause: () => void;
   requestNextTrack: () => void;
+  requestPrevTrack: () => void;
   addTrack: (track: Track) => void;
   removeTrack: (entryId: string) => void;
   appointAdmin: (participantId: string) => void;
@@ -129,6 +130,38 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     });
   }, [currentParticipantId, triggerTuning]);
 
+  const requestPrevTrack = useCallback(() => {
+    triggerTuning();
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);
+      const previous = currentIndex > 0 ? prev.playlist[currentIndex - 1] : undefined;
+      if (!previous) {
+        return prev;
+      }
+      const playlist = prev.playlist.map(entry => {
+        if (entry.entryId === prev.playback.currentEntryId) {
+          return {...entry, playedStatus: 'pending' as const};
+        }
+        if (entry.entryId === previous.entryId) {
+          return {...entry, playedStatus: 'playing' as const};
+        }
+        return entry;
+      });
+      return {
+        ...prev,
+        playlist,
+        playback: {
+          currentEntryId: previous.entryId,
+          positionMs: 0,
+          isPlaying: true,
+          serverTimestamp: Date.now(),
+          updatedByParticipantId: currentParticipantId ?? prev.hostParticipantId,
+        },
+      };
+    });
+  }, [currentParticipantId, triggerTuning]);
+
   const addTrack = useCallback(
     (track: Track) => {
       setSession(prev => {
@@ -142,13 +175,48 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     [currentParticipantId],
   );
 
-  const removeTrack = useCallback((entryId: string) => {
-    setSession(prev => {
-      if (!prev) {return prev;}
-      const playlist = sessionService.removeTrack(prev.sessionId, entryId);
-      return {...prev, playlist};
-    });
-  }, []);
+  const removeTrack = useCallback(
+    (entryId: string) => {
+      setSession(prev => {
+        if (!prev) {return prev;}
+        const wasCurrent = prev.playback.currentEntryId === entryId;
+        const removedIndex = prev.playlist.findIndex(e => e.entryId === entryId);
+        const playlistAfterRemoval = sessionService.removeTrack(prev.sessionId, entryId);
+
+        if (!wasCurrent) {
+          return {...prev, playlist: playlistAfterRemoval};
+        }
+
+        // 04-playlist.md 기능 목록 2번: 현재 재생 중인 곡이 삭제되면 남은 큐의 다음 곡으로 자동 전환한다.
+        const next = removedIndex >= 0 ? prev.playlist[removedIndex + 1] : undefined;
+        if (!next) {
+          // 다음 곡이 없으면 "재생할 곡 없음" 상태를 유지한다(정상 동작).
+          return {
+            ...prev,
+            playlist: playlistAfterRemoval,
+            playback: {...prev.playback, currentEntryId: null, isPlaying: false, positionMs: 0},
+          };
+        }
+
+        triggerTuning();
+        const playlist = playlistAfterRemoval.map(entry =>
+          entry.entryId === next.entryId ? {...entry, playedStatus: 'playing' as const} : entry,
+        );
+        return {
+          ...prev,
+          playlist,
+          playback: {
+            currentEntryId: next.entryId,
+            positionMs: 0,
+            isPlaying: true,
+            serverTimestamp: Date.now(),
+            updatedByParticipantId: currentParticipantId ?? prev.hostParticipantId,
+          },
+        };
+      });
+    },
+    [currentParticipantId, triggerTuning],
+  );
 
   const appointAdmin = useCallback((participantId: string) => {
     setSession(prev => {
@@ -195,6 +263,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestPlay,
       requestPause,
       requestNextTrack,
+      requestPrevTrack,
       addTrack,
       removeTrack,
       appointAdmin,
@@ -210,6 +279,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestPlay,
       requestPause,
       requestNextTrack,
+      requestPrevTrack,
       addTrack,
       removeTrack,
       appointAdmin,

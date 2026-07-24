@@ -138,9 +138,9 @@ function TrackRow({
   return (
     <TouchableOpacity
       style={[styles.trackRow, {borderBottomColor: theme.border}]}
-      onLongPress={() => !readOnly && onDelete(entry)}
+      onLongPress={() => onDelete(entry)}
       delayLongPress={350}
-      accessibilityHint={readOnly ? undefined : '길게 누르면 삭제할 수 있어요'}>
+      accessibilityHint="길게 누르면 삭제할 수 있어요">
       {isPlaying ? (
         <Text style={styles.playingGlyph}>▶</Text>
       ) : readOnly ? (

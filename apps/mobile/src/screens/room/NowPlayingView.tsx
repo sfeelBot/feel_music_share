@@ -26,13 +26,15 @@ interface NowPlayingViewProps {
 export default function NowPlayingView({onOpenParticipants}: NowPlayingViewProps) {
   const theme = useTheme();
   const {profile} = useAuth();
-  const {session, syncStatus, requestPlay, requestPause, requestNextTrack} = useSession();
+  const {session, syncStatus, requestPlay, requestPause, requestNextTrack, requestPrevTrack} = useSession();
 
   if (!session) {
     return null;
   }
 
   const currentEntry = session.playlist.find(e => e.entryId === session.playback.currentEntryId);
+  const currentIndex = session.playlist.findIndex(e => e.entryId === session.playback.currentEntryId);
+  const hasPrevTrack = currentIndex > 0;
   const picker = currentEntry
     ? session.participants.find(p => p.participantId === currentEntry.addedByParticipantId)
     : undefined;
@@ -48,7 +50,7 @@ export default function NowPlayingView({onOpenParticipants}: NowPlayingViewProps
 
   return (
     <View style={styles.container}>
-      {viewerIsFree && (
+      {viewerIsFree && session.service === 'spotify' && (
         <View style={[styles.freeBanner, {backgroundColor: theme.amberAlertBg}]}>
           <Text style={styles.freeBannerTitle}>⚠ Free 계정 안내</Text>
           <Text style={[styles.freeBannerBody, {color: theme.text}]}>
@@ -90,7 +92,12 @@ export default function NowPlayingView({onOpenParticipants}: NowPlayingViewProps
       </View>
 
       <View style={styles.controls}>
-        <TouchableOpacity accessibilityLabel="이전 곡" style={[styles.controlBtn, {backgroundColor: theme.cardBg}]}>
+        <TouchableOpacity
+          accessibilityLabel="이전 곡"
+          accessibilityState={{disabled: !hasPrevTrack}}
+          disabled={!hasPrevTrack}
+          style={[styles.controlBtn, {backgroundColor: theme.cardBg, opacity: hasPrevTrack ? 1 : 0.4}]}
+          onPress={requestPrevTrack}>
           <Text style={[styles.controlGlyph, {color: theme.text}]}>⏮</Text>
         </TouchableOpacity>
         <TouchableOpacity

@@ -100,7 +100,10 @@ export default function CreateSessionScreen({navigation}: Props) {
 function RadioRow({label, selected, disabled, note}: {label: string; selected: boolean; disabled: boolean; note?: string}) {
   const theme = useTheme();
   return (
-    <View style={[styles.radioRow, {opacity: disabled ? 0.45 : 1}]}>
+    <View
+      style={[styles.radioRow, {opacity: disabled ? 0.45 : 1}]}
+      accessibilityRole="radio"
+      accessibilityState={{selected, disabled}}>
       <View style={[styles.radioDot, {borderColor: selected ? brand.primary : theme.border}]}>
         {selected && <View style={[styles.radioDotInner, {backgroundColor: brand.primary}]} />}
       </View>

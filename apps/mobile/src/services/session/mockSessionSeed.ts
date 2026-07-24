@@ -18,40 +18,42 @@ export function ringColorForIndex(index: number): string {
   return RING_COLORS[index % RING_COLORS.length];
 }
 
-export function buildDemoParticipants(host: {
-  participantId: string;
-  displayName: string;
-  accountTier: 'premium' | 'free';
-}): ParticipantInfo[] {
-  return [
-    {
-      participantId: host.participantId,
-      displayName: host.displayName,
-      ringColor: ringColorForIndex(0),
-      role: 'host',
-      accountTier: host.accountTier,
-      connectionStatus: 'connected',
-      delaySeconds: 0,
-    },
-    {
-      participantId: generateId('demo_participant'),
-      displayName: '민준',
-      ringColor: ringColorForIndex(1),
-      role: 'regular',
-      accountTier: 'premium',
-      connectionStatus: 'connected',
-      delaySeconds: 1.2,
-    },
-    {
-      participantId: generateId('demo_participant'),
-      displayName: '준호',
-      ringColor: ringColorForIndex(1),
-      role: 'regular',
-      accountTier: 'free',
-      connectionStatus: 'connected',
-      delaySeconds: 0,
-    },
-  ];
+const DEMO_OTHERS: Array<{displayName: string; accountTier: 'premium' | 'free'; delaySeconds: number}> = [
+  {displayName: '민준', accountTier: 'premium', delaySeconds: 1.2},
+  {displayName: '준호', accountTier: 'free', delaySeconds: 0},
+];
+
+/**
+ * 데모 참여자를 시드한다. `capacity`를 절대 초과하지 않는다(정원보다 시드 인원이 많아지는
+ * 모순 방지 — 검증 라운드 1, 4.16). 기본 정원 2명이면 호스트 1명만 남고, 정원이 늘어날수록
+ * DEMO_OTHERS를 순서대로 추가한다.
+ */
+export function buildDemoParticipants(
+  host: {participantId: string; displayName: string; accountTier: 'premium' | 'free'},
+  capacity: number,
+): ParticipantInfo[] {
+  const hostEntry: ParticipantInfo = {
+    participantId: host.participantId,
+    displayName: host.displayName,
+    ringColor: ringColorForIndex(0),
+    role: 'host',
+    accountTier: host.accountTier,
+    connectionStatus: 'connected',
+    delaySeconds: 0,
+  };
+
+  const otherSlots = Math.max(0, Math.min(DEMO_OTHERS.length, capacity - 1));
+  const others: ParticipantInfo[] = DEMO_OTHERS.slice(0, otherSlots).map((demo, index) => ({
+    participantId: generateId('demo_participant'),
+    displayName: demo.displayName,
+    ringColor: ringColorForIndex(index + 1),
+    role: 'regular',
+    accountTier: demo.accountTier,
+    connectionStatus: 'connected',
+    delaySeconds: demo.delaySeconds,
+  }));
+
+  return [hostEntry, ...others];
 }
 
 const demoTracks: Track[] = [

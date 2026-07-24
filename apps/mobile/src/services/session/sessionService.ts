@@ -35,7 +35,8 @@ export function createSession(params: {
   capacity?: number;
   host: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
 }): SessionState {
-  const participants: ParticipantInfo[] = buildDemoParticipants(params.host);
+  const capacity = params.capacity ?? SESSION_CAPACITY_DEFAULT;
+  const participants: ParticipantInfo[] = buildDemoParticipants(params.host, capacity);
   const playlist: PlaylistEntry[] = buildDemoPlaylist(participants);
   const firstEntry = playlist[0];
 
@@ -45,7 +46,7 @@ export function createSession(params: {
     sessionName: params.sessionName.trim() || '우리 둘의 플레이리스트',
     service: params.service,
     hostParticipantId: params.host.participantId,
-    capacity: params.capacity ?? SESSION_CAPACITY_DEFAULT,
+    capacity,
     participants,
     playlist,
     playback: {
