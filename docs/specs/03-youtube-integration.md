@@ -1,6 +1,6 @@
 # 03. YouTube(Premium) 연동 리서치 및 제약
 
-> 상태: v1 (2026-07-23) + 6절 추가(2026-07-23, 같은 날 — "호스트 단독 유료 계정 + 오디오/비디오 중계" 모델 검토)
+> 상태: v1 (2026-07-23) + 6절 추가(2026-07-23, 같은 날 — "호스트 단독 유료 계정 + 오디오/비디오 중계" 모델 검토) + 8절 추가(2026-07-23, 같은 날 — 사용자가 광고 노출을 감수하기로 결정, YouTube MVP 승격에 따른 재평가)
 > 리서치 근거: Google/YouTube 공식 개발자 문서, YouTube Help, Google Developers Blog, GitHub 이슈, 각종 개발자 커뮤니티 (2026-07-23 기준 WebSearch/WebFetch로 확인). 6절은 YouTube 공식 이용약관 PDF 원문 직접 대조를 포함.
 > **주의**: 이 문서는 CLAUDE.md에서 "리스크가 크다"고 명시한 영역이다. 결론 대부분에 확실성 등급을 표기했으며, 불확실한 부분은 "확인 필요"로 명시했다.
 
@@ -178,6 +178,41 @@ YouTube 이용약관(`https://www.youtube.com/static?template=terms`, 2023년 12
 
 **종합 결론**: 우리가 실제로 채택하려는 아키텍처(WebView 임베드)를 기준으로 하면 답은 (a)에 가깝다 — "전원 Premium이어도 우리 앱 안에서는 광고가 뜰 가능성이 높다"고 보고 제품 기대치/카피를 관리해야 한다. 광고 없이 재생되는 경로(b, 네이티브 앱 딥링크)는 존재하지만 동기화 기능을 포기해야 하므로 실질적 해법이 아니다. 100% 확정적인 공식 문서 인용(예: "임베드에서는 시청자의 Premium 여부와 무관하게 항상 광고가 뜬다"는 명시적 한 문장)은 끝내 찾지 못했으므로, 기존 3)절의 권고와 동일하게 **구현 착수 전 실기기 스파이크 테스트로 최종 확인할 것을 재차 권고**한다(신뢰도를 (a)의 "중간~높음"에서 "확정"으로 올리는 유일한 방법).
 
+## 8) [재평가 — 2026-07-23] 사용자가 "광고 노출을 감수"하기로 결정 — YouTube MVP 승격에 따른 재확인
+
+> 배경: 사용자가 3)·7)절에서 확인된 리스크("전원 Premium이어도 임베드에서 광고가 뜰 가능성이 높음")를 알고도 이를 감수하기로 결정하고, YouTube를 MVP(1차 범위)에 Spotify와 함께 포함시키기로 했다(`06-mvp-scope-and-tech-stack.md` "갱신된 MVP 범위 결정" 절). 이 절은 이 결정 변경이 기존 조사 결론 자체를 바꾸지는 않는다는 점을 전제로, 리더가 지시한 세 가지 재확인 포인트에 대한 결론만 추가로 정리한다.
+
+### 8-1. 재생 제어(재생/일시정지/탐색/곡 전환) 자체는 문제없이 가능한가
+
+**결론: 문제없다. 이미 2)절에서 확인한 사실이 그대로 유지된다.** IFrame Player API의 JS 함수(`playVideo`/`pauseVideo`/`seekTo`/`loadVideoById`/`cueVideoById` 등)와 이벤트 리스너(`onStateChange` 등)로 재생/일시정지/특정 위치 탐색/곡 전환/현재 상태·위치 조회(polling)가 공식 문서 기준으로 모두 가능하다(확실성: 높음, 공식 문서 확인 완료 — 2)절 참고). 광고 수용 여부는 이 재생 제어 가능성과는 무관한 별개의 축이다. 다만 광고가 재생되는 구간에는 `player.getCurrentTime()`/`getPlayerState()`가 "광고 재생 중" 상태를 반환하며(광고 자체도 IFrame Player가 관리하는 재생 상태의 일부), 이 구간에서의 seek 명령은 광고를 건너뛰려는 시도로 해석될 소지가 있어 **명령을 보내지 않도록 회피하는 로직이 필요하다**(8-2 참고).
+
+### 8-2. YouTube API Services 정책 — 광고 관련 UI 제약 재확인
+
+기존 5)절(Required Minimum Functionality)에 더해, **YouTube API Services Developer Policies** 원문을 광고 관련 조항 위주로 재확인했다(공식 문서 `developers.google.com/youtube/terms/developer-policies` 기준, 확실성: 높음).
+
+- **Section III.I.5**: "modify, interfere with, replace, or block advertisements placed or served by YouTube or by YouTube API Services including in API Data, YouTube audiovisual content, or YouTube players" — API/데이터/플레이어에 실리는 광고를 **수정·간섭·대체·차단하는 행위 일체를 금지**한다. 우리가 만들 자체 UI(예: "광고 재생 중" 배지, 커스텀 컨트롤)가 광고 자체의 재생을 막거나 우회하는 기능으로 이어지면 안 된다 — 정보성 표시(광고 중임을 알리는 오버레이 텍스트 등)는 광고 자체를 "간섭/차단"하는 것이 아니므로 이 조항과 직접 충돌하지 않을 것으로 판단되나(확실성: 중간 — 조항이 UI 오버레이 표시 자체를 금지하는지까지는 명시하지 않음), 5)절에서 이미 확인한 "YouTube 컨트롤 위에 자체 UI를 겹쳐 가리면 안 됨" 규정과 함께 광고 재생 구간의 네이티브 컨트롤(예: "광고 건너뛰기" 버튼, 음소거 버튼)을 우리 UI로 가리거나 대체하는 요소는 만들지 않아야 한다.
+- **Section III.I.6**: "modify, build upon, or block any portion or functionality of a YouTube player" — 플레이어의 어떤 부분/기능이든 수정·변형·차단 금지. IFrame Player를 그대로 사용하는 우리 아키텍처(WebView에 표준 IFrame Player를 로드하고 JS API로만 명령을 보내는 방식)는 이 조항 위반 소지가 낮다(플레이어 자체를 변형하는 것이 아니라 표준 API로 제어하는 것이므로). 다만 향후 구현 단계에서 "광고를 건너뛰기 위해 플레이어 DOM을 조작"하거나 "광고 감지 후 자동으로 seek해 광고를 스킵" 같은 기능은 이 조항과 III.I.5 모두에 명백히 저촉되므로 **절대 구현하지 않아야 한다**(이미 3)절·5)절에서 동일한 취지로 언급됨 — 이번 재확인으로 조항 번호까지 특정해 확실성을 높인 것).
+- 이번 재확인에서 새로 발견된 제약은 없다 — 기존 5)절 요약과 실질적으로 동일한 결론이며, 다만 "광고 UI를 건드리지 않는다"는 원칙이 이제 P2가 아니라 **MVP 구현 단계에서 반드시 지켜야 할 요구사항**이 되었다는 점이 달라졌을 뿐이다. 구현 에이전트에게 전달할 최소 가이드라인: (1) 광고 감지 시 seek/skip 명령을 보내지 않는다, (2) 광고 재생 중 네이티브 컨트롤(스킵 버튼 등)을 자체 UI로 가리지 않는다, (3) 정보성 안내 오버레이("광고 재생 중" 텍스트 등)는 컨트롤을 가리지 않는 위치에 최소한으로만 배치한다.
+
+### 8-3. 동기화 아키텍처 — 광고 구간에서의 예외 처리 (개념 수준)
+
+`05-sync-architecture.md`가 이미 짚었듯("YouTube 방: ... 광고가 개입되는 구간은 동기화 예외 처리가 필요할 수 있다"), 이 이슈는 더 이상 "혹시 생길 수도 있는 예외"가 아니라 **MVP에서 상시 발생할 수 있는 정상 케이스**로 재정의해야 한다. 개념 수준의 처리 방향을 다음과 같이 제안한다(상세 프로토콜/구현은 구현 단계 몫):
+
+- **광고 길이는 참여자마다 다를 수 있다**: 같은 videoId를 각자 로컬로 재생하더라도, 광고 삽입 여부·광고 길이·광고 개수는 시청자별 타겟팅에 따라 달라질 수 있다(공식 문서상 광고 노출 로직이 영상 제작자의 수익화 설정과 시청자별 광고 서빙에 달려 있음 — 7-2절 참고). 즉 "서버 기준 시계"가 가리키는 본편 재생 위치와, 광고를 보고 있는 참여자의 실제 화면이 구조적으로 어긋나는 구간이 생긴다.
+- **제안하는 처리 방향**:
+  1. 각 클라이언트는 `onStateChange` 이벤트로 자신의 플레이어가 광고 재생 상태인지 감지할 수 있다(IFrame Player API는 광고 재생 여부를 상태값으로 구분해 노출한다 — 정확한 상태 코드/감지 방법은 구현 단계에서 실기기로 확인).
+  2. 광고 재생 중인 클라이언트는 서버가 보내는 "본편 기준 위치" 동기화 명령(seek 등)을 **일시적으로 무시**한다 — 광고 재생 중 seek를 시도하면 광고를 건너뛰려는 행위로 해석되어 8-2의 정책 위반 소지가 생기기 때문이다. 대신 UI에는 "광고 재생 중 — 곧 동기화됩니다" 같은 상태를 표시한다(US-404 "동기화 상태 표시"의 연장으로 다룰 것을 제안).
+  3. 광고가 끝나면(`onStateChange`가 본편 재생으로 전환되면) 그 시점의 서버 기준 위치로 즉시 재동기화(seek)한다 — late join과 동일한 로직을 재사용할 수 있다(`05-sync-architecture.md` "4. Late join / 재접속" 참고).
+  4. 광고 시청 여부가 참여자마다 달라 "누구는 광고를 보고 누구는 본편을 듣는" 상태가 한동안 공존할 수 있음을 제품 기대치로 사용자에게 고지한다(US-406과 같은 취지의 투명성 원칙 연장).
+- 이 처리 방향은 어디까지나 개념 제안이며, 실제 상태 감지 신뢰도·전환 타이밍의 정확도는 구현 단계에서 실기기 검증이 필요하다.
+
+### 8-4. 종합
+
+- 재생 제어 가능성: 변경 없음(가능, 확실성 높음).
+- ToS/정책 제약: 조항 번호(III.I.5, III.I.6)까지 특정해 재확인 완료. 새로운 제약 발견 없음 — 다만 지켜야 할 원칙이 P2 검토사항에서 MVP 구현 요구사항으로 격상됨.
+- 동기화 아키텍처: 광고 구간 예외 처리가 상시 케이스로 재정의됨. 개념 수준 처리 방향(광고 중 동기화 명령 무시 → 광고 종료 시 재동기화)을 제안했으며, 상세는 구현 단계 몫.
+- 이번 재평가로 3)·7)절의 핵심 결론("전원 Premium이어도 광고가 뜰 가능성이 높다")이 뒤집힌 것은 아니다 — 사용자가 이 리스크를 알고 받아들이기로 한 것뿐이며, 문서상 리스크 기록 자체는 그대로 유지한다.
+
 ## 참고자료
 - YouTube IFrame Player API Reference: https://developers.google.com/youtube/iframe_api_reference
 - YouTube Embedded Players and Player Parameters: https://developers.google.com/youtube/player_parameters
@@ -197,6 +232,10 @@ YouTube 이용약관(`https://www.youtube.com/static?template=terms`, 2023년 12
 - Android 오디오 재생 캡처(Android 10, `AudioPlaybackCaptureConfiguration`) 공식 가이드: https://developer.android.com/media/platform/av-capture , 공식 블로그: https://android-developers.googleblog.com/2019/07/capturing-audio-in-android-q.html
 - iOS FairPlay 보호 콘텐츠의 화면 캡처(검은 화면) 관련 Apple 개발자 포럼 논의: https://developer.apple.com/forums/thread/63725 , https://developer.apple.com/forums/thread/86521
 - Spotify 이용약관(재배포·개인적 이용 제한 조항): https://www.spotify.com/us/legal/end-user-agreement/plain/
+
+### 8절(광고 수용 결정에 따른 재평가) 관련 추가 참고자료
+- YouTube API Services - Required Minimum Functionality (재확인): https://developers.google.com/youtube/terms/required-minimum-functionality
+- YouTube API Services - Developer Policies (Section III.I.5, III.I.6 광고/플레이어 변조 금지 조항 확인): https://developers.google.com/youtube/terms/developer-policies
 
 ### 7절(전원 Premium + 임베드 광고 여부 심화 검증) 관련 추가 참고자료
 - YouTube 공식 도움말 "Ads on embedded videos": https://support.google.com/youtube/answer/132596?hl=en (원문 대조: Premium/로그인 관련 언급 없음, 광고 노출은 영상 제작자의 수익화 설정에 연동됨)

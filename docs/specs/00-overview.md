@@ -49,5 +49,8 @@ feel_music_share는 이 문제를 앱 하나로 해결한다:
 | `04-playlist.md` | 협업 플레이리스트 기능 명세 |
 | `05-sync-architecture.md` | 재생 동기화(저지연) 아키텍처 방향에 대한 초기 아이디어 |
 | `06-mvp-scope-and-tech-stack.md` | Spotify vs YouTube 리스크 비교, MVP 범위 권고안, 기술 스택 후보 (미확정 제안) |
+| `07-alternative-services.md` | Spotify/YouTube 외 "전원 무료 + 메인스트림 카탈로그 + 재생 제어" 대안 서비스 조사 (2026-07-23 추가) |
+| `08-korean-services-melon-genie.md` | 멜론/지니뮤직 서드파티 연동 가능성 조사 (2026-07-23 추가) — 결론: 공식 연동 채널 부재로 배제 권고 |
+| `09-cross-platform-mixed-mode.md` | "플랫폼 통일 안 함" 크로스플랫폼 혼합 세션 모드 검토 (2026-07-23 추가) — ISRC 매칭 한계, 조건부 실현 가능성. **(2026-07-23 갱신)** 옛 "MVP 보류" 권고는 사용자 결정으로 대체됨 — 혼합 모드는 매칭 결과 고지+확인 UI를 전제로 MVP 세 번째 세션 유형으로 포함 |
 
 각 문서는 독립적으로 읽을 수 있도록 작성했으나, 리스크 비교와 최종 권고안을 빠르게 확인하려면 `06-mvp-scope-and-tech-stack.md`부터 봐도 된다.
