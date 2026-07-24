@@ -33,6 +33,10 @@
     --color-amber-alert: #F2A93B;
     --color-muted-red: #E4573D;
 
+    /* 역할 배지 컬러 (01-style-guide.md 7절 — 동기화 상태/선곡자 링/브랜드 컬러와 겹치지 않는 별도 색 슬롯) */
+    --color-role-gold: #D9A441;   /* 방장 */
+    --color-role-slate: #7C6F9E; /* 관리자 */
+
     /* 브랜드 컬러 (01-style-guide.md 2절) */
     --color-primary: #FF6F61;      /* Dusk Coral */
     --color-primary-dark: #4A2545; /* Deep Plum */
@@ -62,6 +66,8 @@
     --color-sync-green-bg: rgba(63, 182, 139, 0.14);
     --color-amber-alert-bg: rgba(242, 169, 59, 0.16);
     --color-muted-red-bg: rgba(228, 87, 61, 0.14);
+    --color-role-gold-bg: rgba(217, 164, 65, 0.16);
+    --color-role-slate-bg: rgba(124, 111, 158, 0.14);
     --page-bg: #F1E7DD;
   }
 
@@ -84,6 +90,8 @@
       --color-sync-green-bg: rgba(63, 182, 139, 0.22);
       --color-amber-alert-bg: rgba(242, 169, 59, 0.22);
       --color-muted-red-bg: rgba(228, 87, 61, 0.22);
+      --color-role-gold-bg: rgba(217, 164, 65, 0.24);
+      --color-role-slate-bg: rgba(124, 111, 158, 0.26);
       --page-bg: #14101F;
     }
   }
@@ -106,6 +114,8 @@
     --color-sync-green-bg: rgba(63, 182, 139, 0.22);
     --color-amber-alert-bg: rgba(242, 169, 59, 0.22);
     --color-muted-red-bg: rgba(228, 87, 61, 0.22);
+    --color-role-gold-bg: rgba(217, 164, 65, 0.24);
+    --color-role-slate-bg: rgba(124, 111, 158, 0.26);
     --page-bg: #14101F;
   }
 
@@ -126,6 +136,8 @@
     --color-sync-green-bg: rgba(63, 182, 139, 0.14);
     --color-amber-alert-bg: rgba(242, 169, 59, 0.16);
     --color-muted-red-bg: rgba(228, 87, 61, 0.14);
+    --color-role-gold-bg: rgba(217, 164, 65, 0.16);
+    --color-role-slate-bg: rgba(124, 111, 158, 0.14);
     --page-bg: #F1E7DD;
   }
 
@@ -1040,6 +1052,280 @@
   .participant-status--ok { color: var(--color-sync-green); }
   .participant-status--delayed { color: var(--color-amber-alert); }
 
+  /* ---------- 역할 배지 (02-key-ui-patterns.md 6절, 01-style-guide.md 7절) ---------- */
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+
+  .role-badge--host {
+    color: var(--color-role-gold);
+    background: var(--color-role-gold-bg);
+  }
+
+  .role-badge--admin {
+    color: var(--color-role-slate);
+    background: var(--color-role-slate-bg);
+  }
+
+  .free-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-amber-alert);
+    background: var(--color-amber-alert-bg);
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+
+  /* 방장 아바타 위 왕관 오버레이 (02-key-ui-patterns.md 6.3절 — Now Playing 아바타 스택) */
+  .avatar { position: relative; }
+
+  .avatar__crown {
+    position: absolute;
+    top: -8px;
+    right: -6px;
+    font-size: 13px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  }
+
+  /* ---------- 세션 생성 화면 (00-ux-flow.md 2.6, 02-key-ui-patterns.md 7절) ---------- */
+  .create-session-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px 6px;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .create-session {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 22px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    margin-bottom: 7px;
+  }
+
+  .text-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--color-border);
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    font-size: 13.5px;
+    font-family: var(--font-sans);
+  }
+
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 2px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .radio-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .radio-dot.is-selected { border-color: var(--color-primary); }
+
+  .radio-dot.is-selected::after {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--color-primary);
+  }
+
+  .capacity-stepper {
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 16px 16px 14px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .capacity-stepper__row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 16px;
+  }
+
+  .stepper-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-border);
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .capacity-stepper__value {
+    font-size: 19px;
+    font-weight: 800;
+    min-width: 46px;
+    text-align: center;
+  }
+
+  .capacity-stepper__track {
+    position: relative;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-track-bg);
+    margin: 0 6px 8px;
+  }
+
+  .capacity-stepper__fill-dot {
+    position: absolute;
+    top: 50%;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 1px 4px var(--color-shadow);
+    transform: translate(-50%, -50%);
+  }
+
+  .capacity-stepper__labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--color-text-secondary);
+  }
+
+  .info-banner {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  /* ---------- Free 계정 안내 배너 (02-key-ui-patterns.md 9절) ---------- */
+  .free-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    background: var(--color-amber-alert-bg);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--color-text);
+  }
+
+  .free-banner__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--color-amber-alert);
+  }
+
+  .free-banner .btn-text-link {
+    padding: 0;
+    font-size: 12px;
+  }
+
+  /* ---------- 참여자 행 오버플로우 메뉴 (02-key-ui-patterns.md 6.4절 — 관리자 임명 진입점, 방장 전용) ---------- */
+  .participant-row-anchor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .row-menu-trigger {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    font-size: 17px;
+    cursor: pointer;
+    padding: 4px 2px;
+    flex: 0 0 auto;
+  }
+
+  .row-menu {
+    position: absolute;
+    top: 30px;
+    right: 0;
+    min-width: 168px;
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 24px var(--color-shadow);
+    padding: 6px;
+    z-index: 20;
+  }
+
+  .row-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 9px 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-text);
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+
+  .row-menu__hint {
+    padding: 6px 10px 2px;
+    font-size: 10.5px;
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+  }
+
   /* 아주 좁은 화면에서도 body 가로 스크롤이 생기지 않도록 안전장치 */
   @media (max-width: 380px) {
     .device, .phone-frame { width: 88vw; }
@@ -1424,6 +1710,264 @@
       <figcaption>
         <strong>참여자 목록 (바텀시트)</strong>
         <span>00-ux-flow.md 2.12절 — 참여자별 연결 상태를 개인 단위로 상세 표시(전체 요약 배지와 상호보완)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 7. 세션 생성 화면 — 정원 스테퍼(기본값 2명) (2026-07-24 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="create-session-header">
+            <span aria-hidden="true">←</span>
+            <span>세션 만들기</span>
+          </div>
+          <div class="create-session">
+            <div>
+              <label class="form-label">세션 이름</label>
+              <input class="text-input" type="text" value="우리 둘의 플레이리스트" readonly />
+            </div>
+            <div>
+              <label class="form-label">음악 서비스</label>
+              <div class="radio-option"><span class="radio-dot is-selected" aria-hidden="true"></span> Spotify</div>
+              <div class="radio-option"><span class="radio-dot" aria-hidden="true"></span> YouTube</div>
+              <div class="radio-option"><span class="radio-dot" aria-hidden="true"></span> 혼합 (Mixed)</div>
+            </div>
+            <div>
+              <label class="form-label">정원</label>
+              <div class="capacity-stepper">
+                <div class="capacity-stepper__row">
+                  <button type="button" class="stepper-btn" aria-label="정원 줄이기">−</button>
+                  <span class="capacity-stepper__value">2명</span>
+                  <button type="button" class="stepper-btn" aria-label="정원 늘리기">+</button>
+                </div>
+                <div class="capacity-stepper__track">
+                  <span class="capacity-stepper__fill-dot" style="left:3%" aria-hidden="true"></span>
+                </div>
+                <div class="capacity-stepper__labels"><span>2명</span><span>12명</span></div>
+              </div>
+            </div>
+            <p class="info-banner">ⓘ 이 방은 Spotify 전용이에요. 참여자 모두 Spotify Premium이 필요해요.<br />(나중에 세션 설정에서 YouTube로 전환할 수 있어요)</p>
+            <button type="button" class="btn btn-primary" style="margin-top:auto;">세션 만들기</button>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>세션 생성 · 정원 스테퍼</strong>
+        <span>00-ux-flow.md 2.6절 / 02-key-ui-patterns.md 7절 — (2026-07-24 확정) 정원 기본값 2명으로 초기 렌더링, 방장이 2~12명 범위에서 직접 조정 가능</span>
+      </figcaption>
+    </figure>
+
+    <!-- 8. Now Playing — 방장 역할 배지(왕관 오버레이) 적용 (2026-07-24 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button" class="is-active">Now Playing</button>
+            <button type="button">플레이리스트</button>
+          </div>
+          <div class="now-playing">
+            <div class="album-art" aria-hidden="true">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+            </div>
+            <p class="track-title">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스</p>
+            <div class="picker-line">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              이 곡은 민준님이 선곡
+            </div>
+            <div class="progress">
+              <div class="progress__track"><div class="progress__fill"></div></div>
+              <div class="progress__labels"><span>1:32</span><span>3:45</span></div>
+            </div>
+            <div class="controls">
+              <button type="button" class="control-btn" aria-label="이전 곡">⏮</button>
+              <button type="button" class="control-btn control-btn--main" aria-label="일시정지">⏸</button>
+              <button type="button" class="control-btn" aria-label="다음 곡">⏭</button>
+            </div>
+            <div class="sync-badge sync-badge--synced">
+              <span class="sync-icon" aria-hidden="true"></span>
+              동기화됨 · 3명 함께 듣는 중
+            </div>
+            <div class="avatar-stack" aria-hidden="true">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지<span class="avatar__crown">👑</span></span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Now Playing · 역할 배지(방장 👑)</strong>
+        <span>02-key-ui-patterns.md 6.3절 — 참여자 아바타 스택 중 방장 아바타에만 작은 왕관 오버레이 표시(관리자/일반사용자는 스택에서 생략, 전체 확인은 참여자 목록에서)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 9. Now Playing — Free 계정 안내 배너 (Spotify 세션 기준) (2026-07-24 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button" class="is-active">Now Playing</button>
+            <button type="button">플레이리스트</button>
+          </div>
+          <div class="now-playing">
+            <p class="free-banner">
+              <span class="free-banner__title">⚠ Free 계정 안내</span>
+              Free 계정으로는 곡 재생(동기화 재생)에 참여할 수 없어요
+              <button type="button" class="btn-text-link">Premium 알아보기 →</button>
+            </p>
+            <div class="album-art" aria-hidden="true">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+            </div>
+            <p class="track-title">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스</p>
+            <div class="picker-line">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              이 곡은 민준님이 선곡
+            </div>
+            <div class="progress">
+              <div class="progress__track"><div class="progress__fill"></div></div>
+              <div class="progress__labels"><span>1:32</span><span>3:45</span></div>
+            </div>
+            <div class="controls">
+              <button type="button" class="control-btn" aria-label="이전 곡">⏮</button>
+              <button type="button" class="control-btn control-btn--main" aria-label="일시정지">⏸</button>
+              <button type="button" class="control-btn" aria-label="다음 곡">⏭</button>
+            </div>
+            <div class="sync-badge sync-badge--synced">
+              <span class="sync-icon" aria-hidden="true"></span>
+              동기화됨 · 5명 참여 중 (재생 3명)
+            </div>
+            <div class="avatar-stack" aria-hidden="true">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지<span class="avatar__crown">👑</span></span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Now Playing · Free 계정 안내 배너 (Spotify 세션)</strong>
+        <span>02-key-ui-patterns.md 9절 — (2026-07-24 확정) 해석 A 단일 시나리오: 세션 참여는 허용, 재생만 제한. 배너는 Spotify 세션에서만 자동 노출(YouTube 세션은 미노출). 참여/재생 인원 분리 표시(8절)도 함께 반영</span>
+      </figcaption>
+    </figure>
+
+    <!-- 10. 참여자 바텀시트 — 관리자 임명 버튼(방장 시점) + 참여/재생 인원 구분 (2026-07-24 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="sheet-backdrop-content" aria-hidden="true">
+            <div class="album-art" style="width:120px;height:120px;margin:8px auto 14px;"></div>
+            <p class="track-title" style="font-size:15px;">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스</p>
+          </div>
+          <div class="sheet-overlay">
+            <div class="bottom-sheet">
+              <div class="bottom-sheet__grabber"></div>
+              <h3 class="bottom-sheet__title">참여자 (4) · 재생 3명</h3>
+              <ul class="participant-list">
+                <li>
+                  <span class="avatar" style="--ring-color:var(--color-picker-coral)">지</span>
+                  <span class="participant-name">지은<span class="role-badge role-badge--host">👑 방장</span></span>
+                  <span class="participant-status participant-status--ok">
+                    <span class="sync-icon" aria-hidden="true"></span>정상
+                  </span>
+                </li>
+                <li>
+                  <div class="participant-row-anchor">
+                    <span class="avatar" style="--ring-color:var(--color-picker-amber)">민</span>
+                    <span class="participant-name">민준<span class="role-badge role-badge--admin">🛡 관리자</span></span>
+                    <span class="participant-status participant-status--delayed">
+                      <svg class="sync-icon--svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                      지연 1.2초
+                    </span>
+                    <button type="button" class="row-menu-trigger" aria-label="민준님 관리 메뉴 열기">⋮</button>
+                  </div>
+                </li>
+                <li>
+                  <div class="participant-row-anchor">
+                    <span class="avatar" style="--ring-color:var(--color-picker-teal)">수</span>
+                    <span class="participant-name">나(수아)</span>
+                    <span class="participant-status participant-status--ok">
+                      <span class="sync-icon" aria-hidden="true"></span>정상
+                    </span>
+                    <button type="button" class="row-menu-trigger" aria-label="수아님 관리 메뉴 열기">⋮</button>
+                  </div>
+                </li>
+                <li>
+                  <div class="participant-row-anchor">
+                    <span class="avatar" style="--ring-color:var(--color-picker-amber);opacity:.7;">준</span>
+                    <span class="participant-name">준호<span class="free-tag">Free · 재생 불가</span></span>
+                    <span class="participant-status participant-status--ok">
+                      <span class="sync-icon" aria-hidden="true"></span>정상
+                    </span>
+                    <button type="button" class="row-menu-trigger" aria-label="준호님 관리 메뉴 열기" aria-expanded="true">⋮</button>
+                    <div class="row-menu" role="menu" aria-label="준호님 관리 메뉴">
+                      <div class="row-menu__hint">방장 전용 메뉴</div>
+                      <button type="button" role="menuitem">🛡 관리자로 임명</button>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>참여자 바텀시트 · 관리자 임명(방장 시점)</strong>
+        <span>02-key-ui-patterns.md 6.4절 / 8절 — (2026-07-24 확정) 임명권은 방장 보유, ⋮ 메뉴는 방장 화면에만 노출(준호님 행에서 메뉴가 열린 상태 예시). 헤더의 "참여자 (4) · 재생 3명"은 Free 계정 준호님이 재생 인원에서 제외된 결과</span>
       </figcaption>
     </figure>
 
