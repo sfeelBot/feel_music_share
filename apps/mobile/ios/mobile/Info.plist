@@ -20,6 +20,22 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<!-- react-native-app-auth (Spotify OAuth, Authorization Code + PKCE — spotifyAuth.ts) 콜백
+			     수신용. 스킴만 등록하면 되고, 콜백 path(spotify-auth-callback / spotify-remote-callback,
+			     .env.example 참고)별로 개별 등록할 필요는 없다 — iOS는 CFBundleURLSchemes에 등록된
+			     스킴 단위로 openURL을 앱에 전달하고, 이후 어떤 host/path였는지는 URL 자체(및
+			     AppAuth SDK의 redirect URI 검증 로직)에서 판별한다. -->
+			<key>CFBundleURLName</key>
+			<string>com.mobile.spotify-auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>feelmusicshare</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>

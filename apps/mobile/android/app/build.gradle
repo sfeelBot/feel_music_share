@@ -84,6 +84,17 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // react-native-app-auth (Spotify OAuth, Authorization Code + PKCE — spotifyAuth.ts) 콜백을
+        // 받기 위한 리다이렉트 스킴 등록. AppAuth-Android가 자체 매니페스트에 선언한
+        // net.openid.appauth.RedirectUriReceiverActivity의 intent-filter data scheme이
+        // 빌드 시 이 placeholder 값으로 치환되어 병합된다 (react-native-app-auth 공식 문서
+        // "Android Setup" 절 표준 방식, AndroidManifest.xml을 직접 수정하는 방식이 아님).
+        // scheme만 등록하면 host(=spotify-auth-callback / spotify-remote-callback)는 필터에
+        // 지정하지 않았으므로 feelmusicshare:// 전체가 매칭된다 — .env.example에 문서화된
+        // 두 콜백(spotify-auth-callback, spotify-remote-callback) 모두 이 한 줄로 커버됨.
+        manifestPlaceholders = [
+            appAuthRedirectScheme: "feelmusicshare"
+        ]
     }
     signingConfigs {
         debug {

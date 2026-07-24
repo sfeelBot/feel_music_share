@@ -73,4 +73,5 @@
 - 외부 액션: 커밋 `74ac205`("Fix round-1 QA failures: track auto-advance, prev button, seed cap") 생성(push 안 함).
 - 후속 분배: verifier에게 round 2 재검증 위임(백그라운드 실행 중) — 이번엔 round 1 실패 3건이 실제로 고쳐졌는지 재현 확인에 집중, 나머지는 회귀만 확인.
 - 결과(verifier round 2 — 세션 한도로 에이전트 프로세스는 중단됐으나 파일 기록은 완료됨): 알림상 status는 "failed"(계정 세션 한도 도달, 5:40pm KST 리셋)였지만, 실제로는 `docs/qa/spotify-mvp-round1-checklist.md`에 "Round 2 재검증" 절 전체와 `docs/agents/verification-log.md` 로그 항목까지 이미 다 작성된 뒤 마지막 요약 응답 단계에서 끊긴 것으로 확인됨(리더가 파일 내용을 직접 읽어 확인). **결과: 6개 수정 항목(4.12/4.15/4.16/Free 배너 가드/재생완료곡 삭제/라디오 접근성) 전부 통과, 정적 검증 3종 재현 통과, 인접 로직 회귀 없음 — 이번 라운드는 "완료"로 간주 가능.** 미해결로 남은 것(범위 밖, 기존과 동일): Android/iOS 실기기 런타임 검증(환경 구조적 제약 — JDK/macOS 부재), 커스텀 URL 스킴 미등록, 드래그 재정렬 미구현, 코드로 참여하기 미구현, 서버 측 권한 재검증 부재.
-- 외부 액션: 커밋 예정(다음 항목).
+- 외부 액션: 커밋 `628c195`("Round-2 verification: all 6 QA fixes confirmed passing") 생성(push 안 함).
+- 후속 분배: 사용자가 "이어서 일해" 지시 — 외부 계정 설정(Spotify Developer 앱 등록, Firebase 프로젝트 생성) 없이 진행 가능한 다음 작업으로, verifier가 반복 지적한 커스텀 URL 스킴(`feelmusicshare://`) 네이티브 미등록 문제를 implementer에게 위임(백그라운드 실행 중, 세션 한도 재발 리스크 고려해 스코프를 좁게 유지).
