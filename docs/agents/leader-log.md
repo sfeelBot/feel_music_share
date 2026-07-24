@@ -59,3 +59,5 @@
 - 결과: 커밋 `3b28f55`("Add app description and design mockup link to README") 생성. 이어서 그동안 누적된 커밋 5개(`d11bf20`~`3b28f55`)를 한 번에 push — `origin/main`이 `3b28f55`로 갱신됨.
 - 외부 액션: **push 완료**(`0e1c603..3b28f55 main -> main`, 사용자 명시적 요청).
 - 후속 분배: "구현팀·디자인팀 시작" 지시에 따라 두 에이전트를 병행 실행(백그라운드) — (1) implementer: Spotify 전용 세션 MVP 핵심 화면(온보딩·Spotify 연동·세션 생성·Now Playing·플레이리스트·참여자 시트) 실제 RN 코드 구현 착수, Firebase/Spotify 실제 키 연동은 구조만 준비. (2) designer: `03-screen-mockups.html`에 아직 없는 YouTube·혼합 세션 화면(YouTube Now Playing, 매칭 확인 카드 등) 추가해 구현보다 한 걸음 앞서도록 보강. 둘 다 커밋은 하지 않도록 지시(리더가 검토 후 커밋).
+- 결과(designer 완료, implementer는 계속 진행 중): `03-screen-mockups.html`에 신규 화면 5개 추가(YouTube 광고 상태 Now Playing, 혼합 세션 플랫폼 선택, 매칭 확인 카드, 혼합 모드 Now Playing, 서비스 전환 확인 다이얼로그) + 매칭 신뢰도 등급 참고 패널. 2.11a/c/d, 2.13b는 다음 라운드로 미룸(designer 자체 판단).
+- 외부 액션: 커밋 `14fe218`("Add YouTube and mixed-mode screens to mockup gallery") 생성(push 안 함 — implementer 결과와 함께 처리할지 판단 예정). `apps/mobile/`은 implementer가 아직 작업 중(중간 상태로 `git status`에 삭제/신규 파일 감지됨)이라 건드리지 않음.

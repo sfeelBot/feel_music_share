@@ -1,142 +1,72 @@
 import React, {useState} from 'react';
-import {
-  ActivityIndicator,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {Alert, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
+import {PrimaryButton, SecondaryButton} from '../components/Buttons';
 import {useAuth} from '../services/auth/AuthContext';
-import {useSession} from '../state/SessionContext';
-import {createSession, joinSession} from '../services/api/sessionApi';
+import {useTheme} from '../theme/ThemeContext';
 
-/** 세션 생성/참여 (US-201, US-202). */
+/** 홈 (00-ux-flow.md 2.5절) — 세션 생성/참여 진입점. */
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({navigation}: Props) {
-  const {user, tokens, logout} = useAuth();
-  const {joinSession: connectSession} = useSession();
+  const theme = useTheme();
+  const {profile, logout} = useAuth();
   const [inviteCode, setInviteCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const accessToken = tokens?.accessToken ?? '';
-
-  const handleCreate = async () => {
-    if (!user) {
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const {session, participantId} = await createSession({
-        hostDisplayName: user.displayName,
-        accessToken,
-      });
-      connectSession(session.sessionId, participantId, user.displayName);
-      navigation.navigate('Room', {sessionId: session.sessionId});
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : '방 생성에 실패했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleJoin = async () => {
-    if (!user || !inviteCode.trim()) {
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const {session, participantId} = await joinSession({
-        inviteCode: inviteCode.trim(),
-        displayName: user.displayName,
-        accessToken,
-      });
-      connectSession(session.sessionId, participantId, user.displayName);
-      navigation.navigate('Room', {sessionId: session.sessionId});
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : '방 참여에 실패했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleJoinByCode = () => {
+    // TODO(Firebase 연동): 실제 세션 조회/참여는 Firestore/RTDB 연동 이후에 동작한다.
+    // 이번 라운드는 로컬 목업 세션(services/session/sessionService.ts)만 있어 다른 기기의
+    // 초대 코드로 실제 참여할 방법이 없다 — 안내만 노출한다.
+    Alert.alert('준비 중', '세션 참여 기능은 Firebase 연동 이후 지원될 예정이에요.');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.bg}]}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>안녕하세요, {user?.displayName ?? ''}님</Text>
-        {!user?.isPremium && (
-          <Text style={styles.premiumWarning}>
-            Spotify Premium 계정이 아니어서 재생 제어 기능이 제한될 수 있어요. (US-102)
-          </Text>
-        )}
-        <TouchableOpacity onPress={logout}>
-          <Text style={styles.logout}>로그아웃</Text>
+        <Text style={[styles.appName, {color: theme.text}]}>feel_music_share</Text>
+        <TouchableOpacity onPress={logout} accessibilityRole="button">
+          <Text style={[styles.logout, {color: theme.textSecondary}]}>로그아웃</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.section}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleCreate} disabled={isLoading}>
-          <Text style={styles.primaryButtonText}>새 방 만들기</Text>
-        </TouchableOpacity>
-      </View>
+      <Text style={[styles.tagline, {color: theme.text}]}>지금 이 순간을 함께</Text>
+      {profile && !profile.isPremium && (
+        <Text style={styles.premiumWarning}>
+          Spotify Premium 계정이 아니어서 재생 제어 기능이 제한될 수 있어요. (US-102)
+        </Text>
+      )}
 
-      <View style={styles.section}>
+      <PrimaryButton
+        label="+ 새 세션 만들기"
+        onPress={() => navigation.navigate('CreateSession')}
+        style={styles.ctaSpacing}
+      />
+
+      <View style={styles.joinRow}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, {backgroundColor: theme.bgElevated, color: theme.text, borderColor: theme.border}]}
           placeholder="초대 코드 입력"
-          placeholderTextColor="#777"
+          placeholderTextColor={theme.textSecondary}
           value={inviteCode}
           onChangeText={setInviteCode}
           autoCapitalize="characters"
         />
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleJoin} disabled={isLoading}>
-          <Text style={styles.secondaryButtonText}>방 참여하기</Text>
-        </TouchableOpacity>
       </View>
-
-      {isLoading && <ActivityIndicator style={styles.loader} color="#1DB954" />}
-      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+      <SecondaryButton label="# 코드로 참여하기" onPress={handleJoinByCode} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#0F0F14', padding: 24},
-  header: {marginBottom: 32},
-  greeting: {color: '#FFFFFF', fontSize: 20, fontWeight: '600'},
-  premiumWarning: {color: '#FFC857', marginTop: 8, fontSize: 13},
-  logout: {color: '#7A7A85', marginTop: 12},
-  section: {marginBottom: 20},
-  primaryButton: {
-    backgroundColor: '#1DB954',
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  primaryButtonText: {color: '#FFFFFF', fontWeight: '600', fontSize: 16},
-  input: {
-    backgroundColor: '#1A1A22',
-    color: '#FFFFFF',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: '#1DB954',
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {color: '#1DB954', fontWeight: '600', fontSize: 16},
-  loader: {marginTop: 12},
-  errorText: {color: '#FF6B6B', marginTop: 12, textAlign: 'center'},
+  container: {flex: 1, padding: 24},
+  header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24},
+  appName: {fontSize: 18, fontWeight: '700'},
+  logout: {fontSize: 13},
+  tagline: {fontSize: 22, fontWeight: '700', marginBottom: 28},
+  premiumWarning: {color: '#F2A93B', marginBottom: 16, fontSize: 13},
+  ctaSpacing: {marginBottom: 24},
+  joinRow: {marginBottom: 12},
+  input: {borderRadius: 8, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12},
 });

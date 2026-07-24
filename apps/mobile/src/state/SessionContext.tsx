@@ -1,198 +1,219 @@
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {SyncSocket} from '../services/realtime/socket';
-import {spotifyRemotePlayer} from '../services/spotify/spotifyRemote';
-import {
-  CLOCK_SYNC_INTERVAL_MS,
-  DRIFT_CORRECTION_THRESHOLD_MS,
-  computeClockOffsetMs,
-  computeExpectedPositionMs,
-} from '../utils/clock';
-import type {ParticipantInfo, PlaybackState, PlaylistEntry} from '../types/domain';
-import type {ServerMessage} from '../types/protocol';
+import React, {createContext, useCallback, useContext, useMemo, useRef, useState} from 'react';
+import * as sessionService from '../services/session/sessionService';
+import type {
+  MusicService,
+  ParticipantInfo,
+  PlaylistEntry,
+  SessionState,
+  SyncStatusValue,
+  Track,
+} from '../types/domain';
 
 /**
- * 세션(방)의 실시간 상태를 앱 전역에 제공하는 컨텍스트.
+ * 세션(방)의 상태를 앱 전역에 제공하는 컨텍스트.
  *
- * 담당 범위 (MVP):
- * - WebSocket으로 수신한 session_state / playback_update / playlist_update / participants_update 반영
- * - 클록 오프셋 추정 (ping-pong) 및 주기적 드리프트 보정 (US-403, US-404)
- * - 재생 조작(재생/일시정지/탐색/다음곡)을 서버로 전송 (US-401)
+ * NOTE(Firebase 확정에 따른 변경, 중요): 이전 라운드 스캐폴딩은 자체 WebSocket 서버(services/realtime/socket.ts,
+ * 이번 라운드에서 제거)에 연결해 실시간 이벤트를 주고받는 구조였다. CLAUDE.md/06번 문서가 백엔드를
+ * Firebase로 확정하면서 그 커스텀 서버 자체가 존재하지 않게 됐고, 이번 라운드는 "Spotify 전용 세션
+ * MVP 핵심 화면" UI 완성이 목표이므로 services/session/sessionService.ts의 인메모리 목업으로 대체했다.
  *
- * 실제 오디오 제어는 services/spotify/spotifyRemote.ts (현재 STUB)를 통해 이뤄진다.
+ * TODO(Firebase 연동 — 다음 라운드, 정확한 교체 지점):
+ * 1. `createSession` → Firestore `sessions/{id}` 문서 생성(Cloud Function 경유 권장)으로 교체.
+ * 2. 아래 useEffect 자리에 Firestore `onSnapshot`/RTDB `onValue` 구독을 추가해 session 상태를
+ *    실시간으로 반영해야 한다(지금은 로컬 상태 변경만 있고 "구독"이 없다 — 참여자가 1명뿐인 로컬
+ *    데모라 아직 필요 없었음).
+ * 3. `requestPlay/Pause/Seek/NextTrack` → Cloud Function 호출로 교체하고, 그 응답이 아니라
+ *    구독 채널로 돌아오는 새 playback 문서를 반영하는 구조로 바꿔야 한다(현재는 낙관적으로 로컬에서
+ *    바로 상태를 바꾸고 있음 — 서버 기준 시계 모델, 05-sync-architecture.md 모델 A).
+ * 4. `utils/clock.ts`의 클록 오프셋 계산(ping-pong)은 아직 어디에도 연결돼 있지 않다 — Cloud
+ *    Functions가 발급하는 서버 타임스탬프와 연결해야 실제로 의미가 생긴다.
+ * 5. 참여자 목록의 실시간 연결 상태(connectionStatus)도 Firebase Presence 패턴(RTDB `onDisconnect`
+ *    등)으로 교체 필요 — 지금은 항상 'connected'로 고정된 목업.
  */
 
 interface SessionContextValue {
-  sessionId: string | null;
-  participantId: string | null;
-  playback: PlaybackState | null;
-  playlist: PlaylistEntry[];
-  participants: ParticipantInfo[];
-  /** 정상 / 지연 n초 / 재동기화 중 — US-404 */
-  syncStatus: {state: 'synced' | 'drifted' | 'resyncing'; driftMs: number};
-  joinSession: (sessionId: string, participantId: string, displayName: string) => void;
+  session: SessionState | null;
+  currentParticipantId: string | null;
+  isHost: boolean;
+  syncStatus: SyncStatusValue;
+  createSession: (params: {
+    sessionName: string;
+    service: MusicService;
+    capacity: number;
+    host: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
+  }) => SessionState;
   leaveSession: () => void;
   requestPlay: () => void;
   requestPause: () => void;
-  requestSeek: (positionMs: number) => void;
   requestNextTrack: () => void;
+  addTrack: (track: Track) => void;
+  removeTrack: (entryId: string) => void;
+  appointAdmin: (participantId: string) => void;
+  revokeAdmin: (participantId: string) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
+const TUNING_DISPLAY_MS = 1500;
+
 export function SessionProvider({children}: {children: React.ReactNode}) {
-  const socketRef = useRef<SyncSocket | null>(null);
-  const clockOffsetRef = useRef(0);
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [currentParticipantId, setCurrentParticipantId] = useState<string | null>(null);
+  const [isTuning, setIsTuning] = useState(false);
+  const tuningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [participantId, setParticipantId] = useState<string | null>(null);
-  const [playback, setPlayback] = useState<PlaybackState | null>(null);
-  const [playlist, setPlaylist] = useState<PlaylistEntry[]>([]);
-  const [participants, setParticipants] = useState<ParticipantInfo[]>([]);
-  const [syncStatus, setSyncStatus] = useState<SessionContextValue['syncStatus']>({
-    state: 'synced',
-    driftMs: 0,
-  });
-
-  const handleServerMessage = useCallback((message: ServerMessage) => {
-    switch (message.type) {
-      case 'session_state':
-        setPlayback(message.playback);
-        setPlaylist(message.playlist);
-        setParticipants(message.participants);
-        break;
-      case 'playback_update':
-        setPlayback(message.playback);
-        break;
-      case 'playlist_update':
-        setPlaylist(message.playlist);
-        break;
-      case 'participants_update':
-        setParticipants(message.participants);
-        break;
-      case 'pong': {
-        const now = Date.now();
-        clockOffsetRef.current = computeClockOffsetMs({
-          clientSentAt: message.clientSentAt,
-          serverReceivedAt: message.serverReceivedAt,
-          serverRespondAt: message.serverRespondAt,
-          clientReceivedAt: now,
-        });
-        break;
-      }
-      case 'error':
-        console.warn('[SessionContext] server error:', message.message);
-        break;
-      default:
-        break;
+  const triggerTuning = useCallback(() => {
+    setIsTuning(true);
+    if (tuningTimer.current) {
+      clearTimeout(tuningTimer.current);
     }
+    tuningTimer.current = setTimeout(() => setIsTuning(false), TUNING_DISPLAY_MS);
   }, []);
 
-  const joinSession = useCallback(
-    (newSessionId: string, newParticipantId: string, displayName: string) => {
-      setSessionId(newSessionId);
-      setParticipantId(newParticipantId);
-
-      const socket = new SyncSocket();
-      socketRef.current = socket;
-      socket.subscribe(handleServerMessage);
-      socket.connect();
-      socket.send({type: 'join', sessionId: newSessionId, participantId: newParticipantId, displayName});
-
-      spotifyRemotePlayer.connect().catch(err => {
-        console.warn('[SessionContext] spotify remote connect failed (stub 단계에서는 발생하지 않음)', err);
-      });
-    },
-    [handleServerMessage],
-  );
+  const createSession = useCallback<SessionContextValue['createSession']>(params => {
+    const created = sessionService.createSession(params);
+    setSession(created);
+    setCurrentParticipantId(params.host.participantId);
+    return created;
+  }, []);
 
   const leaveSession = useCallback(() => {
-    socketRef.current?.disconnect();
-    socketRef.current = null;
-    spotifyRemotePlayer.disconnect();
-    setSessionId(null);
-    setParticipantId(null);
-    setPlayback(null);
-    setPlaylist([]);
-    setParticipants([]);
+    setSession(null);
+    setCurrentParticipantId(null);
   }, []);
 
-  const requestPlay = useCallback(() => socketRef.current?.send({type: 'play'}), []);
-  const requestPause = useCallback(() => socketRef.current?.send({type: 'pause'}), []);
-  const requestSeek = useCallback(
-    (positionMs: number) => socketRef.current?.send({type: 'seek', positionMs}),
-    [],
-  );
-  const requestNextTrack = useCallback(() => socketRef.current?.send({type: 'next_track'}), []);
+  const requestPlay = useCallback(() => {
+    setSession(prev => {
+      if (!prev) {return prev;}
+      // TODO(Firebase): Cloud Function 호출로 교체. 지금은 낙관적 로컬 갱신만 수행.
+      return {...prev, playback: {...prev.playback, isPlaying: true, serverTimestamp: Date.now()}};
+    });
+  }, []);
 
-  // 클록 동기화 ping — US-403/404
-  useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-    const interval = setInterval(() => {
-      socketRef.current?.send({type: 'ping', clientSentAt: Date.now()});
-    }, CLOCK_SYNC_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [sessionId]);
+  const requestPause = useCallback(() => {
+    setSession(prev => {
+      if (!prev) {return prev;}
+      return {...prev, playback: {...prev.playback, isPlaying: false, serverTimestamp: Date.now()}};
+    });
+  }, []);
 
-  // 드리프트 보정 루프 — 서버 기준 위치와 로컬 플레이어 실제 위치를 비교해 필요 시 seek.
-  useEffect(() => {
-    if (!playback) {
-      return;
-    }
-    const interval = setInterval(async () => {
-      const localState = await spotifyRemotePlayer.getCurrentState();
-      if (!localState) {
-        return;
+  const requestNextTrack = useCallback(() => {
+    triggerTuning();
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);
+      const next = prev.playlist[currentIndex + 1];
+      if (!next) {
+        return prev;
       }
-      const expectedPositionMs = computeExpectedPositionMs({
-        serverTimestamp: playback.serverTimestamp,
-        positionMsAtServerTimestamp: playback.positionMs,
-        isPlaying: playback.isPlaying,
-        clockOffsetMs: clockOffsetRef.current,
-        nowMs: Date.now(),
+      const playlist = prev.playlist.map(entry => {
+        if (entry.entryId === prev.playback.currentEntryId) {
+          return {...entry, playedStatus: 'played' as const};
+        }
+        if (entry.entryId === next.entryId) {
+          return {...entry, playedStatus: 'playing' as const};
+        }
+        return entry;
       });
-      const driftMs = Math.abs(localState.positionMs - expectedPositionMs);
+      return {
+        ...prev,
+        playlist,
+        playback: {
+          currentEntryId: next.entryId,
+          positionMs: 0,
+          isPlaying: true,
+          serverTimestamp: Date.now(),
+          updatedByParticipantId: currentParticipantId ?? prev.hostParticipantId,
+        },
+      };
+    });
+  }, [currentParticipantId, triggerTuning]);
 
-      if (driftMs > DRIFT_CORRECTION_THRESHOLD_MS) {
-        setSyncStatus({state: 'resyncing', driftMs});
-        await spotifyRemotePlayer.seek(expectedPositionMs);
-        setSyncStatus({state: 'synced', driftMs: 0});
-      } else {
-        setSyncStatus({state: driftMs > 0 ? 'drifted' : 'synced', driftMs});
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [playback]);
+  const addTrack = useCallback(
+    (track: Track) => {
+      setSession(prev => {
+        if (!prev || !currentParticipantId) {return prev;}
+        const me = prev.participants.find(p => p.participantId === currentParticipantId);
+        if (!me) {return prev;}
+        const playlist = sessionService.addTrack(prev.sessionId, track, me);
+        return {...prev, playlist};
+      });
+    },
+    [currentParticipantId],
+  );
+
+  const removeTrack = useCallback((entryId: string) => {
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const playlist = sessionService.removeTrack(prev.sessionId, entryId);
+      return {...prev, playlist};
+    });
+  }, []);
+
+  const appointAdmin = useCallback((participantId: string) => {
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const participants = sessionService.appointAdmin(prev.sessionId, participantId);
+      return {...prev, participants};
+    });
+  }, []);
+
+  const revokeAdmin = useCallback((participantId: string) => {
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const participants = sessionService.revokeAdmin(prev.sessionId, participantId);
+      return {...prev, participants};
+    });
+  }, []);
+
+  // 02-key-ui-patterns.md 2.3절: "세션 전체 중 가장 안 좋은 상태를 대표로 보여준다".
+  // TODO(Firebase): 실제 드리프트 측정치로 교체 — 지금은 참여자별 목업 delaySeconds 기반.
+  const syncStatus = useMemo<SyncStatusValue>(() => {
+    if (isTuning) {
+      return {state: 'tuning'};
+    }
+    if (!session) {
+      return {state: 'synced'};
+    }
+    const worst = session.participants.reduce((max, p) => Math.max(max, p.delaySeconds), 0);
+    if (worst >= 1) {
+      return {state: 'delayed', delaySeconds: worst};
+    }
+    return {state: 'synced'};
+  }, [isTuning, session]);
+
+  const isHost = !!session && session.hostParticipantId === currentParticipantId;
 
   const value = useMemo<SessionContextValue>(
     () => ({
-      sessionId,
-      participantId,
-      playback,
-      playlist,
-      participants,
+      session,
+      currentParticipantId,
+      isHost,
       syncStatus,
-      joinSession,
+      createSession,
       leaveSession,
       requestPlay,
       requestPause,
-      requestSeek,
       requestNextTrack,
+      addTrack,
+      removeTrack,
+      appointAdmin,
+      revokeAdmin,
     }),
     [
-      sessionId,
-      participantId,
-      playback,
-      playlist,
-      participants,
+      session,
+      currentParticipantId,
+      isHost,
       syncStatus,
-      joinSession,
+      createSession,
       leaveSession,
       requestPlay,
       requestPause,
-      requestSeek,
       requestNextTrack,
+      addTrack,
+      removeTrack,
+      appointAdmin,
+      revokeAdmin,
     ],
   );
 
@@ -206,3 +227,5 @@ export function useSession(): SessionContextValue {
   }
   return ctx;
 }
+
+export type {ParticipantInfo, PlaylistEntry};

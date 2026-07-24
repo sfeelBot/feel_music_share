@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {ThemeProvider} from './src/theme/ThemeContext';
 import {AuthProvider} from './src/services/auth/AuthContext';
 import {SessionProvider} from './src/state/SessionContext';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -13,11 +14,13 @@ import RootNavigator from './src/navigation/RootNavigator';
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <SessionProvider>
-          <RootNavigator />
-        </SessionProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <SessionProvider>
+            <RootNavigator />
+          </SessionProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

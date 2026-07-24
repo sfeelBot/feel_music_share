@@ -1,3 +1,20 @@
+# feel_music_share — 모바일 앱
+
+Spotify 전용 세션 MVP 핵심 화면(온보딩, Spotify 연동, 세션 생성, Now Playing, 플레이리스트,
+참여자 바텀시트)까지 구현된 상태다. YouTube/혼합 세션, 실시간 백엔드(Firebase) 연동은 아직
+범위 밖이다 — 각 화면/서비스 파일의 `TODO(Firebase 연동)` 주석에 다음 단계에서 정확히 어디를
+교체해야 하는지 표시해두었다.
+
+## 시작하기 전에 필요한 것 (다음 단계)
+
+1. **Spotify Developer 앱 등록** — `.env.example` 참고. Client ID 발급 + Redirect URI 등록 필요.
+2. **Firebase 프로젝트 생성** — `.env.example`, `src/services/firebase/firebaseClient.ts` 참고.
+   Realtime Database/Firestore + Cloud Functions로 재생 동기화 백엔드를 구현할 예정.
+3. 위 두 가지가 없어도 UI 자체는 목업 데이터(`src/services/session/sessionService.ts`)로 동작한다
+   (Spotify 로그인만 성공하면 세션 생성 → Now Playing/플레이리스트 화면까지 확인 가능).
+
+---
+
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
 # Getting Started
