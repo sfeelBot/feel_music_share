@@ -28,10 +28,18 @@
     /* Spotify 브랜드 컬러 — Spotify 연동 요소에만 한정 사용 */
     --color-spotify-green: #1DB954;
 
+    /* YouTube 브랜드 컬러 — YouTube임을 명확히 표시해야 하는 지점에만 한정 사용 (01-style-guide.md 2절, 동기화 상태 색과 절대 혼용 금지) */
+    --color-youtube-red: #FF0000;
+
     /* 동기화 상태 컬러 (01-style-guide.md 2절) */
     --color-sync-green: #3FB68B;
     --color-amber-alert: #F2A93B;
     --color-muted-red: #E4573D;
+
+    /* 매칭 신뢰도 등급 컬러 (02-key-ui-patterns.md 5.3절 — 혼합 모드 매칭 확인 카드 전용, 동기화 상태 색과는 채도/명도를 달리해 혼동 방지) */
+    --color-match-high: #3FA66B;
+    --color-match-medium: #E2A33B;
+    --color-match-low: #C1502E;
 
     /* 역할 배지 컬러 (01-style-guide.md 7절 — 동기화 상태/선곡자 링/브랜드 컬러와 겹치지 않는 별도 색 슬롯) */
     --color-role-gold: #D9A441;   /* 방장 */
@@ -68,6 +76,9 @@
     --color-muted-red-bg: rgba(228, 87, 61, 0.14);
     --color-role-gold-bg: rgba(217, 164, 65, 0.16);
     --color-role-slate-bg: rgba(124, 111, 158, 0.14);
+    --color-match-high-bg: rgba(63, 166, 107, 0.14);
+    --color-match-medium-bg: rgba(226, 163, 59, 0.16);
+    --color-match-low-bg: rgba(193, 80, 46, 0.14);
     --page-bg: #F1E7DD;
   }
 
@@ -92,6 +103,9 @@
       --color-muted-red-bg: rgba(228, 87, 61, 0.22);
       --color-role-gold-bg: rgba(217, 164, 65, 0.24);
       --color-role-slate-bg: rgba(124, 111, 158, 0.26);
+      --color-match-high-bg: rgba(63, 166, 107, 0.22);
+      --color-match-medium-bg: rgba(226, 163, 59, 0.22);
+      --color-match-low-bg: rgba(193, 80, 46, 0.22);
       --page-bg: #14101F;
     }
   }
@@ -116,6 +130,9 @@
     --color-muted-red-bg: rgba(228, 87, 61, 0.22);
     --color-role-gold-bg: rgba(217, 164, 65, 0.24);
     --color-role-slate-bg: rgba(124, 111, 158, 0.26);
+    --color-match-high-bg: rgba(63, 166, 107, 0.22);
+    --color-match-medium-bg: rgba(226, 163, 59, 0.22);
+    --color-match-low-bg: rgba(193, 80, 46, 0.22);
     --page-bg: #14101F;
   }
 
@@ -138,6 +155,9 @@
     --color-muted-red-bg: rgba(228, 87, 61, 0.14);
     --color-role-gold-bg: rgba(217, 164, 65, 0.16);
     --color-role-slate-bg: rgba(124, 111, 158, 0.14);
+    --color-match-high-bg: rgba(63, 166, 107, 0.14);
+    --color-match-medium-bg: rgba(226, 163, 59, 0.16);
+    --color-match-low-bg: rgba(193, 80, 46, 0.14);
     --page-bg: #F1E7DD;
   }
 
@@ -1326,6 +1346,297 @@
     line-height: 1.4;
   }
 
+  /* ---------- YouTube 세션 Now Playing — WebView 플레이어 영역 (00-ux-flow.md 2.10c, 02-key-ui-patterns.md 4절) ---------- */
+  .youtube-player {
+    width: 100%;
+    min-height: 168px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(150deg, #2A2140 0%, #150F24 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: rgba(251, 243, 236, 0.75);
+    box-shadow: 0 10px 22px var(--color-shadow);
+    margin-bottom: 14px;
+    position: relative;
+  }
+
+  .youtube-player__caption {
+    font-size: 10.5px;
+    color: rgba(251, 243, 236, 0.55);
+    text-align: center;
+    padding: 0 18px;
+    line-height: 1.5;
+  }
+
+  .youtube-player-note {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    text-align: center;
+    line-height: 1.55;
+    margin: -6px 0 14px;
+  }
+
+  /* 서비스(플랫폼) 배지 — 매칭 확인 카드, Now Playing 등에서 "이 결과가 어느 서비스인지"를 명시할 때만 한정 사용 */
+  .platform-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    color: #FFFFFF;
+    margin-bottom: 6px;
+  }
+
+  .platform-badge--youtube { background: var(--color-youtube-red); }
+  .platform-badge--spotify { background: var(--color-spotify-green); }
+
+  /* 참여자 아바타 위 서비스 아이콘 오버레이 (혼합 세션 전용, 00-ux-flow.md 2.10d/2.12) */
+  .avatar__service {
+    position: absolute;
+    bottom: -3px;
+    right: -4px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    border: 2px solid var(--color-bg);
+    box-shadow: 0 1px 3px var(--color-shadow);
+  }
+
+  .avatar__service--spotify { background: var(--color-spotify-green); }
+  .avatar__service--youtube { background: var(--color-bg-elevated); color: var(--color-text); }
+  .avatar__service svg { width: 8px; height: 8px; }
+
+  .avatar--sm .avatar__service {
+    width: 11px;
+    height: 11px;
+    bottom: -2px;
+    right: -3px;
+    border-width: 1.5px;
+  }
+
+  .avatar--sm .avatar__service svg { width: 6px; height: 6px; }
+
+  .my-platform-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 6px;
+    padding-left: 10px;
+    border-left: 1px solid currentColor;
+    opacity: 0.9;
+  }
+
+  /* ---------- 매칭 확인 카드 (Match Confirmation Card) — 02-key-ui-patterns.md 5절 ---------- */
+  .match-intro {
+    font-size: 14.5px;
+    line-height: 1.55;
+    text-align: center;
+    margin: 4px 0 4px;
+  }
+
+  .match-intro strong { color: var(--color-primary); }
+
+  .match-card {
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .match-card__top {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .match-card__thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    flex: 0 0 auto;
+    background: linear-gradient(150deg, var(--color-secondary) 0%, var(--color-primary) 55%, var(--color-primary-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .match-card__info { flex: 1; min-width: 0; }
+
+  .match-card__title {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin: 0 0 6px;
+    line-height: 1.35;
+  }
+
+  .match-card__meta {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-pill);
+    font-weight: 700;
+    font-size: 12.5px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .confidence-badge--high { color: var(--color-match-high); background: var(--color-match-high-bg); }
+  .confidence-badge--medium { color: var(--color-match-medium); background: var(--color-match-medium-bg); }
+  .confidence-badge--low { color: var(--color-match-low); background: var(--color-match-low-bg); }
+
+  .match-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .match-actions .btn-text-link {
+    width: 100%;
+    padding: 10px;
+  }
+
+  /* 매칭 신뢰도 등급 참고 패널의 미니 카드 (status-legend와 동일 톤의 보조 참고 패널) */
+  .match-legend__grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .match-legend__item {
+    flex: 1 1 220px;
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+    padding: 14px;
+  }
+
+  .match-legend__item p {
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--color-text-secondary);
+    margin: 10px 0 0;
+  }
+
+  .match-legend__buttons {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .match-legend__buttons span {
+    flex: 1;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 7px 4px;
+    border-radius: var(--radius-pill);
+    border: 1.5px solid var(--color-border);
+    color: var(--color-text-secondary);
+  }
+
+  .match-legend__buttons span.is-emphasized {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #FFFFFF;
+  }
+
+  /* ---------- 확인 다이얼로그 (서비스 전환 등, 00-ux-flow.md 2.13a) ---------- */
+  .dialog-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--color-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+    z-index: 10;
+  }
+
+  .dialog-card {
+    width: 100%;
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 22px 20px 20px;
+    box-shadow: 0 16px 36px var(--color-shadow);
+  }
+
+  .dialog-card h3 {
+    font-size: 16px;
+    margin: 0 0 14px;
+    text-align: center;
+  }
+
+  .dialog-note {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--color-text-secondary);
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .dialog-note__icon { flex: 0 0 auto; }
+
+  .dialog-note--emphasis {
+    color: var(--color-text);
+    background: var(--color-sync-green-bg);
+    font-weight: 600;
+  }
+
+  .dialog-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .dialog-actions .btn { flex: 1; width: auto; }
+
+  /* 세션 설정 화면 배경(다이얼로그 뒤 블러 처리용) 간이 리스트 */
+  .settings-preview {
+    padding: 18px 24px;
+  }
+
+  .settings-preview__row {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .settings-preview__row span {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+  }
+
   /* 아주 좁은 화면에서도 body 가로 스크롤이 생기지 않도록 안전장치 */
   @media (max-width: 380px) {
     .device, .phone-frame { width: 88vw; }
@@ -1971,6 +2282,262 @@
       </figcaption>
     </figure>
 
+    <!-- 11. YouTube 세션 Now Playing — 광고 재생 중 상태 (00-ux-flow.md 2.10c, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button" class="is-active">Now Playing</button>
+            <button type="button">플레이리스트</button>
+          </div>
+          <div class="now-playing" style="padding-top:16px;">
+            <div class="youtube-player" role="img" aria-label="YouTube IFrame Player 영상 재생 영역 (광고 재생 중)">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="5" width="14" height="14" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>
+              <span class="youtube-player__caption">WebView · IFrame Player 실제 렌더링 영역<br />(광고 스킵 버튼·카운트다운은 YouTube가 이 안에 그대로 노출 — 우리 UI는 겹치지 않음)</span>
+            </div>
+            <p class="track-title">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스 - Topic</p>
+            <div class="picker-line">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              이 곡은 민준님이 선곡
+            </div>
+            <div class="controls">
+              <button type="button" class="control-btn" aria-label="이전 곡">⏮</button>
+              <button type="button" class="control-btn control-btn--main" aria-label="재생">⏯</button>
+              <button type="button" class="control-btn" aria-label="다음 곡">⏭</button>
+            </div>
+            <div class="sync-badge sync-badge--tuning">
+              <span class="sync-icon sync-icon--pulse" aria-hidden="true"></span>
+              맞추는 중... (광고 재생 중)
+            </div>
+            <div class="avatar-stack" aria-hidden="true">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Now Playing · YouTube 세션 (광고 재생 중)</strong>
+        <span>00-ux-flow.md 2.10c절 — WebView/IFrame Player가 실제로 렌더링되는 영역(최소 200×200px, 우리 UI는 위에 겹치지 않음). 광고 재생 중에는 신규 상태를 만들지 않고 기존 "맞추는 중" 배지에 보조 텍스트만 얹음(02-key-ui-patterns.md 2.2a절)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 12. 혼합 세션 참여 플랫폼 선택 (00-ux-flow.md 2.6c, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="create-session-header">
+            <span aria-hidden="true">←</span>
+            <span>혼합 세션 참여 방법</span>
+          </div>
+          <div class="create-session">
+            <p style="font-size:13.5px;line-height:1.6;color:var(--color-text-secondary);margin:0;">이 방은 혼합 모드예요. 당신이 사용할 플랫폼을 선택해주세요.</p>
+            <div>
+              <div class="radio-option"><span class="radio-dot is-selected" aria-hidden="true"></span> Spotify로 참여</div>
+              <div class="radio-option"><span class="radio-dot" aria-hidden="true"></span> YouTube로 참여</div>
+            </div>
+            <p class="info-banner">ⓘ 이미 로그인된 서비스가 있으면 자동으로 선택돼요. 다음에 이 방(또는 다른 혼합 방)에 들어올 때도 같은 선택이 기억돼요.</p>
+            <button type="button" class="btn btn-primary" style="margin-top:auto;">확인하고 입장</button>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>혼합 세션 · 참여 플랫폼 선택</strong>
+        <span>00-ux-flow.md 2.6c절 — 세션 전체가 아니라 "나 개인"이 어떤 플랫폼으로 참여할지 정하는 화면. 최초 1회만 선택하면 이후 자동 재사용(매칭 확인과 달리 마찰을 줄이기 위해 최소화)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 13. 매칭 확인 카드 (00-ux-flow.md 2.11b, 02-key-ui-patterns.md 5절 — 세 번째 핵심 차별 UI) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="create-session-header">
+            <span aria-hidden="true">✕</span>
+            <span>곡 매칭 확인</span>
+          </div>
+          <div class="create-session">
+            <p class="match-intro">"우리가 걷던 밤"을 당신의 <strong>YouTube</strong>에서<br />이렇게 찾았어요</p>
+            <div class="match-card">
+              <div class="match-card__top">
+                <div class="match-card__thumb" aria-hidden="true">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+                </div>
+                <div class="match-card__info">
+                  <p class="match-card__title">우리가 걷던 밤 (Live)</p>
+                  <span class="platform-badge platform-badge--youtube">🎧 YouTube</span>
+                  <p class="match-card__meta">코스모스 - Topic<br />3:52</p>
+                </div>
+              </div>
+              <div class="confidence-badge confidence-badge--high">
+                <span aria-hidden="true">✅</span> 일치율 92% · 높음
+              </div>
+            </div>
+            <p class="info-banner">ⓘ 원곡(3:45)과 길이가 조금 달라요 — 라이브 버전일 수 있어요. 괜찮은지 확인해주세요.</p>
+            <div class="match-actions">
+              <button type="button" class="btn btn-primary">확정하기</button>
+              <button type="button" class="btn btn-outline">다른 결과 보기</button>
+              <button type="button" class="btn-text-link">직접 검색하기</button>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>매칭 확인 카드 (일치율 92% · 높음)</strong>
+        <span>00-ux-flow.md 2.11b절 / 02-key-ui-patterns.md 5절 — 선곡자 배지·동기화 상태 배지에 이은 세 번째 핵심 차별 UI. 썸네일·제목·아티스트·길이·플랫폼·일치율을 모두 표시하고 확정/다른 결과/직접 검색 3액션과 길이 오차 안내(ⓘ)를 제공. 참여자별로 독립적으로 확인(내 화면·내 매칭 결과만 반영)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 14. 혼합(Mixed) 세션 Now Playing — 내 플랫폼 표시 + 참여자별 서비스 아이콘 (00-ux-flow.md 2.10d, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button" class="is-active">Now Playing</button>
+            <button type="button">플레이리스트</button>
+          </div>
+          <div class="now-playing" style="padding-top:16px;">
+            <div class="youtube-player" role="img" aria-label="YouTube IFrame Player 영상 재생 영역">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="5" width="14" height="14" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>
+              <span class="youtube-player__caption">나(수아)는 이 곡을 YouTube로 재생 중<br />(민준님은 Spotify로 재생 중)</span>
+            </div>
+            <p class="track-title">우리가 걷던 밤</p>
+            <p class="track-artist">코스모스 - Topic</p>
+            <div class="picker-line">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+              이 곡은 민준님이 선곡
+            </div>
+            <div class="controls">
+              <button type="button" class="control-btn" aria-label="이전 곡">⏮</button>
+              <button type="button" class="control-btn control-btn--main" aria-label="재생">⏯</button>
+              <button type="button" class="control-btn" aria-label="다음 곡">⏭</button>
+            </div>
+            <div class="sync-badge sync-badge--synced">
+              <span class="sync-icon" aria-hidden="true"></span>
+              동기화됨
+              <span class="my-platform-tag">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><path d="M21 14v4a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3zM3 14v4a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H3z"/></svg>
+                나: YouTube
+              </span>
+            </div>
+            <div class="avatar-stack" aria-hidden="true">
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지
+                <span class="avatar__service avatar__service--youtube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><path d="M21 14v4a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3zM3 14v4a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H3z"/></svg></span>
+              </span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민
+                <span class="avatar__service avatar__service--spotify" aria-hidden="true"></span>
+              </span>
+              <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수
+                <span class="avatar__service avatar__service--youtube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><path d="M21 14v4a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3zM3 14v4a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H3z"/></svg></span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>Now Playing · 혼합(Mixed) 세션</strong>
+        <span>00-ux-flow.md 2.10d절 — 내가 선택한 플랫폼(2.6c)에 따라 2.10a/2.10c 레이아웃을 그대로 물려받고, 동기화 배지 옆 "나: YouTube" 표시 + 참여자 아바타 옆 서비스 아이콘(초록 점=Spotify, 헤드폰 아이콘=YouTube)만 추가</span>
+      </figcaption>
+    </figure>
+
+    <!-- 15. 서비스 전환 확인 다이얼로그 (00-ux-flow.md 2.13a, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="create-session-header">
+            <span aria-hidden="true">←</span>
+            <span>세션 설정</span>
+          </div>
+          <div class="sheet-backdrop-content settings-preview" aria-hidden="true">
+            <div class="settings-preview__row">내 역할: 방장 👑</div>
+            <div class="settings-preview__row">🎧 음악 서비스: Spotify<span>전환하기 ▸</span></div>
+            <div class="settings-preview__row">초대 코드 다시 보기</div>
+          </div>
+          <div class="dialog-overlay">
+            <div class="dialog-card">
+              <h3>음악 서비스 전환</h3>
+              <p style="text-align:center;font-size:14.5px;font-weight:700;margin:0 0 16px;">Spotify → YouTube로<br />전환할까요?</p>
+              <div class="dialog-note">
+                <span class="dialog-note__icon" aria-hidden="true">ⓘ</span>
+                <span>지금 재생 중인 곡이 멈춰요. 전환 후 YouTube 플레이리스트로 다시 동기화가 시작돼요.</span>
+              </div>
+              <div class="dialog-note dialog-note--emphasis">
+                <span class="dialog-note__icon" aria-hidden="true">ⓘ</span>
+                <span>Spotify 플레이리스트는 삭제되지 않고 그대로 저장돼 있어요 — 나중에 다시 Spotify로 돌아오면 이어서 쓸 수 있어요.</span>
+              </div>
+              <div class="dialog-actions">
+                <button type="button" class="btn btn-outline">취소</button>
+                <button type="button" class="btn btn-primary">전환하기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>서비스 전환 확인 다이얼로그</strong>
+        <span>00-ux-flow.md 2.13a절 — "재생이 멈춘다"(즉각적 결과 예고)와 "플레이리스트는 보존된다"(US-105c/US-308 오해 해소)를 의도적으로 분리해 버튼 바로 위, 가장 눈에 띄는 위치에 배치. 방장/관리자에게만 노출되는 화면(일반사용자는 전환 버튼이 비활성)</span>
+      </figcaption>
+    </figure>
+
   </div>
 
   <!-- ============================== 동기화 상태 4단계 참고 패널 ============================== -->
@@ -2003,6 +2570,41 @@
           연결 끊김 · 재접속 중
         </div>
         <span class="legend-caption">끊김 · 끊긴 선 아이콘</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 매칭 신뢰도 등급 참고 패널 ============================== -->
+  <section class="status-legend">
+    <h2>매칭 신뢰도 등급 — 시각 차등 참고</h2>
+    <p>02-key-ui-patterns.md 5.3절: 수치(%)와 등급(높음/중간/낮음)을 함께 표시하고, 등급에 따라 세 액션 버튼의 강조 정도를 달리합니다 — 낮음 등급도 "확정하기"를 완전히 막지는 않습니다.</p>
+    <div class="match-legend__grid">
+      <div class="match-legend__item">
+        <div class="confidence-badge confidence-badge--high"><span aria-hidden="true">✅</span> 일치율 92% · 높음</div>
+        <div class="match-legend__buttons">
+          <span class="is-emphasized">확정하기</span>
+          <span>다른 결과</span>
+          <span>직접 검색</span>
+        </div>
+        <p>그대로 써도 안전하다는 뉘앙스 — "확정하기"를 1차 강조 버튼으로 배치</p>
+      </div>
+      <div class="match-legend__item">
+        <div class="confidence-badge confidence-badge--medium"><span aria-hidden="true">❓</span> 일치율 74% · 중간</div>
+        <div class="match-legend__buttons">
+          <span class="is-emphasized">확정하기</span>
+          <span class="is-emphasized">다른 결과</span>
+          <span>직접 검색</span>
+        </div>
+        <p>"확정하기"와 "다른 결과 보기"를 대등한 비중으로 배치 — 사용자가 직접 판단해야 함을 알림</p>
+      </div>
+      <div class="match-legend__item">
+        <div class="confidence-badge confidence-badge--low"><span aria-hidden="true">⚠</span> 일치율 48% · 낮음 · 확인 필요</div>
+        <div class="match-legend__buttons">
+          <span>확정하기</span>
+          <span class="is-emphasized">다른 결과</span>
+          <span class="is-emphasized">직접 검색</span>
+        </div>
+        <p>"확정하기"는 톤을 낮추고(outline) "다른 결과 보기"/"직접 검색하기"를 강조 — 다만 확정 자체를 차단하지는 않음(강제 차단 아님)</p>
       </div>
     </div>
   </section>

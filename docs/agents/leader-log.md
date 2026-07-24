@@ -43,3 +43,19 @@
 
 - 결과(designer 완료, 후속 기록): `02-key-ui-patterns.md`(6~10절: 역할 배지, 정원 스테퍼, 참여/재생 인원 표시, Free 안내 3형태, 서비스 전환 버튼 상태), `00-ux-flow.md`(정원 스테퍼, Free 안내 2.4b, 참여자 목록/세션 설정 갱신), `01-style-guide.md`(역할 배지 컬러 신규)까지 갱신 완료. `03-screen-mockups.html`은 지시대로 건드리지 않음. 사용자 검토·승인 대기 중 — 승인되면 (1) 커밋 여부 확인, (2) `03-screen-mockups.html`에 신규 화면 시각 목업 추가 후 Artifact(`fc3c834b-...`) 갱신 발행 예정.
 - 외부 액션: 없음(아직 커밋하지 않음).
+
+- 요청: 사용자가 남은 "확인 필요" 항목 3개에 답변 — (1) 관리자 임명은 방장이 결정, (2) 세션 정원 기본값은 2명(최대 12명은 유지), (3) Free 계정은 세션 참여 자체는 항상 허용하되 경고문 표시 여부는 방 옵션에 따라 다름. (3)의 의미를 리더가 재확인 질문한 결과: **서비스 종류(Spotify/YouTube)에 따라 자동 결정**(Spotify 방=경고문 표시, YouTube 방=미표시) — 방장이 켜고 끄는 별도 토글이 아님. 이어서 사용자가 "나머지는 커밋 진행해" 지시.
+- 분배: 커밋을 먼저 처리(외부 액션 항목 참고). 이 3개 결정을 `docs/specs/`에 formalize하도록 planner에게 위임 예정(다음 항목에서 기록).
+- 외부 액션: 커밋 `2c89742`("Add role/capacity/free-tier UI patterns to design docs") 생성 — designer가 만든 역할 배지/정원 스테퍼/Free 안내/서비스 전환 버튼 상태 문서 반영분. **push는 하지 않음**(이번에도 "커밋"까지만 지시받음).
+- 후속 분배: planner에게 위 3개 결정(관리자 임명=방장 결정, 정원 기본값=2명, Free 경고문=서비스 종류별 자동 결정)을 `docs/specs/04-playlist.md`·`01-user-stories.md`의 해당 "확인 필요" 항목에 확정 반영하도록 위임(백그라운드 실행 중 — 완료 통보 대기). 관리자 인원 상한·호스트 마이그레이션 권한 승계 등 나머지 미확정 항목은 이번 범위에서 제외, 그대로 유지 지시.
+- 결과(planner 완료): `04-playlist.md`·`01-user-stories.md`에 3개 결정 확정 반영 완료. designer 전달용 단순화 포인트 4개 확보(정원 기본값 2명 고정 렌더링, Free 안내는 해석 B 폐기로 단일 시나리오로 축소, 참여/재생 인원 분리 표시는 "확정 필수 요구사항"으로 격상, 관리자 임명 버튼은 방장 전용 노출 전제로 설계 가능).
+- 외부 액션: 커밋 `70168d1`("Resolve admin appointment, default capacity, free-tier warning rules") 생성. push 안 함.
+- 후속 분배: 사용자의 원래 요청("요구사항이 다 받아들여지면 Artifact로 제출")이 충족된 것으로 판단(핵심 미확정 항목 모두 해소, 남은 것은 부수적 사안). designer에게 (1) 위 단순화 포인트를 `02-key-ui-patterns.md`에 반영, (2) `03-screen-mockups.html`에 신규 화면(정원 스테퍼 2명 기본값, 역할 배지, Free 안내 단순화 버전, 관리자 임명 진입점) 시각 목업 추가를 위임(백그라운드 실행 중). 완료되면 리더가 직접 Artifact 도구로 기존 URL(`fc3c834b-...`)에 업데이트 발행 예정.
+- 결과(designer 완료): `02-key-ui-patterns.md` 6~10절 단순화 반영(해석 B 이력 보존 후 취소선 처리, 정원 기본값 2명, 참여/재생 인원 표시를 필수 컴포넌트로 격상), `03-screen-mockups.html`에 신규 폰 프레임 4개 추가(세션 생성 정원 스테퍼, Now Playing 방장 왕관 배지, Now Playing Free 안내 배너, 참여자 바텀시트 관리자 임명 메뉴). 리더가 전체 HTML(2038줄)을 직접 읽어 self-contained·라이트/다크 대응·외부 리소스 없음을 확인.
+- 외부 액션: 커밋 `bcfb5e0`("Simplify free-tier UI to single scenario, add role/capacity mockups") 생성(push 안 함). 이어서 Artifact 도구로 `03-screen-mockups.html`을 기존 URL(`https://claude.ai/code/artifact/fc3c834b-38c2-4218-88a1-ea3c0be4fb4b`)에 업데이트 발행 완료(favicon 🎵, 라벨 "역할/정원/Free계정 UI 추가"). 사용자가 요청한 "요구사항이 다 받아들여지면 Artifact로 제출" 완료.
+
+- 요청: 사용자가 (1) push, (2) README에 디자인 링크·앱 간단 설명 추가, (3) 구현팀·디자인팀에 작업 시작 지시를 요청.
+- 분배: 리더가 직접 `README.md`를 갱신(앱 개요, 핵심 가치, 음악 서비스 3종, 협업 플레이리스트, 세션 관리, 기술 스택 요약 + Artifact 링크 + 문서 인덱스). 서브에이전트 위임 없이 리더가 처리(README는 특정 서브에이전트 산출물 디렉토리에 속하지 않는 프로젝트 대표 문서라 리더가 직접 관리 — CLAUDE.md와 동일한 취급).
+- 결과: 커밋 `3b28f55`("Add app description and design mockup link to README") 생성. 이어서 그동안 누적된 커밋 5개(`d11bf20`~`3b28f55`)를 한 번에 push — `origin/main`이 `3b28f55`로 갱신됨.
+- 외부 액션: **push 완료**(`0e1c603..3b28f55 main -> main`, 사용자 명시적 요청).
+- 후속 분배: "구현팀·디자인팀 시작" 지시에 따라 두 에이전트를 병행 실행(백그라운드) — (1) implementer: Spotify 전용 세션 MVP 핵심 화면(온보딩·Spotify 연동·세션 생성·Now Playing·플레이리스트·참여자 시트) 실제 RN 코드 구현 착수, Firebase/Spotify 실제 키 연동은 구조만 준비. (2) designer: `03-screen-mockups.html`에 아직 없는 YouTube·혼합 세션 화면(YouTube Now Playing, 매칭 확인 카드 등) 추가해 구현보다 한 걸음 앞서도록 보강. 둘 다 커밋은 하지 않도록 지시(리더가 검토 후 커밋).
