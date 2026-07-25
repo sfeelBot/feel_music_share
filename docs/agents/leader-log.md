@@ -115,3 +115,8 @@
 
 - 요청: 사용자가 "너가 해야할 일들을 모두 먼저 처리해줘" — 외부 계정(Spotify/Firebase) 대기와 무관하게 진행 가능한 작업을 리더가 자체 판단해 처리하라는 지시.
 - 분배: (1) designer에게 지난 라운드에서 발견된 사소한 문서 불일치(00-ux-flow.md 정원 예시값 8명→2명) 수정 위임(백그라운드). (2) implementer에게 두 가지 위임(백그라운드) — ① 플레이리스트 드래그 재정렬 실제 로직 구현(QA 4.13 "의도적 미구현" 항목 해소), ② YouTube 전용 세션 생성·Now Playing 화면 구현(실제 IFrame/API 연동은 여전히 TODO, UI·상태 흐름만). 혼합 모드는 이번 스코프에서 명시적으로 제외.
+- 결과(designer): 8→2 교체 완료 + 부수적으로 인접한 "기본값 미정" 서술도 발견해 로그에만 남김 — 리더가 직접 그 문장까지 정정해 커밋 `3d15705`.
+- 결과(implementer): 순서 변경은 새 네이티브 의존성(드래그 라이브러리) 없이 ▲/▼ 버튼 + `requestMoveTrack`으로 구현(빌드 재검증 부담 회피 목적, 04-playlist.md가 방식을 한정하지 않음을 근거로 판단), 재생 완료/현재 재생 곡은 이동 불가 정책 유지. YouTube 세션은 생성 화면에서 선택 가능해졌고, `YouTubeNowPlayingView.tsx`(WebView 플레이스홀더, 광고 상태는 기존 배지 재사용)·`youtubePlayerStub.ts`(Spotify Remote와 동일 STUB 패턴)·`youtubeMockSearch.ts` 신규. 새 의존성 없음. 로컬에서 `tsc`/`eslint`/`jest`뿐 아니라 `gradlew assembleDebug`까지 BUILD SUCCESSFUL 직접 확인.
+- 검증: 리더가 diff 리뷰 + tsc/eslint/jest 독립 재현(0 errors, 16 warnings, 1/1 pass) — 일치 확인.
+- 외부 액션: 커밋 `22776fd`(push 안 함).
+- 후속 분배: CLAUDE.md 규칙에 따라 verifier에게 이번 라운드(재정렬 로직 정확성, YouTube 화면 요구사항 대조, 서비스별 Free 배너 격리, 회귀) 검증 위임(백그라운드 실행 중) — `docs/qa/spotify-mvp-round1-checklist.md`에 "Round 3" 절로 이어서 작성 지시.
