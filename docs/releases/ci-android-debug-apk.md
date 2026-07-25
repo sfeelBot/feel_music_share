@@ -14,7 +14,7 @@
 - **서명**: 별도 시크릿 설정 없음. 저장소에 이미 커밋되어 있는 `apps/mobile/android/app/debug.keystore`(디버그 서명 키)로 서명되므로 설치 가능한 APK가 바로 나온다. **release APK(`assembleRelease`)는 이번 파이프라인에 포함하지 않았다** — 실제 배포용 서명 키/키스토어가 아직 없어 시도해도 실패하거나 무의미한 산출물만 나오기 때문. 실 서명 키 확보 후 release 빌드 잡을 별도로 추가해야 한다.
 - **산출물 배포**: 두 갈래로 게시한다.
   1. `actions/upload-artifact`로 워크플로 실행별 아티팩트(`android-debug-apk`, 보관 30일) — Actions 탭에서 특정 실행 결과를 확인할 때 사용.
-  2. `ncipollo/release-action`(`allowUpdates: true`, `replacesArtifacts: true`, `makeLatest: true`)으로 고정 태그 `android-debug-latest` 릴리즈를 매 빌드마다 갱신 — 새 릴리즈를 계속 늘어놓지 않고 하나의 릴리즈 엔트리와 첨부 파일만 최신 빌드로 교체한다. 릴리즈 노트 본문에 커밋 SHA(short/full), 빌드 일시(UTC), 워크플로 실행 링크를 자동 기입한다. 배포 대상 APK 파일명은 `feel-music-share-debug.apk`로 통일했다(원래 Gradle 산출물명 `app-debug.apk`를 릴리즈 업로드 전 rename).
+  2. `ncipollo/release-action`(`allowUpdates: true`, `replacesArtifacts: true`, `makeLatest: true`)으로 고정 태그 `android-debug-latest` 릴리즈를 매 빌드마다 갱신 — 새 릴리즈를 계속 늘어놓지 않고 하나의 릴리즈 엔트리와 첨부 파일만 최신 빌드로 교체한다. 릴리즈 노트 본문에 커밋 SHA(short/full), 빌드 일시(UTC), 워크플로 실행 링크를 자동 기입한다. 배포 대상 APK 파일명은 `feel-music-share-debug.apk`로 통일했다(원래 Gradle 산출물명 `app-debug.apk`를 릴리즈 업로드 전 rename). **(2026-07-26 갱신)** 마케팅 앱 이름이 "SameWave"로 확정됨에 따라 배포 산출물(APK) 파일명을 `SameWave-debug.apk`로 변경했다 — 자세한 내용은 아래 "업데이트 이력" 절 참고.
 - **권한**: 워크플로 레벨에 `permissions: contents: write`를 명시 — 이게 없으면 기본 `GITHUB_TOKEN`으로 릴리즈 생성/갱신이 거부된다.
 - **동시성 제어**: `concurrency: group: android-debug-apk`로 같은 릴리즈 태그를 여러 실행이 동시에 갱신하는 경합을 막았다(`cancel-in-progress: false` — 진행 중인 빌드를 취소하지 않고 순서대로 처리).
 
@@ -29,3 +29,14 @@
 - 이 워크플로 파일은 로컬에만 존재하며 **아직 원격에 push되지 않았다** — 리더가 사용자 확인 후 커밋·push해야 실제로 Actions가 동작한다. push 전에는 실행 로그/성공 여부를 확인할 방법이 없다(로컬에서 워크플로를 실행해볼 수 없음, YAML 문법은 `js-yaml`로 파싱 검증만 완료).
 - release(스토어 제출용 실서명) 빌드 파이프라인은 별도 논의 필요 — 키스토어 생성/보관(GitHub Secrets), Play Console 연동 등은 이 배포 에이전트의 범위 밖(App Store/Play Store 실제 제출은 사용자·리더가 별도로 결정).
 - iOS 빌드는 이번 스코프에 포함하지 않았다(사용자·리더 합의로 추후 논의).
+
+## 업데이트 이력
+
+### 2026-07-26 — 배포 산출물 파일명을 "SameWave"로 변경
+
+앱 마케팅 이름이 "SameWave"로 확정됨(`docs/design/04-app-naming.md`, `CLAUDE.md` 참고)에 따라, **배포 산출물(APK)의 파일명만** 아래와 같이 변경했다. 저장소 이름(`sfeelBot/feel_music_share`)과 개발 코드네임은 그대로 유지한다.
+
+- `.github/workflows/android-debug-apk.yml`: rename 단계, 워크플로 아티팩트 업로드 경로, `ncipollo/release-action`의 `artifacts` 경로 모두 `feel-music-share-debug.apk` → `SameWave-debug.apk`로 통일. 릴리즈 노트 본문 첫 문장도 "SameWave(개발 코드네임: feel_music_share) 안드로이드 debug APK 자동 빌드입니다"로 다듬었다.
+- 릴리즈 태그(`android-debug-latest`)는 URL 안정성을 위해 그대로 유지 — 태그명은 바꾸지 않았다.
+- `README.md`의 다운로드 섹션 파일명 언급과 직접 다운로드 링크(`.../releases/latest/download/SameWave-debug.apk`)도 함께 갱신했다. 저장소 경로(`sfeelBot/feel_music_share/releases/...`)는 변경하지 않았다.
+- 이 변경은 아직 push되지 않았다 — push 이후 다음 워크플로 실행에서 새 파일명으로 아티팩트/릴리즈가 정상 게시되는지 확인이 필요하다.

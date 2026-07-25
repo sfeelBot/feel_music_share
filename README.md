@@ -17,9 +17,9 @@
 `main` 브랜치의 `apps/mobile/`에 변경이 push될 때마다 GitHub Actions가 Android **debug APK**를 자동 빌드해서 [GitHub Releases](https://github.com/sfeelBot/feel_music_share/releases/latest)에 항상 최신 상태로 게시합니다 (고정 태그 `android-debug-latest`, 릴리즈가 갱신될 때마다 첨부 파일이 최신 빌드로 교체됩니다).
 
 - 릴리즈 페이지: **https://github.com/sfeelBot/feel_music_share/releases/latest**
-- APK 직접 다운로드 링크: **https://github.com/sfeelBot/feel_music_share/releases/latest/download/feel-music-share-debug.apk**
+- APK 직접 다운로드 링크: **https://github.com/sfeelBot/feel_music_share/releases/latest/download/SameWave-debug.apk**
 
-설치 방법: 위 링크에서 `feel-music-share-debug.apk`를 Android 기기(또는 에뮬레이터)로 내려받은 뒤 실행합니다. 스토어 앱이 아니므로 최초 설치 시 안드로이드가 "출처를 알 수 없는 앱" 설치 차단 경고를 띄울 수 있습니다 — 설정에서 해당 앱(예: 파일 관리자/브라우저)의 "알 수 없는 앱 설치 허용"을 켜야 설치가 진행됩니다.
+설치 방법: 위 링크에서 `SameWave-debug.apk`를 Android 기기(또는 에뮬레이터)로 내려받은 뒤 실행합니다. 스토어 앱이 아니므로 최초 설치 시 안드로이드가 "출처를 알 수 없는 앱" 설치 차단 경고를 띄울 수 있습니다 — 설정에서 해당 앱(예: 파일 관리자/브라우저)의 "알 수 없는 앱 설치 허용"을 켜야 설치가 진행됩니다.
 
 > **주의 — 초기 개발 단계 빌드입니다.** 이 APK는 서명 전용 debug 키로 빌드된 것이며, Firebase 프로젝트와 Spotify Developer 앱이 아직 실제로 연결되지 않았습니다. 즉 Spotify 로그인, 세션 생성/참여, 실시간 재생 동기화 등 핵심 기능은 아직 동작하지 않습니다. 현재는 화면 UI·플로우를 미리 살펴보는 용도로만 사용해주세요. 빌드 워크플로 정의는 [`.github/workflows/android-debug-apk.yml`](.github/workflows/android-debug-apk.yml)에 있습니다. iOS 빌드는 아직 이 파이프라인 범위에 포함되어 있지 않습니다.
 

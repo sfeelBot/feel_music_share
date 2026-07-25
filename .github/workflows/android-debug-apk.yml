@@ -83,7 +83,7 @@ jobs:
       - name: Rename APK for release asset
         run: |
           mkdir -p /tmp/release-assets
-          cp android/app/build/outputs/apk/debug/app-debug.apk /tmp/release-assets/feel-music-share-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk /tmp/release-assets/SameWave-debug.apk
 
       - name: Record build metadata
         id: meta
@@ -95,7 +95,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
-          path: /tmp/release-assets/feel-music-share-debug.apk
+          path: /tmp/release-assets/SameWave-debug.apk
           retention-days: 30
 
       - name: Publish/update rolling GitHub Release
@@ -104,7 +104,7 @@ jobs:
           tag: android-debug-latest
           name: "Android Debug Build (자동, 최신)"
           body: |
-            feel_music_share 안드로이드 **debug APK** 자동 빌드입니다. `main` 브랜치에
+            SameWave(개발 코드네임: feel_music_share) 안드로이드 **debug APK** 자동 빌드입니다. `main` 브랜치에
             `apps/mobile/**` 변경이 push될 때마다 이 릴리즈(고정 태그 `android-debug-latest`)의
             내용과 첨부 파일이 새 빌드로 교체됩니다.
 
@@ -115,7 +115,7 @@ jobs:
             **주의 (초기 개발 단계 빌드)**: 이 APK는 debug 서명이며, Firebase 프로젝트와
             Spotify Developer 앱이 아직 실제로 연결되지 않았습니다. Spotify 로그인, 세션
             생성/참여, 실시간 동기화 등 핵심 기능은 아직 동작하지 않고 화면 UI 확인용입니다.
-          artifacts: /tmp/release-assets/feel-music-share-debug.apk
+          artifacts: /tmp/release-assets/SameWave-debug.apk
           allowUpdates: true
           replacesArtifacts: true
           removeArtifacts: false
