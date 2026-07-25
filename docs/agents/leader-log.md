@@ -10,6 +10,24 @@
 - 외부 액션: (커밋/푸시 등, 있었다면)
 ```
 
+## 현재 상황 요약 (수시 갱신 — 아래 절과 달리 append 아님, 매번 덮어씀)
+
+> 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). 마지막 갱신: 2026-07-26.
+
+### 예상 리스크 및 해결할 문제
+
+1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능하고 에뮬레이터/실기기 실행은 사용자 폰 설치로만 확인된다. iOS는 macOS/Xcode 부재로 빌드 자체가 구조적으로 불가능 — 계속 유효한 제약.
+2. **외부 계정 3종 미완료**: Spotify Developer 앱, Firebase(프로젝트는 생성됨·Android 앱 등록+google-services.json+RTDB/Firestore 선택 대기), YouTube Data API v3 — 셋 다 없어 실제 로그인·백엔드·YouTube 검색이 전부 스텁/목업 상태(`docs/decisions-needed.md` 참고).
+3. **YouTube 실기기 스파이크 미실행**: 실제 WebView/IFrame Player 연동 전이라 광고 노출·명령 지연을 아직 실측하지 못함 — 제품 카피 정확성에 영향(구현 이후 순서로 예정).
+4. **iOS 배포 방향 미정(보류)**: TestFlight/Ad Hoc 중 선택 필요, Apple Developer Program($99/년) 가입이 전제 — 사용자가 두 차례 "추후 논의"로 보류.
+5. **적응형 아이콘(Android 8.0+) 미확정**: 현재 앱 아이콘 SVG가 adaptive icon 세이프존(66%)을 고려해 그려지지 않아, legacy 아이콘(mipmap ic_launcher.png)만 우선 확실히 교체하고 adaptive icon 대응은 다음 라운드로 미룰 가능성 있음(진행 중 작업에서 확인 예정).
+
+### 현재 진행중인 task
+
+1. **implementer**: 앱 표시 이름 "SameWave" 변경(strings.xml/app.json/Info.plist) + 디자인팀 아이콘(노을 그라디언트, `03-screen-mockups.html` SVG) 안드로이드 mipmap 전체 밀도 적용 — 백그라운드 진행 중, 완료 여부 미확인.
+2. **deployer 마무리 작업(리더가 이어받음)**: deployer가 APK 파일명(`SameWave-debug.apk`) 변경 작업 도중 사용자에 의해 중단(status: killed)됐으나, 리더가 확인한 결과 워크플로/README/릴리즈 노트 문서 수정 자체는 이미 완료된 상태 — `docs/agents/deployment-log.md` 기록만 누락되어 리더가 보완 예정.
+3. **대기 중**: 사용자로부터 Firebase `google-services.json` 공유 대기(`docs/firebase-integration-guide.md` 참고).
+
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
 > 이 항목은 `docs/agents/leader-log.md` 규칙이 CLAUDE.md에 추가되기 전 진행된 작업을 다른 서브에이전트 로그(`planning-log.md`, `design-log.md`)와 git log를 근거로 사후 재구성한 것이다. 리더의 실제 판단 근거·대화 맥락까지는 복원하지 못했으므로 세부 뉘앙스는 각 서브에이전트 로그 원본을 참고할 것.
