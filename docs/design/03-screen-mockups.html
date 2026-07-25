@@ -1558,6 +1558,191 @@
     color: #FFFFFF;
   }
 
+  /* ---------- 매칭 진행 중 — 알림 배지 방식 (00-ux-flow.md 2.11a, 신규) ---------- */
+  .match-pending-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--color-match-medium-bg);
+    color: var(--color-match-medium);
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 9px 14px;
+    font-weight: 700;
+    font-size: 12.5px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+
+  .track-item__matching {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-match-medium);
+  }
+
+  .track-item__matching--slow {
+    color: var(--color-amber-alert);
+  }
+
+  .spinner-ring {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-match-medium);
+    flex: 0 0 auto;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner-ring,
+    .transition-overlay__spinner {
+      animation: none;
+    }
+  }
+
+  .add-track-wrap {
+    position: relative;
+    margin-top: 16px;
+  }
+
+  .add-track-wrap .add-track-btn {
+    margin-top: 0;
+  }
+
+  .notif-dot {
+    position: absolute;
+    top: -6px;
+    right: 14px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 50%;
+    background: var(--color-match-medium);
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px var(--color-shadow);
+  }
+
+  /* ---------- 대체 후보 목록 (00-ux-flow.md 2.11c, 신규) ---------- */
+  .candidate-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+  }
+
+  .candidate-item__thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    flex: 0 0 auto;
+    background: linear-gradient(150deg, var(--color-secondary) 0%, var(--color-primary) 55%, var(--color-primary-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .candidate-item__info { flex: 1; min-width: 0; }
+
+  .candidate-item__title {
+    font-weight: 700;
+    font-size: 13px;
+    margin: 0 0 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .candidate-item__meta {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin: 0 0 6px;
+  }
+
+  .candidate-item__select {
+    flex: 0 0 auto;
+    width: auto;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: var(--radius-pill);
+    border: 1.5px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+
+  .candidate-item__select.is-selected {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  /* ---------- 매칭 실패 안내 (00-ux-flow.md 2.11d, 신규) ---------- */
+  .match-fail-screen {
+    padding: 36px 24px 24px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .match-fail-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-match-low-bg);
+    color: var(--color-match-low);
+    margin-bottom: 20px;
+  }
+
+  .match-fail-screen h3 {
+    font-size: 17px;
+    line-height: 1.4;
+    margin: 0 0 14px;
+  }
+
+  .match-fail-detail {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    background: var(--color-card-bg);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    box-shadow: 0 2px 8px var(--color-shadow);
+    margin: 0 0 auto;
+  }
+
+  .match-fail-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
   /* ---------- 확인 다이얼로그 (서비스 전환 등, 00-ux-flow.md 2.13a) ---------- */
   .dialog-overlay {
     position: absolute;
@@ -1635,6 +1820,33 @@
     font-weight: 400;
     color: var(--color-text-secondary);
     margin-top: 4px;
+  }
+
+  /* ---------- 서비스 전환 중 오버레이 (00-ux-flow.md 2.13b, 신규) ---------- */
+  .transition-overlay__content {
+    text-align: center;
+    color: var(--color-header-text);
+  }
+
+  .transition-overlay__spinner {
+    display: inline-block;
+    font-size: 32px;
+    margin-bottom: 14px;
+    animation: spin 1.6s linear infinite;
+  }
+
+  .transition-overlay__title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 10px;
+  }
+
+  .transition-overlay__desc {
+    font-size: 12.5px;
+    line-height: 1.6;
+    opacity: 0.85;
+    margin: 0;
+    max-width: 220px;
   }
 
   /* 아주 좁은 화면에서도 body 가로 스크롤이 생기지 않도록 안전장치 */
@@ -2535,6 +2747,245 @@
       <figcaption>
         <strong>서비스 전환 확인 다이얼로그</strong>
         <span>00-ux-flow.md 2.13a절 — "재생이 멈춘다"(즉각적 결과 예고)와 "플레이리스트는 보존된다"(US-105c/US-308 오해 해소)를 의도적으로 분리해 버튼 바로 위, 가장 눈에 띄는 위치에 배치. 방장/관리자에게만 노출되는 화면(일반사용자는 전환 버튼이 비활성)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 16. 매칭 진행 중 — 알림 배지 방식 (00-ux-flow.md 2.11a, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="session-header">
+            <span>우리 둘의 플레이리스트 ▾</span>
+            <span class="session-header__menu">⋮</span>
+          </div>
+          <div class="tab-switcher">
+            <button type="button">Now Playing</button>
+            <button type="button" class="is-active">플레이리스트</button>
+          </div>
+          <div class="mini-player">
+            <div class="mini-player__art" aria-hidden="true"></div>
+            <span class="mini-player__title">우리가 걷던 밤 — 코스모스</span>
+            <button type="button" class="mini-player__toggle" aria-label="일시정지">⏸</button>
+          </div>
+          <div class="playlist-body">
+            <button type="button" class="match-pending-badge">
+              <span class="match-pending-badge__icon" aria-hidden="true">🔔</span>
+              확인할 매칭 2개
+              <span aria-hidden="true">›</span>
+            </button>
+
+            <p class="playlist-section-title">다음 곡들</p>
+
+            <div class="track-item is-playing">
+              <span class="track-item__now" aria-hidden="true">▶</span>
+              <div class="track-item__info">
+                <div class="track-item__title">우리가 걷던 밤</div>
+                <div class="track-item__artist">코스모스</div>
+                <span class="track-item__picker">
+                  <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-amber)">민</span>
+                  민준
+                </span>
+              </div>
+            </div>
+
+            <div class="track-item">
+              <span class="track-item__handle" aria-hidden="true">⠿</span>
+              <div class="track-item__info">
+                <div class="track-item__title">여름밤의 약속</div>
+                <span class="track-item__picker">
+                  <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-coral)">지</span>
+                  지은
+                </span>
+                <span class="track-item__matching">
+                  <span class="spinner-ring" aria-hidden="true"></span>
+                  내 플랫폼에서 찾는 중...
+                </span>
+              </div>
+            </div>
+
+            <div class="track-item">
+              <span class="track-item__handle" aria-hidden="true">⠿</span>
+              <div class="track-item__info">
+                <div class="track-item__title">노을이 질 때</div>
+                <span class="track-item__picker">
+                  <span class="avatar avatar--sm" style="--ring-color:var(--color-picker-teal)">수</span>
+                  나(수아)
+                </span>
+                <span class="track-item__matching track-item__matching--slow">
+                  <span aria-hidden="true">⏳</span>
+                  찾는 데 시간이 걸려요
+                </span>
+              </div>
+            </div>
+
+            <button type="button" class="history-toggle">
+              <span>재생 완료 (2곡)</span>
+              <span aria-hidden="true">▾</span>
+            </button>
+
+            <div class="add-track-wrap">
+              <button type="button" class="btn btn-primary add-track-btn">+ 곡 추가</button>
+              <span class="notif-dot" aria-hidden="true">2</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>매칭 진행 중 — 알림 배지 방식</strong>
+        <span>00-ux-flow.md 2.11a절 — 곡을 직접 추가한 사람은 곧바로 2.11b/2.11d로 진행하지만, 다른 참여자의 화면은 전면 모달로 가로막지 않고 플레이리스트 탭 상단 배지("확인할 매칭 2개")와 "+곡 추가" 버튼의 알림 점(notif-dot)으로만 비강제 노출. 해당 곡 항목에는 스피너 + "내 플랫폼에서 찾는 중..." 텍스트를 임시로 얹고, 지연되면 "찾는 데 시간이 걸려요"로 전환(즉시 모달 대신 배지+큐 방식 — 확정 아님, 00-ux-flow.md 4절 참고)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 17. 대체 후보 목록 (00-ux-flow.md 2.11c, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="create-session-header">
+            <span aria-hidden="true">←</span>
+            <span>다른 결과 보기</span>
+          </div>
+          <div class="create-session" style="gap:12px;">
+            <div class="candidate-item">
+              <div class="candidate-item__thumb" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+              </div>
+              <div class="candidate-item__info">
+                <p class="candidate-item__title">우리가 걷던 밤</p>
+                <p class="candidate-item__meta">코스모스 · 3:44</p>
+                <div class="confidence-badge confidence-badge--high" style="width:auto;justify-content:flex-start;padding:5px 10px;font-size:11px;">
+                  <span aria-hidden="true">✅</span> 일치율 97% · 높음
+                </div>
+              </div>
+              <button type="button" class="candidate-item__select">선택</button>
+            </div>
+
+            <div class="candidate-item">
+              <div class="candidate-item__thumb" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+              </div>
+              <div class="candidate-item__info">
+                <p class="candidate-item__title">우리가 걷던 밤 (Live)</p>
+                <p class="candidate-item__meta">코스모스 - Topic · 3:52</p>
+                <div class="confidence-badge confidence-badge--high" style="width:auto;justify-content:flex-start;padding:5px 10px;font-size:11px;">
+                  <span aria-hidden="true">✅</span> 일치율 92% · 높음
+                </div>
+              </div>
+              <button type="button" class="candidate-item__select is-selected">선택됨</button>
+            </div>
+
+            <div class="candidate-item">
+              <div class="candidate-item__thumb" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v10.55A4 4 0 1 0 11 17V7h7V3H9z"/></svg>
+              </div>
+              <div class="candidate-item__info">
+                <p class="candidate-item__title">우리가 걷던 밤 MV</p>
+                <p class="candidate-item__meta">코스모스 official · 3:50</p>
+                <div class="confidence-badge confidence-badge--medium" style="width:auto;justify-content:flex-start;padding:5px 10px;font-size:11px;">
+                  <span aria-hidden="true">❓</span> 일치율 81% · 중간
+                </div>
+              </div>
+              <button type="button" class="candidate-item__select">선택</button>
+            </div>
+
+            <p style="text-align:center;font-size:12px;color:var(--color-text-secondary);margin:6px 0 0;">원하는 결과가 없다면</p>
+            <button type="button" class="btn-text-link" style="width:100%;">직접 검색하기</button>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>대체 후보 목록</strong>
+        <span>00-ux-flow.md 2.11c절 — 매칭 확인 카드(2.11b)에서 "다른 결과 보기"를 눌렀을 때 진입. 자동 매칭 로직의 차순위 후보를 일치율 순으로 나열하고, 항목당 2.11b와 동일한 정보 밀도(썸네일·제목·아티스트/채널·길이·일치율)를 유지. 후보를 선택하면 즉시 확정하지 않고 2.11b 카드로 돌아가 다시 한번 확인시킴(US-310 취지)</span>
+      </figcaption>
+    </figure>
+
+    <!-- 18. 매칭 실패 안내 (00-ux-flow.md 2.11d, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="match-fail-screen">
+            <div class="match-fail-icon" aria-hidden="true">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6.5"/><path d="M7.5 7.5l5 5M12.5 7.5l-5 5"/><path d="M20.5 20.5l-5.2-5.2"/></svg>
+            </div>
+            <h3>이 곡을 YouTube에서<br />찾지 못했어요</h3>
+            <p class="match-fail-detail">"우리가 걷던 밤" - 코스모스에 해당하는 결과를 당신의 YouTube에서 찾지 못했어요.</p>
+            <div class="match-fail-actions">
+              <button type="button" class="btn btn-primary">직접 검색해서 찾기</button>
+              <button type="button" class="btn btn-outline">이 곡 없이 넘어가기</button>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>매칭 실패 안내</strong>
+        <span>00-ux-flow.md 2.11d절 — 검색 결과가 아예 없거나 신뢰도가 극히 낮아 "매칭"으로 볼 수 없을 때. "곡 전체"가 아니라 "이 참여자의 이 플랫폼"에 한정된 실패임을 강조. [이 곡 없이 넘어가기]를 선택하면 이 참여자만 해당 곡 구간 동안 "매칭 실패" 대기 상태(2.10d)로 넘어가고 다른 참여자의 재생에는 영향을 주지 않음</span>
+      </figcaption>
+    </figure>
+
+    <!-- 19. 서비스 전환 중 오버레이 (00-ux-flow.md 2.13b, 신규) -->
+    <figure class="phone-frame">
+      <div class="device">
+        <div class="device__notch"></div>
+        <div class="device__screen">
+          <div class="status-bar">
+            <span>9:41</span>
+            <div class="status-bar__icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="1"/><rect x="9" y="0.5" width="3" height="10.5" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1 4a9.5 9.5 0 0 1 13 0M3.2 6.4a6 6 0 0 1 8.6 0M5.6 8.7a2.6 2.6 0 0 1 3.8 0"/></svg>
+              <svg width="23" height="11" viewBox="0 0 23 11" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="2" height="4" rx="1" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <div class="create-session-header">
+            <span aria-hidden="true">←</span>
+            <span>세션 설정</span>
+          </div>
+          <div class="sheet-backdrop-content settings-preview" aria-hidden="true">
+            <div class="settings-preview__row">내 역할: 방장 👑</div>
+            <div class="settings-preview__row">🎧 음악 서비스: Spotify<span>전환하기 ▸</span></div>
+            <div class="settings-preview__row">초대 코드 다시 보기</div>
+          </div>
+          <div class="dialog-overlay transition-overlay">
+            <div class="transition-overlay__content">
+              <span class="transition-overlay__spinner" aria-hidden="true">⏳</span>
+              <p class="transition-overlay__title">YouTube로 전환하는 중...</p>
+              <p class="transition-overlay__desc">잠시 후 YouTube 플레이리스트로<br />이어집니다</p>
+            </div>
+          </div>
+        </div>
+        <div class="device__home-indicator"></div>
+      </div>
+      <figcaption>
+        <strong>서비스 전환 중 오버레이</strong>
+        <span>00-ux-flow.md 2.13b절 — 전환 확인 다이얼로그(2.13a) 이후 짧게 노출되는, "무슨 일이 벌어지고 있는지 설명하는" 오버레이(세션 대기실 2.9와 톤 통일). 내부적으로 (a) 이전 서비스 재생 중단 → (b) 활성 서비스 플래그 전환 → (c) 새 서비스 플레이리스트 로드 → (d) late join과 동일한 로직으로 재생 위치 동기화 순서를 개념 수준으로 전제. 종료 후 전환된 서비스 기준 Now Playing으로 복귀하며 "Spotify 플레이리스트는 그대로 저장돼 있어요" 토스트를 한 번 더 띄움</span>
       </figcaption>
     </figure>
 
