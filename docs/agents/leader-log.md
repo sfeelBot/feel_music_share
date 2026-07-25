@@ -98,3 +98,5 @@
 - 요청: 사용자가 실제 안드로이드 폰에 위 APK를 설치했더니 "Unable to load script... Make sure you're either running Metro..." 에러 스크린샷 공유.
 - 원인 파악(리더 직접 진단): `assembleDebug`로 만든 debug 빌드는 RN 기본 설정상 JS 번들을 APK에 넣지 않고 Metro 개발 서버에서 실시간으로 받아오도록 되어 있음 — 우리 목적(독립 실행형 사이드로드 배포)과 맞지 않음.
 - 분배: implementer에게 위임(백그라운드) — `apps/mobile/android/app/build.gradle`의 `react { }` 블록에 `debuggableVariants = []` 설정해 debug 변형도 JS 번들을 임베드하도록 수정, 로컬 빌드 성공 + APK 안에 `assets/index.android.bundle` 실제 포함 여부까지 확인하도록 지시.
+- 결과: implementer가 한 줄 설정(`debuggableVariants = []`)으로 수정, `BUILD SUCCESSFUL` 확인 + `assets/index.android.bundle`(1,033,612 bytes) 실제 포함 확인, tsc/eslint/jest 회귀 없음. 리더가 unzip으로 번들 포함 여부 직접 재확인 후 커밋 `4f5c32a` + push. GitHub Actions 재실행 성공(`conclusion: success`), `releases/latest` 자산이 새 빌드(130,720,171 bytes, updated_at 06:28:24Z)로 갱신된 것까지 API로 확인.
+- 외부 액션: 사용자에게 같은 다운로드 링크에서 새 APK를 다시 받아 실기기 재설치 테스트를 요청(대기 중).
