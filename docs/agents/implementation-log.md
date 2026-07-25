@@ -133,3 +133,22 @@
   - `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 16 warnings — 전부 기존 관용적 `react-native/no-inline-styles`, 이번 수정으로 신규 발생한 경고 없음), `npx jest`(1/1 통과) 모두 확인.
   - 재현 시나리오는 코드 추적으로 확인: YouTube 세션(`session.service === 'youtube'`)에서는 `showFreeTierUi`가 항상 `false`이므로 `accountTier === 'free'`인 참여자가 시드돼 있어도 태그가 렌더되지 않고, 헤더도 항상 "참여자 (N)"만 표시된다(재생 인원 구분 없음, 지시사항대로 정원만 표시). Spotify 세션에서는 기존 동작(Free 태그·조건부 헤더) 그대로 유지 — 회귀 없음.
   - `docs/specs/`, `docs/design/`은 읽기만 하고 수정하지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.
+
+## 2026-07-26 (SameWave 표시 이름 + 실제 앱 아이콘 적용)
+- 작업: 마케팅 이름 "SameWave"(`docs/design/04-app-naming.md`) 확정에 따라 실기기 홈 화면 표시 이름 및 안드로이드 런처 아이콘을 실제 값으로 교체.
+  1. **표시 이름 변경**(내부 RN 컴포넌트 등록 이름 `"mobile"`은 그대로 유지, 3개 파일 모두 일치 확인):
+     - `apps/mobile/android/app/src/main/res/values/strings.xml`: `app_name` `"Feel Music Share"` → `"SameWave"`(안드로이드 홈 화면/설정 앱 목록 표시명).
+     - `apps/mobile/app.json`: `displayName` `"mobile"` → `"SameWave"` (`name`은 `"mobile"` 그대로).
+     - `apps/mobile/ios/mobile/Info.plist`: `CFBundleDisplayName` `"Feel Music Share"` → `"SameWave"` (iOS는 이번 스코프에서 빌드 검증 없이 텍스트만 변경).
+  2. **실제 앱 아이콘(안드로이드) 적용**: `docs/design/03-screen-mockups.html`의 `<figure class="icon-showcase">` 인라인 SVG(`viewBox="0 0 192 192"`, 노을 그라디언트 배경 + 반투명 원 두 개 + 파형 + 수평선 + 작은 원)를 그대로 추출해 사용, 새 디자인을 만들지 않음.
+     - 도구: 이 머신에 ImageMagick(`magick`)/Inkscape/`rsvg-convert` 모두 미설치 확인(`convert.exe`는 Windows 기본 디스크 변환 도구라 사용 불가) → `sharp`(SVG→PNG 래스터라이즈 지원)를 `apps/mobile`에 devDependency로 설치(`package.json`에 `"sharp": "^0.35.3"` 추가, 런타임 앱 번들에는 포함 안 됨, 일회성 스크립트 용도).
+     - 일회성 Node 스크립트(스크래치 디렉터리에서 실행 후 삭제, 저장소에는 남기지 않음)로 SVG를 밀도별 픽셀 크기로 렌더링(`density: 384`, `resize({fit:'cover'})`, `flatten({background:'#4A2545'})`로 알파 채널 제거해 투명 배경 없이 노을 그라디언트가 꽉 채워지도록 처리)해 `mipmap-mdpi`(48×48) / `mipmap-hdpi`(72×72) / `mipmap-xhdpi`(96×96) / `mipmap-xxhdpi`(144×144) / `mipmap-xxxhdpi`(192×192) 각 밀도 폴더의 `ic_launcher.png`·`ic_launcher_round.png`(동일 정사각형 PNG 사용, 런처가 필요시 원형 마스킹)를 교체.
+     - **적응형 아이콘(API 26+, `mipmap-anydpi-v26`)**: 프로젝트에 해당 리소스가 애초에 존재하지 않음(확인 완료, `find` 결과 legacy `mipmap-*/ic_launcher*.png`만 존재) → 지시대로 legacy 아이콘 교체만 확실히 마무리했고 적응형 아이콘 신규 추가는 이번 라운드 범위 밖으로 남김(TODO).
+- 상태: 완료(검증 대기)
+- 변경 파일: `apps/mobile/android/app/src/main/res/values/strings.xml`, `apps/mobile/app.json`, `apps/mobile/ios/mobile/Info.plist`, `apps/mobile/android/app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.png`(및 `ic_launcher_round.png`), `apps/mobile/package.json`/`package-lock.json`(devDependency `sharp` 추가).
+- 비고(검증 시 주의):
+  - 렌더링 결과 검증: `file` 명령으로 각 PNG가 의도한 픽셀 크기(48/72/96/144/192)·RGB(알파 없음, 투명 배경 아님) 확인. `Read` 도구로 192×192 PNG를 직접 시각 확인 — 노을 그라디언트, 겹친 두 원, 파형, 수평선, 작은 점 모두 목업과 일치.
+  - `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 16 warnings — 전부 기존 관용적 `react-native/no-inline-styles`, 이번 변경으로 신규 발생한 경고 없음), `npx jest`(1/1 통과) 모두 확인.
+  - Android 빌드: JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`로 `./gradlew.bat assembleDebug` 실행 → **BUILD SUCCESSFUL in 1m 10s**. 생성된 `app-debug.apk`를 `unzip -l`로 확인해 새 PNG가 정확한 파일 크기(각 밀도별 원본과 바이트 단위 일치)로 `res/mipmap-*-v4/ic_launcher.png`·`ic_launcher_round.png`에 패키징됐음을 확인. 추가로 `aapt2 dump badging`으로 `application-label:'SameWave'`, `application: label='SameWave' icon='res/mipmap-mdpi-v4/ic_launcher.png'` 확인 — 표시 이름·아이콘 경로 모두 최종 APK에 반영됨.
+  - iOS는 이번에도 macOS 부재로 빌드 검증 미수행(Info.plist 텍스트 변경만, 지시사항대로 스코프 밖).
+  - `docs/specs/`, `docs/design/`은 읽기만 하고 수정하지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.
