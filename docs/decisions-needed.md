@@ -9,7 +9,7 @@
 ## 외부 계정 설정 필요 (사용자 액션)
 
 1. **Spotify Developer 앱 등록** (developer.spotify.com/dashboard) — Client ID 발급 + 리다이렉트 URI 2개(`feelmusicshare://spotify-auth-callback`, `feelmusicshare://spotify-remote-callback`) 등록. 실제 Spotify 로그인 동작의 전제조건. (2026-07-25: 사용자가 곧 설정 후 공유 예정이라고 확인)
-2. **Firebase 연동** — (2026-07-25 진행 상황) 프로젝트 생성은 완료(`feel-music-share`). **아직 남은 것**: ① Firebase 콘솔에서 이 프로젝트에 **Android 앱 등록**(패키지 이름 `com.mobile`), ② 등록 후 받는 **`google-services.json` 파일 내용을 공유**, ③ **Realtime Database vs Firestore** 중 무엇을 쓸지(또는 아직 미정이라고 알려주기). 이 3가지가 채워져야 실제 코드 연동(현재 `firebaseClient.ts`는 빈 스텁)을 시작할 수 있다. Dart/Flutter용 `flutterfire_cli`는 이 프로젝트(React Native)에는 해당 없음 — 웹 콘솔에서 직접 등록하면 됨(리더가 2026-07-25 대화에서 안내).
+2. **Firebase 연동** — (2026-07-25 진행 상황) 프로젝트 생성은 완료(`feel-music-share`). **아직 남은 것**: ① Firebase 콘솔에서 이 프로젝트에 **Android 앱 등록**(패키지 이름 `com.mobile`), ② 등록 후 받는 **`google-services.json` 파일 내용을 공유**, ③ **Realtime Database vs Firestore** 중 무엇을 쓸지(또는 아직 미정이라고 알려주기). 이 3가지가 채워져야 실제 코드 연동(현재 `firebaseClient.ts`는 빈 스텁)을 시작할 수 있다. Dart/Flutter용 `flutterfire_cli`는 이 프로젝트(React Native)에는 해당 없음 — 웹 콘솔에서 직접 등록하면 됨(리더가 2026-07-25 대화에서 안내). **상세 절차·다음 단계 전체 설명은 [`docs/firebase-integration-guide.md`](firebase-integration-guide.md) 참고** — 여러 세션에 걸쳐 이어갈 수 있도록 별도 문서로 정리해둠.
 3. **YouTube Data API v3 활성화** (Google Cloud Console) — YouTube 곡 검색·메타데이터 조회를 실제로 붙이려면 필요. 현재는 `apps/mobile/src/services/youtube/youtubeMockSearch.ts` 정적 목업으로 대체되어 있음.
 
 ## 추후 논의로 보류된 항목 (해결 전까지 계속 유지)

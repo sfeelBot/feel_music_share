@@ -4,6 +4,7 @@
 
 **실시간 음악 공유 앱** (iOS / Android)
 
+- **마케팅 명칭** (2026-07-25 확정): **Samewave** — 개발 코드네임(`feel_music_share`, 패키지명 `com.mobile`)은 그대로 유지, 후보 검토 과정은 `docs/design/04-app-naming.md` 참고.
 - **목적**: 장거리 연인·친구가 동일한 음악을 실시간·저지연으로 함께 듣는 환경 제공
 - **음악 서비스**: Spotify와 YouTube(Premium) 둘 다 지원
   - Spotify: 공식 Web API/SDK로 원격 재생 제어·상태 동기화 가능. 참여자 전원 Premium 계정 필요.

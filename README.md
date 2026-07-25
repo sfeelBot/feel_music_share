@@ -1,6 +1,8 @@
 # feel_music_share
 
-**실시간 음악 공유 앱** (iOS / Android)
+**Samewave** — 실시간 음악 공유 앱 (iOS / Android)
+
+> `feel_music_share`는 개발 코드네임이고, 마케팅 명칭은 **Samewave**로 확정됐습니다(2026-07-25, `docs/design/04-app-naming.md` 참고). 패키지명 등 내부 코드는 당분간 그대로 유지합니다.
 
 장거리 연인·친구가 동일한 음악을 실시간·저지연으로 함께 듣는 환경을 제공합니다. Spotify와 YouTube(Premium)를 모두 지원하며, 참여자 전원이 플레이리스트에 곡을 추가·삭제·순서변경할 수 있고 누가 선곡했는지 표시됩니다.
 
