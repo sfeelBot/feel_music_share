@@ -24,9 +24,11 @@
 
 ### 현재 진행중인 task
 
-1. **verifier**: SameWave 표시 이름·아이콘 적용(커밋 `d22c6b3`, `b6877b5`) 검증 — Round 4로 백그라운드 진행 중, 결과 미확인. 특히 RN 내부 등록 키(`app.json` name/`MainActivity`/`AppDelegate` moduleName) 일치 여부와 clean 빌드 재현이 핵심 확인 대상.
-2. **대기 중**: 사용자로부터 Firebase `google-services.json` 공유 대기(`docs/firebase-integration-guide.md` 참고). Spotify Developer 앱, YouTube Data API 설정도 대기 중(`docs/decisions-needed.md`).
-3. **완료됨(참고)**: 앱 마케팅 이름 "SameWave" 확정 및 표시 이름·아이콘·배포 파일명 전체 반영 완료(검증 대기 중), CI 파이프라인 정상 작동 확인됨(`releases/latest`에서 실제 다운로드까지 확인).
+1. **verifier**: SameWave 표시 이름·아이콘 적용(커밋 `d22c6b3`, `b6877b5`) 검증 — Round 4로 백그라운드 진행 중, 결과 미확인.
+2. **implementer**: YouTube 실제 재생 연동 — `react-native-webview` 설치 + IFrame Player API 임베드로 `youtubePlayerStub.ts`를 실제 구현으로 교체(광고 감지는 신뢰도 낮으면 보수적으로 미검출 처리). YouTube Data API 키 없이도 재생 자체는 가능하다는 전제. 백그라운드 진행 중.
+3. **designer**: 혼합(Mixed) 모드 잔여 화면 4개(매칭 진행 중/대체 후보/매칭 실패/서비스 전환 중 오버레이) `03-screen-mockups.html`에 추가 — `apps/mobile/`과 겹치지 않아 implementer와 병행. 백그라운드 진행 중.
+4. **다음 순서 예정(이번 라운드 이후)**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — implementer 파일(SessionContext 등) 충돌 방지를 위해 YouTube 라운드 완료 후 순차 진행.
+5. **대기 중**: 사용자로부터 Firebase `google-services.json`, Spotify Developer 앱, YouTube Data API 설정 공유 대기(`docs/decisions-needed.md`). 갤럭시폰 USB 연결 여부도 대기(실기기 로그 확인용, 필수는 아님).
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
@@ -163,3 +165,6 @@
 - 요청: 사용자가 아이패드/갤럭시폰을 USB로 연결하면 iOS/Android 빌드 검증에 도움되는지 질문.
 - 결과(리더 직접 답변, 서브에이전트 위임 없음): Android(갤럭시폰)는 adb install/run-android/logcat 활용 가능해 실질적 도움이 크다고 안내, 연결 권장. iOS(아이패드)는 근본 원인이 "Windows에 Xcode가 없다"는 것이라 기기 연결과 무관하게 해소 안 됨을 설명.
 - 후속 분배: verifier에게 SameWave 표시 이름/아이콘 적용(커밋 d22c6b3, b6877b5) 검증 위임(백그라운드, "Round 4") — RN 내부 등록 키 일치 여부, clean 빌드 재현, aapt2 dump badging으로 표시 이름 확인 등 지시.
+
+- 요청: 사용자가 "다른 해결할 문제들을 여전히 일 시켜줘. youtube관련 테스트 항목들에 대해 개발 에이전트한테 항목 체크 시작하고 나머지 다른 것들도 일 시켜"라고 요청 — 리스크 목록 중 진행 가능한 항목을 계속 처리하라는 지시.
+- 분배: (1) implementer에게 YouTube 실제 재생 연동(react-native-webview + IFrame Player, 광고 감지는 보수적으로) 위임(백그라운드) — YouTube Data API 키 없이도 재생 자체는 가능함을 근거로 우선 진행. (2) designer에게 혼합 모드 잔여 화면 4개(2.11a/c/d, 2.13b) 목업 추가 위임(백그라운드) — `apps/mobile/`과 파일이 겹치지 않아 implementer와 병행 가능하다고 판단. 혼합 모드 실제 구현(SessionContext 등 공유 파일 수정 필요)은 YouTube 라운드와 파일 충돌 위험이 있어 이번엔 보류, 다음 순서로 예정.
