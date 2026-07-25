@@ -120,3 +120,17 @@
 - 검증: 리더가 diff 리뷰 + tsc/eslint/jest 독립 재현(0 errors, 16 warnings, 1/1 pass) — 일치 확인.
 - 외부 액션: 커밋 `22776fd`(push 안 함).
 - 후속 분배: CLAUDE.md 규칙에 따라 verifier에게 이번 라운드(재정렬 로직 정확성, YouTube 화면 요구사항 대조, 서비스별 Free 배너 격리, 회귀) 검증 위임(백그라운드 실행 중) — `docs/qa/spotify-mvp-round1-checklist.md`에 "Round 3" 절로 이어서 작성 지시.
+- 결과(verifier Round 3): 22개 중 21개 통과, 1개 신규 실패(R3.17) — `ParticipantsBottomSheet.tsx`가 `session.service`를 참조하지 않아 YouTube 세션에도 Free 태그/재생 인원 헤더가 새어 들어감(`NowPlayingView.tsx`에서 이미 고쳤던 것과 동일한 문제가 형제 컴포넌트에 남아있던 것). Android `assembleDebug`를 clean 전체 재빌드까지 독립 재현해 통과 확인.
+- 외부 액션: 커밋 `53f822a`(push 안 함).
+- 후속 분배: implementer에게 R3.17 수정 위임(백그라운드) — `NowPlayingView.tsx`와 동일한 `session.service === 'spotify'` 가드 패턴 적용.
+- 결과: `ParticipantsBottomSheet.tsx`에 `session` prop 추가 + 가드 적용, `RoomScreen.tsx`에서 prop 전달 누락도 수정. 리더가 diff 리뷰 + tsc/eslint/jest 재현(0 errors, 16 warnings, 1/1 pass) 확인.
+- 외부 액션: 커밋 `5e7f9f3`(push 안 함). **판단**: 이번 수정은 이미 검증된 패턴(NowPlayingView와 동일 가드)을 한 파일에 그대로 옮긴 소규모 변경이라, 별도 verifier 라운드 없이 리더 자체 검증으로 충분하다고 판단(효율성 고려) — 이후 더 큰 변경이 쌓이면 다음 verifier 라운드에서 함께 재확인.
+
+- 요청: 사용자가 앱 마케팅 이름을 브랜드 컨셉(노을/시간대 공유)에 맞는 영어 이름으로 만들어달라고 요청.
+- 분배: designer에게 이름 브레인스토밍 위임(백그라운드) — 영어 스타일 + 기존 브랜드 컨셉 계승, 두 조건 모두 AskUserQuestion으로 먼저 확인 후 착수.
+- 결과: `docs/design/04-app-naming.md` 신규 — 후보 11개 + 상위 3개 추천(Duetide/Duskwave/Samewave) + 참고용 상표 충돌 메모(Afterglow/Wavelength/Tandem은 기존 브랜드와 겹침 주의).
+- 외부 액션: 커밋 `dd668a0`(push 안 함). 사용자에게 상위 3개 제시하고 선택 여부 확인 중(대기).
+
+- 요청: 사용자가 Firebase 프로젝트 생성 후 무엇을 공유하면 되는지 질문, 이어서 Flutter 전용 명령어(`flutterfire_cli`, `flutterfire configure`, Dart 코드)를 두 차례 시도 — React Native 프로젝트에는 해당 없음을 리더가 직접 정정하고 웹 콘솔 기반 Android 앱 등록 절차를 안내.
+- 사용자 확인 질문: "Firebase 부분 해결된 거 맞아?" — 리더가 `decisions-needed.md`의 Firebase 항목을 "프로젝트 생성은 완료, Android 앱 등록+google-services.json 공유+DB 종류 선택은 미완"으로 정확히 갱신(성급하게 삭제하지 않음). 파일 내 이전 편집으로 생긴 텍스트 깨짐도 함께 수정.
+- 외부 액션: 커밋 `b6612cb`(push 안 함). google-services.json 공유 대기 중.
