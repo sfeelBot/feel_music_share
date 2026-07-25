@@ -134,3 +134,7 @@
 - 요청: 사용자가 Firebase 프로젝트 생성 후 무엇을 공유하면 되는지 질문, 이어서 Flutter 전용 명령어(`flutterfire_cli`, `flutterfire configure`, Dart 코드)를 두 차례 시도 — React Native 프로젝트에는 해당 없음을 리더가 직접 정정하고 웹 콘솔 기반 Android 앱 등록 절차를 안내.
 - 사용자 확인 질문: "Firebase 부분 해결된 거 맞아?" — 리더가 `decisions-needed.md`의 Firebase 항목을 "프로젝트 생성은 완료, Android 앱 등록+google-services.json 공유+DB 종류 선택은 미완"으로 정확히 갱신(성급하게 삭제하지 않음). 파일 내 이전 편집으로 생긴 텍스트 깨짐도 함께 수정.
 - 외부 액션: 커밋 `b6612cb`(push 안 함). google-services.json 공유 대기 중.
+
+- 요청: 사용자가 앱 이름을 "Samewave"로 최종 확정. 추가로 Firebase 연동 설명을 md 파일에 정리해 다음 세션에 이어갈 수 있게 해달라고 요청("내일 이어서 할거야").
+- 결과(리더 직접 처리, 소규모라 서브에이전트 위임 없이 처리): `docs/design/04-app-naming.md`에 확정 배너 추가(후보 목록/추천 이력은 그대로 보존), `CLAUDE.md` 프로젝트 개요와 `README.md`에 마케팅 명칭 Samewave 반영(개발 코드네임·패키지명은 변경하지 않음 — 별도 요청 시 진행). `docs/firebase-integration-guide.md` 신규 작성 — 현재 진행 상태(프로젝트 생성 완료), 사용자가 마저 할 일(Android 앱 등록/google-services.json/DB 종류), 파일을 받으면 리더가 진행할 작업 순서(패키지 설치·네이티브 설정·firebaseClient.ts 교체·재검증)까지 여러 세션에 걸쳐 이어갈 수 있도록 정리. `docs/decisions-needed.md`의 Firebase 항목에서 이 신규 가이드로 링크 연결.
+- 외부 액션: 커밋 `4221952`(push 안 함).
