@@ -4,12 +4,15 @@ import Avatar from './Avatar';
 import RoleBadge from './RoleBadge';
 import {useTheme} from '../theme/ThemeContext';
 import {syncColors} from '../theme/tokens';
-import type {ParticipantInfo} from '../types/domain';
+import type {ParticipantInfo, SessionState} from '../types/domain';
 
 /**
  * 참여자 바텀시트 (00-ux-flow.md 2.12절, 02-key-ui-patterns.md 6.4절/8절).
  * - 참여자별 연결 상태 상세 표시
- * - 참여 인원 vs 재생 인원(Free 계정 제외) 조건부 헤더
+ * - 참여 인원 vs 재생 인원(Free 계정 제외) 조건부 헤더 — Spotify 세션에서만 노출
+ *   (04-playlist.md "Free 계정 처리" 절: 경고문/Free 표시는 Spotify 세션 전용, YouTube는
+ *   Premium 여부로 재생 가능 인원이 갈리지 않으므로 표시하지 않는다. NowPlayingView.tsx의
+ *   `session.service === 'spotify'` 가드와 동일한 패턴.)
  * - 방장 전용: 참여자별 ⋮ 메뉴로 관리자 임명/해제
  *
  * TODO(Firebase 연동): 관리자 임명/해제는 반드시 서버(Cloud Functions)에서 권한을 재검증해야 한다
@@ -21,6 +24,7 @@ import type {ParticipantInfo} from '../types/domain';
 interface ParticipantsBottomSheetProps {
   visible: boolean;
   onClose: () => void;
+  session: SessionState;
   participants: ParticipantInfo[];
   viewerIsHost: boolean;
   onAppointAdmin: (participantId: string) => void;
@@ -30,6 +34,7 @@ interface ParticipantsBottomSheetProps {
 export default function ParticipantsBottomSheet({
   visible,
   onClose,
+  session,
   participants,
   viewerIsHost,
   onAppointAdmin,
@@ -38,9 +43,10 @@ export default function ParticipantsBottomSheet({
   const theme = useTheme();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
+  const showFreeTierUi = session.service === 'spotify';
   const playableCount = participants.filter(p => p.accountTier === 'premium').length;
   const headerTitle =
-    playableCount === participants.length
+    !showFreeTierUi || playableCount === participants.length
       ? `참여자 (${participants.length})`
       : `참여자 (${participants.length}) · 재생 ${playableCount}명`;
 
@@ -56,6 +62,7 @@ export default function ParticipantsBottomSheet({
           renderItem={({item}) => (
             <ParticipantRow
               participant={item}
+              showFreeTierUi={showFreeTierUi}
               menuOpen={openMenuId === item.participantId}
               canManage={viewerIsHost && item.role !== 'host'}
               onToggleMenu={() =>
@@ -82,6 +89,7 @@ export default function ParticipantsBottomSheet({
 
 function ParticipantRow({
   participant,
+  showFreeTierUi,
   menuOpen,
   canManage,
   onToggleMenu,
@@ -89,6 +97,7 @@ function ParticipantRow({
   onRevokeAdmin,
 }: {
   participant: ParticipantInfo;
+  showFreeTierUi: boolean;
   menuOpen: boolean;
   canManage: boolean;
   onToggleMenu: () => void;
@@ -109,7 +118,7 @@ function ParticipantRow({
           </Text>
           <RoleBadge role={participant.role} />
         </View>
-        {participant.accountTier === 'free' && (
+        {showFreeTierUi && participant.accountTier === 'free' && (
           <Text style={[styles.freeTag, {color: theme.textSecondary}]}>Free · 재생 불가</Text>
         )}
       </View>

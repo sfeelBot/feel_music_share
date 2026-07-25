@@ -121,3 +121,15 @@
   - YouTube 세션의 host `accountTier`는 여전히 `profile.isPremium`(Spotify Premium 여부)에서 그대로 가져온다 — 실제 Google/YouTube 계정 연동이 이번 라운드도 범위 밖이라 의미상 정확하지 않은 필드지만, Free 배너가 `session.service === 'spotify'` 가드로 완전히 분리돼 있어 YouTube 세션 화면에는 어떤 영향도 주지 않음을 확인했다. YouTube의 "참여 인원" 표시도 Premium/Free 구분 없이 전체 인원만 보여주도록 별도 로직으로 분리해뒀다(`YouTubeNowPlayingView.tsx`의 `suffix` 계산).
   - 혼합(Mixed) 세션은 지시대로 전혀 건드리지 않았다(`CreateSessionScreen.tsx`의 혼합 라디오는 여전히 disabled+"곧 지원 예정").
   - 다음 라운드 TODO(둘 다 이번 라운드에서 새로 발견한 것은 아니고, STUB/플레이스홀더 코드에 이미 주석으로 남겨둠): (1) `react-native-webview` 설치 + YouTube IFrame Player 실제 렌더링/재생 트리거/광고 감지(`youtubePlayerStub.ts` 교체), (2) YouTube Data API v3 실제 검색 연동(`youtubeMockSearch.ts` 교체). 둘 다 이번 라운드 지시 범위 밖이었다.
+
+## 2026-07-25 (R3.17 버그 수정 — ParticipantsBottomSheet Free UI 서비스 가드 누락)
+- 작업: `docs/qa/spotify-mvp-round1-checklist.md` Round 3 검증 R3.17(유일한 실패 항목) 수정. `ParticipantsBottomSheet.tsx`가 `session.service`를 전혀 참조하지 않아 YouTube 세션에서도 Free 계정 참여자에게 "Free · 재생 불가" 태그와 "참여 N명 (재생 M명)" 조건부 헤더가 그대로 노출되던 문제.
+  - `ParticipantsBottomSheet.tsx`: `session: SessionState` prop 신규 추가. `NowPlayingView.tsx`(`screens/room/NowPlayingView.tsx`)가 이미 쓰던 `session.service === 'spotify'` 가드와 동일한 패턴으로 `showFreeTierUi = session.service === 'spotify'` 파생값을 계산 — 헤더 타이틀 분기(`!showFreeTierUi || playableCount === participants.length`일 때 "참여자 (N)"만 표시)와 `ParticipantRow`의 Free 태그 렌더 조건(`showFreeTierUi && participant.accountTier === 'free'`) 둘 다에 적용. `ParticipantRow`에 `showFreeTierUi: boolean` prop 추가해 전달.
+  - `RoomScreen.tsx`: `ParticipantsBottomSheet` 렌더링부에 `session={session}` prop 추가(기존에는 `participants={session.participants}`만 넘기고 `session` 자체는 넘기지 않았음 — R3.17에서 지적된 근본 원인).
+  - `mockSessionSeed.ts`/`sessionService.ts`의 시딩 로직(`service` 파라미터 미전달)은 이번 수정 범위에 포함하지 않았다 — R3.17 지적 원문은 "Free 태그/헤더가 새어 나가는 UI 가드 부재"를 실패 사유로 명시했고, 이번 수정으로 YouTube 세션에서는 `accountTier` 값과 무관하게 Free 관련 UI 자체가 렌더되지 않으므로(가드가 시딩보다 상위에서 차단) 재현 시나리오는 해결된다. 시딩 로직 자체를 서비스 인지하게 바꾸는 것은 지시 범위(이번 라운드는 이 버그 하나에 집중) 밖이라 손대지 않음.
+- 상태: 완료(검증 대기)
+- 변경 파일: `apps/mobile/src/components/ParticipantsBottomSheet.tsx`, `apps/mobile/src/screens/RoomScreen.tsx`.
+- 비고(검증 시 주의):
+  - `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 16 warnings — 전부 기존 관용적 `react-native/no-inline-styles`, 이번 수정으로 신규 발생한 경고 없음), `npx jest`(1/1 통과) 모두 확인.
+  - 재현 시나리오는 코드 추적으로 확인: YouTube 세션(`session.service === 'youtube'`)에서는 `showFreeTierUi`가 항상 `false`이므로 `accountTier === 'free'`인 참여자가 시드돼 있어도 태그가 렌더되지 않고, 헤더도 항상 "참여자 (N)"만 표시된다(재생 인원 구분 없음, 지시사항대로 정원만 표시). Spotify 세션에서는 기존 동작(Free 태그·조건부 헤더) 그대로 유지 — 회귀 없음.
+  - `docs/specs/`, `docs/design/`은 읽기만 하고 수정하지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.

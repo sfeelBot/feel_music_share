@@ -66,6 +66,7 @@ export default function RoomScreen(_props: Props) {
       <ParticipantsBottomSheet
         visible={participantsVisible}
         onClose={() => setParticipantsVisible(false)}
+        session={session}
         participants={session.participants}
         viewerIsHost={isHost}
         onAppointAdmin={appointAdmin}
