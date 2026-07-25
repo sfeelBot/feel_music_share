@@ -94,3 +94,7 @@
 - 검증: 리더가 diff 리뷰, APK 파일 존재(130MB) 확인, `tsc`/`eslint`/`jest` 재현(0 errors, 13 benign warnings, 1/1 pass) — 모두 일치.
 - 외부 액션: 커밋 `64e6fce`("Fix Android build: bump AGP/compileSdk for androidx.browser 1.9.0") 생성 → 이번엔 이 요청의 목적(GitHub에서 실제로 APK가 나오는 것) 달성을 위해 **push까지 진행**(`3b28f55..64e6fce`). Public 저장소임을 API로 확인(`private: false`) → GitHub REST API를 인증 없이 조회해 워크플로 실행(`run 30143029826`)이 트리거된 것 확인, 완료까지 백그라운드로 폴링 중.
 - 결과: **워크플로 실행 성공**(`status: completed`, `conclusion: success`). `releases/latest`(태그 `android-debug-latest`)에 `feel-music-share-debug.apk`(130,163,312 bytes) 첨부 확인 — `https://github.com/sfeelBot/feel_music_share/releases/download/android-debug-latest/feel-music-share-debug.apk`. README에 문서화된 다운로드 링크와 정확히 일치. 이번 요청("GitHub에서 바로 다운받을 수 있는 APK") 목적 달성 확인. 리더의 로그 커밋(`63eb57f`)도 push 완료.
+
+- 요청: 사용자가 실제 안드로이드 폰에 위 APK를 설치했더니 "Unable to load script... Make sure you're either running Metro..." 에러 스크린샷 공유.
+- 원인 파악(리더 직접 진단): `assembleDebug`로 만든 debug 빌드는 RN 기본 설정상 JS 번들을 APK에 넣지 않고 Metro 개발 서버에서 실시간으로 받아오도록 되어 있음 — 우리 목적(독립 실행형 사이드로드 배포)과 맞지 않음.
+- 분배: implementer에게 위임(백그라운드) — `apps/mobile/android/app/build.gradle`의 `react { }` 블록에 `debuggableVariants = []` 설정해 debug 변형도 JS 번들을 임베드하도록 수정, 로컬 빌드 성공 + APK 안에 `assets/index.android.bundle` 실제 포함 여부까지 확인하도록 지시.
