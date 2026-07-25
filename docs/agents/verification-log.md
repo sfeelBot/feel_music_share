@@ -51,3 +51,17 @@
   - 회귀 확인(diff 미포함 파일): 역할 배지, 관리자 임명/사임 방장 전용, 정원 스테퍼, Free 배너 Spotify 전용 가드(`NowPlayingView.tsx` 자체는 변경 없음), 동기화 상태 4단계 — 모두 이전 라운드와 동일하게 유지, 회귀 없음.
   - 전체 항목: 통과 21 / 실패 1(R3.17, `ParticipantsBottomSheet` 서비스 격리 누락) / 미검증 0 / 의도된 범위 밖 2(YouTube 실제 영상 재생 여부 — WebView 미설치로 다음 라운드 TODO, 혼합 세션 — 이번 라운드 지시 범위 밖). "완료"로 간주하지 않음 — R3.17을 구현 에이전트에게 반려 권고. 나머지(순서 변경 US-303, YouTube 화면 정책 준수, Android clean 빌드)는 신뢰할 수 있는 수준으로 통과 확인됨.
 
+## 2026-07-26 (Round 4)
+- 검증 대상: 표시 이름을 "SameWave"로 변경(Android strings.xml/app.json displayName/iOS Info.plist CFBundleDisplayName) + Android 실앱 아이콘(노을 그라디언트+겹치는 두 원) 5개 밀도 교체(커밋 `d22c6b3` "Apply SameWave display name and real app icon (Android)") + 배포 APK 파일명을 `SameWave-debug.apk`로 통일(커밋 `b6877b5` "Rename distributed APK to SameWave-debug.apk"). `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 4 검증 (2026-07-26)" 절 추가(append).
+- 플랫폼: 둘 다 (Android는 `clean assembleDebug` 독립 재현 + `aapt2 dump badging` 재현 + APK 내부 mipmap PNG 바이트 비교까지 수행. iOS는 여전히 구조적 제약(macOS/Xcode 부재)으로 `Info.plist` XML 구조 육안 검토만 수행, round 1 결론 인용)
+- 결과: 통과 (지시받은 검증 범위 내에서 완료로 간주 가능, 실패 0건)
+- 상세:
+  - 정적 검증 독립 재실행: `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 16 warnings — round 3과 완전히 동일), `npx jest`(1/1 pass) — 두 커밋 모두 `.ts`/`.tsx` 파일을 전혀 건드리지 않았음을 `git show --stat`으로 확인, 회귀 리스크 구조적으로 없음.
+  - Android `clean assembleDebug --no-daemon` 완전 재빌드(캐시 배제) 독립 재현 성공: `BUILD SUCCESSFUL in 1m 50s`, APK 130,741,787 bytes 생성 확인.
+  - `E:\Android\Sdk\build-tools\36.1.0\aapt2.exe dump badging`로 `application-label:'SameWave'`(모든 로케일 변형 포함) 직접 확인 — 구현 에이전트 주장 재현.
+  - RN 내부 등록 키 3곳을 직접 파일 열람으로 대조: `app.json`의 `"name": "mobile"`, `MainActivity.kt`의 `getMainComponentName() = "mobile"`, `AppDelegate.mm`의 `moduleName = @"mobile"` — 셋 다 정확히 일치, 표시 이름 변경이 RN 컴포넌트 등록을 깨뜨리지 않았음을 확인.
+  - 아이콘 검증: `unzip`으로 APK 내부 5개 밀도(mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi)의 `ic_launcher.png`/`ic_launcher_round.png`를 추출해 소스 리포 PNG와 `diff`로 바이트 단위 비교 — 5개 전부(라운드형 아이콘은 xxxhdpi로 대표 확인) 완전히 동일(IDENTICAL). xxxhdpi 아이콘을 직접 이미지로 열람해 노을 그라디언트+겹치는 두 원+작은 점+세로 바 디자인이 `docs/design/03-screen-mockups.html` 인라인 SVG와 시각적으로 일치함을 확인, 기본 안드로이드 아이콘이 아님을 확인. `mipmap-anydpi-v26` 폴더가 존재하지 않아 "적응형 아이콘 없음, legacy 교체가 전체 범위" 주장과도 일치.
+  - iOS `Info.plist`: XML 구조(선언/DTD/dict 태그 짝)가 정상이고 `CFBundleDisplayName` 값만 교체됐으며 다른 키(URL scheme 등)는 손상되지 않음을 육안으로 확인 — 문법 수준 확인이며, macOS 전용 파서(plutil 등) 실행이나 실제 iOS 런타임 검증은 이 환경에서 불가능(round 1~3과 동일한 구조적 제약).
+  - 배포 파일명 변경(`b6877b5`): `.github/workflows/android-debug-apk.yml`의 rename/upload-artifact/release-action 3곳, `README.md`, `docs/releases/ci-android-debug-apk.md` 모두 `SameWave-debug.apk`로 일관되게 변경됨을 diff로 확인, 릴리즈 태그(`android-debug-latest`)는 유지됨. YAML 프로그램적 파싱 검증은 이 환경에 `js-yaml` 등 파서가 없어 수행하지 못하고 육안 구조 검토로 대체(한계로 명시). 두 커밋이 아직 push되지 않아 실제 CI 실행에서 새 파일명 릴리즈 게시 확인은 미검증(push 이후 별도 확인 필요).
+  - 전체 항목: 통과 17 / 실패 0 / 미검증(환경 제약·미push) 2(iOS 실런타임, 실제 CI 실행 확인) / 프로그램적 검증 미수행·육안 대체 1(YAML 파싱). round 3에서 미해결로 남은 R3.17(`ParticipantsBottomSheet` 서비스 미인지)은 이번 두 커밋의 변경 범위 밖이라 그대로 미해결 상태로 남아 있으며 이번 판정에 영향 없음 — 리더가 계속 추적 필요.
+
