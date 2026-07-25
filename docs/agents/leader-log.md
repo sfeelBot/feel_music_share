@@ -87,3 +87,9 @@
 - 요청: 사용자가 "github 에서 android 환경에서 바로 다운받을 수 있는 apk를 만들 수 있도록 해줘. 추가로 readme 에 사용 방법 및 github 에서 다운받을 수 있는 방법에 대해 설명을 포함해줘."
 - 분배: deployer에게 GitHub Actions CI 파이프라인 구축 위임(백그라운드) — `main` push(`apps/mobile/**` 경로 필터) + 수동 실행 트리거, `ubuntu-latest`(Android는 macOS 불필요), 저장소에 이미 있는 debug 키스토어로 서명, 고정 태그(`android-debug-latest`) 릴리즈를 매번 갱신해 안정적 다운로드 URL 확보, README에 다운로드/사용법 섹션 추가.
 - 결과: `.github/workflows/android-debug-apk.yml` 신규(Node 20/JDK 17/Android SDK 35 설치 → `gradlew assembleDebug` → 워크플로 아티팩트 + 고정 릴리즈 태그 갱신), `README.md`에 "다운로드(Android)"·"사용 방법" 섹션 추가(정확한 릴리즈 URL 명시, "초기 개발 단계 — 로그인/동기화 미동작" 경고 포함), `docs/releases/ci-android-debug-apk.md` 신규. 리더가 YAML/README 내용 검토 후 커밋 `5f317dd`(push 안 함 — 이 요청 자체가 GitHub에서 동작하는 걸 요구하므로 push는 다음 단계에서 진행 예정).
+
+## 2026-07-25
+
+- 결과(implementer, AGP/androidx.browser 수정 완료): 근본 원인 확정 — `react-native-app-auth`가 쓰는 AppAuth-Android가 `CustomTabsIntent.Builder#setEphemeralBrowsingEnabled()`를 호출하는데 이 API가 `androidx.browser` 1.9.0에만 존재. 1.8.0으로 강제 고정 시도 → 컴파일 자체가 깨져서 버전을 낮추는 선택지는 기각. AGP 8.6.0→8.10.1, compileSdk/buildTools 35→36/36.1.0, Gradle 8.10.2→8.11.1로 올리는 것으로 해결. `.github/workflows/android-debug-apk.yml`의 sdkmanager 설치 목록도 36/36.1.0으로 동기화. implementer가 로컬에서 `BUILD SUCCESSFUL` 직접 확인 + `app-debug.apk` 생성 확인.
+- 검증: 리더가 diff 리뷰, APK 파일 존재(130MB) 확인, `tsc`/`eslint`/`jest` 재현(0 errors, 13 benign warnings, 1/1 pass) — 모두 일치.
+- 외부 액션: 커밋 `64e6fce`("Fix Android build: bump AGP/compileSdk for androidx.browser 1.9.0") 생성 → 이번엔 이 요청의 목적(GitHub에서 실제로 APK가 나오는 것) 달성을 위해 **push까지 진행**(`3b28f55..64e6fce`). Public 저장소임을 API로 확인(`private: false`) → GitHub REST API를 인증 없이 조회해 워크플로 실행(`run 30143029826`)이 트리거된 것 확인, 완료까지 백그라운드로 폴링 중.
