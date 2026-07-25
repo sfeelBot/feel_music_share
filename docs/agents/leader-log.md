@@ -16,17 +16,17 @@
 
 ### 예상 리스크 및 해결할 문제
 
-1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능하고 에뮬레이터/실기기 실행은 사용자 폰 설치로만 확인된다. iOS는 macOS/Xcode 부재로 빌드 자체가 구조적으로 불가능 — 계속 유효한 제약.
+1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. **다만 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 훨씬 빠르고 정확한 실기기 검증이 가능해짐** — 사용자에게 연결 권장 완료(2026-07-26), 연결 여부 확인 대기. iOS는 macOS/Xcode 부재로 빌드 자체가 구조적으로 불가능 — 기기를 연결해도 해소되지 않는 제약(사용자에게 설명 완료).
 2. **외부 계정 3종 미완료**: Spotify Developer 앱, Firebase(프로젝트는 생성됨·Android 앱 등록+google-services.json+RTDB/Firestore 선택 대기), YouTube Data API v3 — 셋 다 없어 실제 로그인·백엔드·YouTube 검색이 전부 스텁/목업 상태(`docs/decisions-needed.md` 참고).
 3. **YouTube 실기기 스파이크 미실행**: 실제 WebView/IFrame Player 연동 전이라 광고 노출·명령 지연을 아직 실측하지 못함 — 제품 카피 정확성에 영향(구현 이후 순서로 예정).
 4. **iOS 배포 방향 미정(보류)**: TestFlight/Ad Hoc 중 선택 필요, Apple Developer Program($99/년) 가입이 전제 — 사용자가 두 차례 "추후 논의"로 보류.
-5. **적응형 아이콘(Android 8.0+) 미확정**: 현재 앱 아이콘 SVG가 adaptive icon 세이프존(66%)을 고려해 그려지지 않아, legacy 아이콘(mipmap ic_launcher.png)만 우선 확실히 교체하고 adaptive icon 대응은 다음 라운드로 미룰 가능성 있음(진행 중 작업에서 확인 예정).
+5. **적응형 아이콘(Android 8.0+) 없음**: 프로젝트에 `mipmap-anydpi-v26` 리소스 자체가 없어 legacy 아이콘(mipmap ic_launcher.png) 교체만으로 이번 스코프는 완료됨(implementer 확인) — 추후 적응형 아이콘을 새로 추가할지는 별도 결정 사항으로 남음.
 
 ### 현재 진행중인 task
 
-1. **implementer**: 앱 표시 이름 "SameWave" 변경(strings.xml/app.json/Info.plist) + 디자인팀 아이콘(노을 그라디언트, `03-screen-mockups.html` SVG) 안드로이드 mipmap 전체 밀도 적용 — 백그라운드 진행 중, 완료 여부 미확인.
-2. **deployer 마무리 작업(리더가 이어받음)**: deployer가 APK 파일명(`SameWave-debug.apk`) 변경 작업 도중 사용자에 의해 중단(status: killed)됐으나, 리더가 확인한 결과 워크플로/README/릴리즈 노트 문서 수정 자체는 이미 완료된 상태 — `docs/agents/deployment-log.md` 기록만 누락되어 리더가 보완 예정.
-3. **대기 중**: 사용자로부터 Firebase `google-services.json` 공유 대기(`docs/firebase-integration-guide.md` 참고).
+1. **verifier**: SameWave 표시 이름·아이콘 적용(커밋 `d22c6b3`, `b6877b5`) 검증 — Round 4로 백그라운드 진행 중, 결과 미확인. 특히 RN 내부 등록 키(`app.json` name/`MainActivity`/`AppDelegate` moduleName) 일치 여부와 clean 빌드 재현이 핵심 확인 대상.
+2. **대기 중**: 사용자로부터 Firebase `google-services.json` 공유 대기(`docs/firebase-integration-guide.md` 참고). Spotify Developer 앱, YouTube Data API 설정도 대기 중(`docs/decisions-needed.md`).
+3. **완료됨(참고)**: 앱 마케팅 이름 "SameWave" 확정 및 표시 이름·아이콘·배포 파일명 전체 반영 완료(검증 대기 중), CI 파이프라인 정상 작동 확인됨(`releases/latest`에서 실제 다운로드까지 확인).
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
@@ -159,3 +159,7 @@
 
 - 요청: 사용자가 APK 파일명·앱 표시 이름을 SameWave로 전반적으로 바꾸고, 안드로이드 기본 아이콘 대신 디자인팀이 만든 실제 아이콘(노을 그라디언트+겹치는 두 원)을 적용해달라고 요청.
 - 분배: (1) implementer에게 위임(백그라운드) — 앱 표시 이름 변경(strings.xml `app_name`, app.json `displayName`, iOS Info.plist `CFBundleDisplayName`만 변경, RN 내부 등록 키 `"mobile"`은 3곳 일치 유지하며 건드리지 않음), `03-screen-mockups.html`의 SVG 아이콘을 실제로 래스터라이즈해서 안드로이드 mipmap 전체 밀도(ic_launcher.png/ic_launcher_round.png)에 적용. (2) deployer에게 위임(백그라운드) — CI 워크플로/README의 APK 파일명을 `feel-music-share-debug.apk` → `SameWave-debug.apk`로 변경(릴리즈 태그 `android-debug-latest`는 URL 안정성 위해 유지), `docs/releases/ci-android-debug-apk.md` 갱신.
+
+- 요청: 사용자가 아이패드/갤럭시폰을 USB로 연결하면 iOS/Android 빌드 검증에 도움되는지 질문.
+- 결과(리더 직접 답변, 서브에이전트 위임 없음): Android(갤럭시폰)는 adb install/run-android/logcat 활용 가능해 실질적 도움이 크다고 안내, 연결 권장. iOS(아이패드)는 근본 원인이 "Windows에 Xcode가 없다"는 것이라 기기 연결과 무관하게 해소 안 됨을 설명.
+- 후속 분배: verifier에게 SameWave 표시 이름/아이콘 적용(커밋 d22c6b3, b6877b5) 검증 위임(백그라운드, "Round 4") — RN 내부 등록 키 일치 여부, clean 빌드 재현, aapt2 dump badging으로 표시 이름 확인 등 지시.
