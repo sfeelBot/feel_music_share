@@ -24,11 +24,11 @@
 
 ### 현재 진행중인 task
 
-1. **verifier Round 4**: 완료 — SameWave 표시 이름·아이콘 적용(커밋 `d22c6b3`, `b6877b5`) 검증 통과(실패 0건), 커밋 `00a9d9c` 완료.
-2. **세션 중단 사고**: implementer(YouTube 실제 재생 연동)·designer(혼합 모드 잔여 화면 4개) 백그라운드 작업 도중 Claude Code 프로세스가 중간에 종료됨 — 확인 결과 designer는 CSS만 추가된 상태(HTML 미완성), implementer는 파일 변경 전혀 없음(사실상 미착수). 둘 다 `SendMessage`로 트랜스크립트 이어서 재개 지시 완료, 백그라운드 진행 중.
-3. **다음 순서 예정(이번 라운드 이후)**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — implementer 파일(SessionContext 등) 충돌 방지를 위해 YouTube 라운드 완료 후 순차 진행.
-4. **신규**: `.claude/skills/allow-git-cd/` 스킬 추가(git/cd Bash 명령 자동 승인 권한 재적용용) — 이번 세션에는 스킬 목록이 이미 로드돼 있어 즉시 인식은 안 됨(새 세션에서 `/allow-git-cd`로 사용 가능), 실제 권한 자체는 `.claude/settings.local.json`에 직접 추가해 즉시 적용됨.
-5. **대기 중**: 사용자로부터 Firebase `google-services.json`, Spotify Developer 앱, YouTube Data API 설정 공유 대기(`docs/decisions-needed.md`). 갤럭시폰 USB 연결 여부도 대기(실기기 로그 확인용, 필수는 아님).
+1. **사용자가 새 세션에서 이어가기로 함(2026-07-26)** — 아래는 새 세션이 이어받아야 할 정확한 상태.
+2. **완료됨**: verifier Round 4(SameWave 이름/아이콘, 커밋 `00a9d9c`) 통과. 혼합 모드 잔여 화면 4개(매칭 진행중/대체후보/매칭실패/전환중 오버레이) `03-screen-mockups.html`에 추가 완료(커밋 `02708ea`) — 이전 세션 중단으로 CSS만 있던 상태였다가 `SendMessage`로 재개해 마무리됨. `.claude/skills/allow-git-cd/` 스킬 추가 완료(새 세션에서는 `/allow-git-cd`로 정상 인식될 것).
+3. **미완료·주의 필요**: implementer의 "YouTube 실제 재생 연동"(react-native-webview + IFrame Player, `youtubePlayerStub.ts` 교체)이 세션 중단 시점에 **파일 변경이 전혀 없는 상태**였고, `SendMessage`로 재개 지시까지는 했으나 **완료 확인을 못 한 채 세션이 넘어간다** — 새 세션에서 가장 먼저 `git status`/`docs/agents/implementation-log.md`로 이 작업이 실제로 진행됐는지 확인 필요. 만약 백그라운드 에이전트가 이전 세션 종료와 함께 끊겼다면 처음부터 다시 지시해야 할 수 있음(원래 지시 내용은 이 로그의 "2026-07-26" 날짜 항목에 기록되어 있음).
+4. **다음 순서 예정**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — YouTube 라운드 완료 후 순차 진행(SessionContext 등 공유 파일 충돌 방지).
+5. **대기 중**: 사용자로부터 Firebase `google-services.json`, Spotify Developer 앱, YouTube Data API 설정 공유 대기(`docs/decisions-needed.md`, `docs/firebase-integration-guide.md`). 갤럭시폰 USB 연결 여부도 대기(실기기 로그 확인용, 필수는 아님).
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
