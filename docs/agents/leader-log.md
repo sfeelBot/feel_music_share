@@ -100,3 +100,13 @@
 - 분배: implementer에게 위임(백그라운드) — `apps/mobile/android/app/build.gradle`의 `react { }` 블록에 `debuggableVariants = []` 설정해 debug 변형도 JS 번들을 임베드하도록 수정, 로컬 빌드 성공 + APK 안에 `assets/index.android.bundle` 실제 포함 여부까지 확인하도록 지시.
 - 결과: implementer가 한 줄 설정(`debuggableVariants = []`)으로 수정, `BUILD SUCCESSFUL` 확인 + `assets/index.android.bundle`(1,033,612 bytes) 실제 포함 확인, tsc/eslint/jest 회귀 없음. 리더가 unzip으로 번들 포함 여부 직접 재확인 후 커밋 `4f5c32a` + push. GitHub Actions 재실행 성공(`conclusion: success`), `releases/latest` 자산이 새 빌드(130,720,171 bytes, updated_at 06:28:24Z)로 갱신된 것까지 API로 확인.
 - 외부 액션: 사용자에게 같은 다운로드 링크에서 새 APK를 다시 받아 실기기 재설치 테스트를 요청(대기 중).
+
+- 요청: 사용자가 "내가 결정이 필요한 것들을 정리해두는 md 파일을 하나 만들어줘. 결정이 나서 더이상 필요없어지면 자동으로 삭제할 수 있게하고" 요청.
+- 결과(리더 직접 처리): `docs/decisions-needed.md` 신규 — append-only 로그와 달리 해결되면 항목을 삭제하는 "살아있는 목록"으로 설계. 지금까지 나온 미결 항목 7개(권한 체계 세부 4건, iOS 배포 방향, Spotify/Firebase 계정 설정 2건)로 초기화. `CLAUDE.md` 리더 규칙 6번에 이 파일의 유지보수 규칙(발견 시 추가, 해결 시 삭제)을 명문화.
+- 외부 액션: 커밋 `a4744c2`(push 안 함).
+
+- 요청: 사용자가 `decisions-needed.md`의 1~5번에 답변(관리자 임명 취소·사임 가능/관리자 인원 무제한/호스트 마이그레이션 시 관리자 목록 유지 후 변경 가능/정원은 생성 후 변경 불가/iOS는 추후 논의 유지), 6·7번(Spotify/Firebase 계정)은 "곧 설정 후 다시 공유" 예고.
+- 분배: 리더가 직접 `decisions-needed.md`에서 1~5번 삭제(6·7번만 남기고 사용자 확인 메모 추가). planner에게 1~4번 결정을 `docs/specs/04-playlist.md`·`01-user-stories.md`에 확정 반영 위임(백그라운드).
+- 결과: planner가 "권한 체계"·"세션 정원" 절의 해당 확인 필요 항목 3개(관리자 임명 세부 흐름/인원 상한, 호스트 마이그레이션 권한 승계) + 정원 사후 변경 여부를 확정 기록으로 갱신, US-204/US-207/US-208 반영. "디자인 에이전트 전달 사항"에 신규 2건(관리자 사임 UI, 정원 고정 표시) 추가 제안. 남은 미결: 호스트 마이그레이션 시 "누가 새 방장이 되는가"(선출 규칙) 자체.
+- 외부 액션: 커밋 `053ed26`(push 안 함).
+- 후속 분배: designer에게 planner가 제안한 2건(관리자 사임 UI, 정원 고정 읽기전용 표시)을 `02-key-ui-patterns.md`·`00-ux-flow.md`에 반영하도록 위임(백그라운드 실행 중).
