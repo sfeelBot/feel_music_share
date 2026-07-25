@@ -142,3 +142,94 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 다만 다음 두 가지는 여전히 유효한 제약/TODO로 남아 있으며, 이번 라운드의 "완료" 판정 범위 밖이라는 점을 분명히 해둔다:
 1. Android(JDK 부재)/iOS(macOS 부재) 실기기·에뮬레이터 런타임 검증은 이 환경에서 구조적으로 불가능하다 — round 1과 동일하게 별도 환경에서 반드시 재검증이 필요하다. 이번 코드 리뷰는 어디까지나 정적 추적 수준의 확인이다.
 2. 커스텀 URL 스킴(딥링크) 미등록, 순서 변경(드래그앤드롭) 미구현, 코드로 참여하기 미구현, Firestore 서버 측 권한 재검증 부재 등 round 1에서 이미 "범위 밖/다음 라운드 TODO"로 문서화된 항목들은 이번 라운드에서도 그대로 미해결이다 — 새로 발견된 문제는 아니므로 이번 판정에 영향을 주지 않지만, 다음 라운드 계획 시 리더가 계속 추적해야 한다.
+
+---
+
+## Round 3 검증 (2026-07-25)
+
+> 검증 대상 커밋: `22776fd` ("Implement playlist reorder and YouTube-only session screens")
+> 검증일: 2026-07-25
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git show --stat`/`git show <file>`로 diff를 직접 읽고 코드 추적(정적 리뷰) + `apps/mobile`에서 tsc/eslint/jest 독립 재실행 + Android `assembleDebug` 독립 재현(증분 빌드 1회 + `clean assembleDebug` 완전 재빌드 1회) + `docs/design/00-ux-flow.md`/`02-key-ui-patterns.md`와의 대조.
+> 범위: (1) 정적 검증 3종, (2) Android 빌드 재현, (3) `requestMoveTrack` 순서 변경 로직 코드 추적, (4) YouTube 화면의 정책 준수(광고 UI 비간섭), (5) 서비스별 화면 격리(Free 배너 등), (6) 회귀 확인.
+
+### 변경 파일 (커밋 22776fd)
+
+`apps/mobile/src/components/AddTrackModal.tsx`, `apps/mobile/src/screens/CreateSessionScreen.tsx`, `apps/mobile/src/screens/RoomScreen.tsx`, `apps/mobile/src/screens/room/PlaylistView.tsx`, `apps/mobile/src/state/SessionContext.tsx`(+로그), 신규: `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`, `apps/mobile/src/services/youtube/youtubeMockSearch.ts`, `apps/mobile/src/services/youtube/youtubePlayerStub.ts`. `NowPlayingView.tsx`, `ParticipantsBottomSheet.tsx`, `RoleBadge.tsx`, `SyncStatusBadge.tsx`, `CapacityStepper.tsx`, `mockSessionSeed.ts`, `sessionService.ts`는 이번 커밋에서 건드리지 않았다(회귀 확인 절에서 별도로 다룸). 네이티브 프로젝트 파일(`android/`, `ios/`)도 이번 커밋에서 손대지 않았다.
+
+### 1. 정적 검증 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R3.1 | `npx tsc --noEmit` (apps/mobile) | ✅ 통과 | 0 errors, 출력 없음. |
+| R3.2 | `npx eslint .` (apps/mobile) | ✅ 통과 | 0 errors, 16 warnings(round 2의 13개 + 이번 라운드 신규 3개: `CreateSessionScreen.tsx` 라디오 opacity, `PlaylistView.tsx` ▲/▼ opacity 2건 — 전부 기존과 동일한 관용적 `react-native/no-inline-styles` 조건부 스타일 패턴). 구현 로그의 "16 warnings" 주장과 정확히 일치. |
+| R3.3 | `npx jest` (apps/mobile) | ✅ 통과 | `__tests__/App.test.tsx` 1/1 통과. |
+
+### 2. Android 빌드 재현 (독립)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R3.4 | `./gradlew.bat assembleDebug --no-daemon` (JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`) — 증분 빌드 | ✅ 통과 | `BUILD SUCCESSFUL in 9s`, 169 actionable tasks(대부분 UP-TO-DATE, 이전 빌드 캐시 재사용). |
+| R3.5 | `./gradlew.bat clean assembleDebug --no-daemon` — 완전 재빌드(캐시 배제, 더 엄격한 재현) | ✅ 통과 | `BUILD SUCCESSFUL in 2m 2s`, 177 actionable tasks(152 executed, 25 up-to-date). `app/build/outputs/apk/debug/app-debug.apk` 생성 확인(130,723,643 bytes). 구현 로그의 "BUILD SUCCESSFUL" 주장을 캐시에 의존하지 않는 방식으로 독립 재현했다 — 신뢰할 수 있음. |
+
+**Android 결론**: 이번 커밋은 JS/TS 레이어만 변경했고 새 네이티브 의존성도 추가하지 않았으므로 빌드 성공은 예상된 결과였지만, `clean` 재빌드까지 통과를 실측으로 확인했다.
+
+### 3. `requestMoveTrack` 순서 변경 로직 코드 추적
+
+> 대상: `apps/mobile/src/state/SessionContext.tsx`의 `requestMoveTrack`(약 227~257행), `apps/mobile/src/screens/room/PlaylistView.tsx`의 `TrackRow`.
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R3.6 | (a) 현재 재생 중인 곡의 인덱스(`currentIndex`)보다 앞선/자신 항목은 이동 대상이 될 수 없는가 | ✅ 통과 | `const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);` 계산 후 `if (idx < 0 \|\| idx <= currentIndex) { return prev; }`로 대상 자체가 `currentIndex` 이하(재생 완료 곡 + 현재 재생 중인 곡 포함)면 즉시 무시. `idx`를 찾지 못한 경우(이미 삭제된 entryId)도 함께 방어. |
+| R3.7 | (b) 배열 경계(맨 앞/맨 뒤)를 벗어나는 이동을 막는가 | ✅ 통과 | `targetIdx = direction === 'up' ? idx - 1 : idx + 1` 계산 후 `if (targetIdx <= currentIndex \|\| targetIdx >= prev.playlist.length) { return prev; }`로 두 방향 모두 방어. 위로 이동 시 `targetIdx <= currentIndex`면(현재 재생 곡 자리를 침범하려 하면) 차단, 아래로 이동 시 `targetIdx >= length`면(배열 끝을 넘어가면) 차단. `idx`가 이미 pending 큐의 첫/마지막이면 각각 `targetIdx`가 `currentIndex`/`length`와 같아져 정확히 여기서 막힌다 — off-by-one 없음. |
+| R3.8 | (c) `PlaylistView.tsx`의 `TrackRow`에서 첫 곡은 ▲, 마지막 곡은 ▼가 비활성화되는가 | ✅ 통과 | `pending.map((entry, index) => <TrackRow ... canMoveUp={index > 0} canMoveDown={index < pending.length - 1} ...>)` — `pending` 배열(재생 완료·현재 재생 제외한 "다음 곡들" 큐) 안에서의 로컬 인덱스를 기준으로 계산하므로 큐의 첫 항목은 `canMoveUp=false`, 마지막 항목은 `canMoveDown=false`가 된다. `TrackRow` 내부에서 `disabled={!canMoveUp}`/`disabled={!canMoveDown}` + `opacity` 시각적 피드백 + `accessibilityState={{disabled}}`까지 부여됨을 확인. |
+| R3.9 | (d) 재생 완료 섹션(`readOnly`)과 현재 재생 중인 곡에는 버튼 자체가 안 보이는가(기존 아이콘 유지) | ✅ 통과 | `TrackRow`의 렌더 분기: `isPlaying`이면 기존 `▶` 재생중 글리프, `readOnly`(재생 완료)면 기존 `handlePlaceholder`(빈 자리, ⠿ 핸들 자리를 비워둠), 그 외(`canReorder = !isPlaying && !readOnly && (onMoveUp \|\| onMoveDown)`)일 때만 새 ▲/▼ 버튼 렌더링. `PlaylistView`가 현재 재생 곡(`currentEntry`)에는 `onMoveUp`/`onMoveDown`을 아예 넘기지 않고 `isPlaying`만 넘기며, 재생 완료 곡(`played.map`)에는 `readOnly`만 넘기고 이동 콜백을 넘기지 않아 이중으로 안전하다(설령 `isPlaying`/`readOnly` 플래그가 깨져도 콜백 자체가 없으면 `canReorder`가 거짓). |
+
+**순서 변경 결론**: 요구된 (a)~(d) 4개 조건 모두 코드 레벨에서 정확히 구현되어 있음을 확인했다. `sessionService.reorderPlaylist`(기존 함수, 이번에 처음 실사용)도 `orderedEntryIds`를 `Map` 조회로 재구성해 존재하지 않는 id는 자동으로 걸러내는 안전한 구현임을 함께 확인했다(`apps/mobile/src/services/session/sessionService.ts` 95~103행).
+
+### 4. YouTube 화면 요구사항 대조 (00-ux-flow.md 2.10c, 02-key-ui-patterns.md 2.2a·4절)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R3.10 | 플레이어 영역 위에 커스텀 오버레이를 겹치지 않는가(4.2-1 "레이어링 금지") | ✅ 통과 | `YouTubeNowPlayingView.tsx`의 `playerPlaceholder`(WebView 자리, `minHeight: 200`)는 자체적으로 안내 텍스트만 담고 있고, ⏮⏯⏭ 컨트롤·동기화 배지·참여자 아바타는 모두 `playerPlaceholder` **바깥**(아래쪽, 별도 `View`/`Text` 요소)에 순차 배치되어 있다. `position: 'absolute'` 등으로 플레이어 영역 위에 겹치는 요소는 코드 전체에서 발견되지 않았다. |
+| R3.11 | 최소 200×200px 크기 준수 | ✅ 통과(부분) | `playerPlaceholder`가 `width: '100%', minHeight: 200`로 스타일링됨 — 세로는 명시적으로 200px 이상 보장, 가로는 `100%`라 어떤 실사용 화면 폭에서도 200px를 초과한다(모바일 화면 최소 폭이 200px 미만인 기기는 사실상 없음). 실기기 렌더링 확인은 아니므로 "정적 스타일 검토로 정책 요건을 만족" 수준으로 판단. |
+| R3.12 | 재생/일시정지 버튼이 장식이 아니라 `youtubePlayerController` 실제 호출로 이어지는가 | ✅ 통과 | `handleTogglePlay`가 `requestPlay()/requestPause()`(세션 로컬 상태 갱신)와 함께 `youtubePlayerController.playVideo()/pauseVideo()`를 **함께** 호출함을 확인(`YouTubeNowPlayingView.tsx` 58~66행). STUB 구현체(`youtubePlayerStub.ts`)는 현재 no-op이지만, 인터페이스 호출 배선 자체는 실제로 되어 있어 "장식용 버튼"은 아니다 — 실제 재생 트리거 여부는 `react-native-webview` 연동 후에나 최종 확인 가능(다음 라운드 범위, 문서화된 TODO). |
+| R3.13 | 광고 상태를 신규 5번째 상태로 만들지 않고 기존 "맞추는 중" 배지에 보조 텍스트로만 반영하는가 | ✅ 통과 | `effectiveSyncStatus = isAdPlaying ? {...syncStatus, state: 'tuning', reasonLabel: '광고 재생 중'} : syncStatus` — `SyncStatusBadge`의 4단계 상태 체계(색/아이콘)를 그대로 재사용하고 텍스트만 보강. `isAdPlaying()`은 항상 `false`를 반환하는 STUB이며 "감지 불확실 시 단정 표시 안 함" 원칙(2.2a)에 따라 임의로 참 값을 지어내지 않았다. |
+| R3.14 | 광고 스킵/카운트다운 등 조작성 커스텀 컨트롤을 만들지 않았는가(4.2-2) | ✅ 통과 | `playerPlaceholder` 내부에는 안내 텍스트만 있고 스킵 버튼·타이머 등 조작 요소가 없다. |
+
+**YouTube 화면 결론**: 문서가 요구하는 정책 원칙(비레이어링, 최소 크기, 실제 재생 트리거, 상태 재사용, 조작 컨트롤 금지)을 코드 레벨에서 정확히 지키고 있다. 다만 R3.12는 STUB이 no-op이라 "실제로 영상이 재생되는지"까지는 이번 라운드에서 검증 불가능한 범위(WebView 미설치, 리더 지시로 다음 라운드 TODO로 이미 문서화됨) — 이는 실패가 아니라 이번 라운드 의도된 범위 제한이다.
+
+### 5. 서비스별 격리 확인
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R3.15 | `NowPlayingView.tsx`(Spotify 전용)와 `YouTubeNowPlayingView.tsx`가 완전히 분리된 컴포넌트인가 | ✅ 통과 | 두 파일은 서로 import하지 않는 독립 컴포넌트다. Free 계정 배너(`viewerIsFree && session.service === 'spotify'` 가드, round 2에서 확인된 그대로)는 `NowPlayingView.tsx`에만 존재하고 `YouTubeNowPlayingView.tsx`에는 관련 코드 자체가 없다(컴포넌트 분리 자체가 가드 역할). |
+| R3.16 | `RoomScreen.tsx`의 라우팅 조건(`session.service === 'youtube'`)이 정확한가 | ✅ 통과 | `session.service === 'youtube' ? <YouTubeNowPlayingView .../> : <NowPlayingView .../>` — `youtube`가 아니면(현재는 `spotify`만 실제로 생성 가능, `mixed`는 세션 생성 자체가 막혀 있음) 전부 `NowPlayingView`로 향하므로 현재 도달 가능한 두 케이스(`spotify`/`youtube`)에서 오작동 여지가 없다. |
+| R3.17 | **(신규 발견) `ParticipantsBottomSheet.tsx`의 Free 태그/조건부 헤더가 YouTube 세션에도 새어 나가는가** | ❌ 실패 | `RoomScreen.tsx`는 탭(`nowPlaying`/`playlist`)과 무관하게 `ParticipantsBottomSheet`를 **서비스 구분 없이 하나만** 렌더링하고 `participants={session.participants}`만 전달한다(`session.service`를 넘기지 않음). `ParticipantsBottomSheet.tsx`(41~45행)는 `accountTier === 'premium'` 기준으로 `playableCount`를 계산해 헤더를 "참여자 (N)" vs "참여자 (N) · 재생 M명"으로 분기하고, 각 참여자 행(112~114행)도 `accountTier === 'free'`면 무조건 "Free · 재생 불가" 태그를 노출한다 — `session.service`를 전혀 참조하지 않는다. `mockSessionSeed.buildDemoParticipants`도 `service`와 무관하게 두 번째 데모 참여자("준호")를 `accountTier: 'free'`로 항상 시드하고, `sessionService.createSession`은 `params.service`를 시딩 로직에 전달하지 않는다. **재현**: 세션 생성 화면에서 서비스로 "YouTube"를 선택하고 기본 정원(2명) 이상으로 세션을 만든 뒤(정원 3 이상이면 "준호"가 시드됨) 우측 상단 "⋮"로 참여자 바텀시트를 열면, "준호" 항목에 "Free · 재생 불가" 태그가 표시되고 헤더도 "참여자 (N) · 재생 M명"으로 표시된다. 그러나 YouTube 세션은 Premium 여부로 재생 가능 인원이 갈리지 않는다(US-103, `YouTubeNowPlayingView.tsx`가 스스로 `suffix = '${session.participants.length}명 함께 듣는 중'`로 Premium/Free 구분 없이 전체 인원만 보여주도록 별도 처리한 것과 정면으로 모순). round 1/2에서 지적·수정됐던 "Free 배너가 우연히 항상 참이던" 것과 동일한 종류의 문제가 `ParticipantsBottomSheet`에는 아직 남아 있다 — `NowPlayingView.tsx`만 가드를 추가했을 뿐, 같은 화면 그룹에서 재사용되는 참여자 바텀시트는 놓친 것으로 보인다. 관련 파일: `apps/mobile/src/screens/RoomScreen.tsx`(56~73행), `apps/mobile/src/components/ParticipantsBottomSheet.tsx`(41~45, 112~114행), `apps/mobile/src/services/session/mockSessionSeed.ts`(`buildDemoParticipants`), `apps/mobile/src/services/session/sessionService.ts`(`createSession`). |
+
+**서비스별 격리 결론**: Now Playing 화면(핵심 화면)의 격리는 견고하게 확인됐으나, 참여자 바텀시트는 여전히 서비스 인지가 없어 YouTube 세션에서 잘못된 정보(존재하지 않는 재생 제약)를 노출한다 — 이번 라운드 지시 범위("Free 배너 안 새어 들어가는지 검증")를 문자 그대로는 통과했다고 볼 수도 있으나(대상이 명시적으로 "Free 배너"였음), 같은 성격의 문제가 인접 컴포넌트에 남아 있어 실패로 기록한다.
+
+### 6. 회귀 확인 (diff 범위 내 가벼운 확인)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R3.18 | 역할 배지(방장/관리자/일반사용자 배지 없음) | ✅ 통과 | `RoleBadge.tsx`는 이번 커밋에서 변경되지 않았고, `ParticipantsBottomSheet.tsx`에서의 사용(`<RoleBadge role={participant.role} />`)도 그대로 유지. |
+| R3.19 | 관리자 임명/사임 — 방장 전용 | ✅ 통과 | `ParticipantsBottomSheet.tsx`의 `canManage={viewerIsHost && item.role !== 'host'}`(RoomScreen.tsx에서 `viewerIsHost={isHost}` 그대로 전달) 로직 불변. |
+| R3.20 | 정원 스테퍼(2~12, 기본 2명) | ✅ 통과 | `CreateSessionScreen.tsx`에서 `CapacityStepper` 관련 코드는 이번 diff의 영향을 받지 않았다(변경분은 서비스 라디오 `useState`/`onPress` 배선뿐) — `capacity` state와 `createSession` 전달 흐름 유지 확인. |
+| R3.21 | Free 배너 Spotify 전용 가드(`NowPlayingView.tsx`) | ✅ 통과 | 이번 커밋에서 `NowPlayingView.tsx`는 전혀 변경되지 않았다 — round 2에서 확인된 `session.service === 'spotify'` 가드가 그대로 유효. (단, R3.17에서 지적한 대로 같은 취지의 가드가 `ParticipantsBottomSheet.tsx`에는 애초부터 없었다.) |
+| R3.22 | 동기화 상태 배지 4단계 | ✅ 통과 | `SyncStatusBadge.tsx`는 이번 커밋에서 변경되지 않았다. `YouTubeNowPlayingView.tsx`도 동일한 4단계 배지 컴포넌트를 그대로 재사용(신규 상태 추가 없음, R3.13과 동일 근거). |
+
+### Round 3 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 21 (R3.1~R3.16, R3.18~R3.22) |
+| ❌ 실패 | 1 (R3.17 — `ParticipantsBottomSheet`의 Free 태그/조건부 헤더가 YouTube 세션에도 새어 들어감, 서비스 인지 부재) |
+| ⛔ 미검증 | 0 (이번 라운드는 Android clean 빌드까지 독립 재현 성공, iOS는 구조적 제약으로 아래 별도 결론 인용) |
+| 의도된 범위 밖(실패 아님) | R3.12의 실제 영상 재생 여부(WebView 미설치, 다음 라운드 TODO로 문서화됨), 혼합(Mixed) 세션(이번 라운드 지시 범위 밖) |
+
+**iOS**: 이번 라운드도 Windows 환경의 구조적 제약(Xcode/macOS 부재)으로 실기기·시뮬레이터 빌드는 수행할 수 없었다. 이번 커밋은 `Platform.OS` 분기나 iOS 전용 API를 사용하지 않았고(신규 파일 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`/`youtubeMockSearch.ts`도 표준 RN 컴포넌트·순수 JS만 사용), `android/`·`ios/` 네이티브 프로젝트 파일도 건드리지 않았다 — round 1의 결론("코드 리뷰 수준에서는 플랫폼 분기 버그나 iOS 전용 API 오남용을 발견하지 못했으나, 실제 iOS 런타임 검증은 별도로 필요")을 그대로 인용한다.
+
+**결론: 이번 라운드(커밋 22776fd)는 "완료"로 간주할 수 없다.** 정적 검증(tsc/eslint/jest) 3종은 모두 독립 재현되어 통과했고, Android는 증분 빌드뿐 아니라 `clean assembleDebug` 완전 재빌드까지 성공을 실측 확인했다. 순서 변경(`requestMoveTrack`) 로직은 요구된 4개 조건(현재곡 이전 이동 금지, 배열 경계 방어, 첫/마지막 버튼 비활성화, 재생중/완료 곡 버튼 미노출) 모두 코드 레벨에서 정확하게 구현되어 있고, YouTube Now Playing 화면도 문서가 요구하는 정책(레이어링 금지, 최소 크기, 실제 재생 트리거 배선, 상태 재사용, 조작 컨트롤 금지)을 코드상 지키고 있다.
+
+다만 서비스별 격리 확인 과정에서 **`ParticipantsBottomSheet`가 YouTube 세션에서도 Free 계정 배지·"재생 M명" 조건부 헤더를 잘못 노출하는 문제(R3.17)를 새로 발견했다** — 이는 round 1/2에서 `NowPlayingView`에 대해 이미 한 번 지적·수정됐던 것과 정확히 같은 종류의 "서비스 조건 없는 accountTier 기반 UI"가 인접 컴포넌트에 남아 있던 사례다. 사용자에게 실제로 존재하지 않는 제약("Free 계정은 YouTube 세션에서도 재생 불가")을 암시하는 정보성 오류이므로, 다음 구현 라운드에서 `ParticipantsBottomSheet`(및 필요시 `mockSessionSeed`/`createSession`의 시딩 로직)에 `session.service` 인지를 추가해야 한다. 이 항목 하나를 제외한 나머지(순서 변경 US-303, YouTube 화면 정책 준수, Now Playing 레벨 격리, Android 빌드, 회귀)는 모두 견고하게 통과했다.
