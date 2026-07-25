@@ -24,10 +24,10 @@
 
 ### 현재 진행중인 task
 
-1. **verifier**: SameWave 표시 이름·아이콘 적용(커밋 `d22c6b3`, `b6877b5`) 검증 — Round 4로 백그라운드 진행 중, 결과 미확인.
-2. **implementer**: YouTube 실제 재생 연동 — `react-native-webview` 설치 + IFrame Player API 임베드로 `youtubePlayerStub.ts`를 실제 구현으로 교체(광고 감지는 신뢰도 낮으면 보수적으로 미검출 처리). YouTube Data API 키 없이도 재생 자체는 가능하다는 전제. 백그라운드 진행 중.
-3. **designer**: 혼합(Mixed) 모드 잔여 화면 4개(매칭 진행 중/대체 후보/매칭 실패/서비스 전환 중 오버레이) `03-screen-mockups.html`에 추가 — `apps/mobile/`과 겹치지 않아 implementer와 병행. 백그라운드 진행 중.
-4. **다음 순서 예정(이번 라운드 이후)**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — implementer 파일(SessionContext 등) 충돌 방지를 위해 YouTube 라운드 완료 후 순차 진행.
+1. **verifier Round 4**: 완료 — SameWave 표시 이름·아이콘 적용(커밋 `d22c6b3`, `b6877b5`) 검증 통과(실패 0건), 커밋 `00a9d9c` 완료.
+2. **세션 중단 사고**: implementer(YouTube 실제 재생 연동)·designer(혼합 모드 잔여 화면 4개) 백그라운드 작업 도중 Claude Code 프로세스가 중간에 종료됨 — 확인 결과 designer는 CSS만 추가된 상태(HTML 미완성), implementer는 파일 변경 전혀 없음(사실상 미착수). 둘 다 `SendMessage`로 트랜스크립트 이어서 재개 지시 완료, 백그라운드 진행 중.
+3. **다음 순서 예정(이번 라운드 이후)**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — implementer 파일(SessionContext 등) 충돌 방지를 위해 YouTube 라운드 완료 후 순차 진행.
+4. **신규**: `.claude/skills/allow-git-cd/` 스킬 추가(git/cd Bash 명령 자동 승인 권한 재적용용) — 이번 세션에는 스킬 목록이 이미 로드돼 있어 즉시 인식은 안 됨(새 세션에서 `/allow-git-cd`로 사용 가능), 실제 권한 자체는 `.claude/settings.local.json`에 직접 추가해 즉시 적용됨.
 5. **대기 중**: 사용자로부터 Firebase `google-services.json`, Spotify Developer 앱, YouTube Data API 설정 공유 대기(`docs/decisions-needed.md`). 갤럭시폰 USB 연결 여부도 대기(실기기 로그 확인용, 필수는 아님).
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
@@ -168,3 +168,7 @@
 
 - 요청: 사용자가 "다른 해결할 문제들을 여전히 일 시켜줘. youtube관련 테스트 항목들에 대해 개발 에이전트한테 항목 체크 시작하고 나머지 다른 것들도 일 시켜"라고 요청 — 리스크 목록 중 진행 가능한 항목을 계속 처리하라는 지시.
 - 분배: (1) implementer에게 YouTube 실제 재생 연동(react-native-webview + IFrame Player, 광고 감지는 보수적으로) 위임(백그라운드) — YouTube Data API 키 없이도 재생 자체는 가능함을 근거로 우선 진행. (2) designer에게 혼합 모드 잔여 화면 4개(2.11a/c/d, 2.13b) 목업 추가 위임(백그라운드) — `apps/mobile/`과 파일이 겹치지 않아 implementer와 병행 가능하다고 판단. 혼합 모드 실제 구현(SessionContext 등 공유 파일 수정 필요)은 YouTube 라운드와 파일 충돌 위험이 있어 이번엔 보류, 다음 순서로 예정.
+
+- 요청: 사용자가 (1) git/cd Bash 명령어 자동 승인 권한 설정, (2) 해당 권한 설정을 스킬로 만들어달라고 요청(이름 사전 공지 요청), (3) 세션 중단 후 "계속 진행해" 지시.
+- 결과: (1) `.claude/settings.local.json`에 `Bash(git *)`/`Bash(cd *)` 추가(update-config 스킬 활용). (2) `.claude/skills/allow-git-cd/SKILL.md` 신규 작성 — 이번 세션엔 즉시 인식 안 됨(새 세션 필요), 실제 권한은 이미 적용됨. (3) 백그라운드 중단된 implementer/designer 2개를 SendMessage로 재개.
+- 외부 액션: 커밋 `00a9d9c`(push 안 함).
