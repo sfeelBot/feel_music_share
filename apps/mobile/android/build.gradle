@@ -1,8 +1,16 @@
 buildscript {
     ext {
-        buildToolsVersion = "35.0.0"
+        // react-native-app-auth(Spotify OAuth Custom Tabs, services/auth/spotifyAuth.ts)의
+        // android/build.gradle이 `androidx.browser:browser:1.9.0`을 하드코딩 의존한다
+        // (net.openid:appauth의 CustomTabsIntent.Builder#setEphemeralBrowsingEnabled() 사용 —
+        // 이 API는 androidx.browser 1.9.0에서 새로 추가된 것이라 더 낮은 버전으로
+        // resolutionStrategy.force 하면 컴파일 자체가 깨진다). androidx.browser 1.9.0은
+        // AAR 메타데이터로 compileSdk 36 이상을, AGP 8.9.1 이상을 요구하므로 둘 다 맞춰 올린다.
+        // AGP는 compileSdk 36을 지원하는 최소 안정 버전대(8.10.x)의 최신 패치(8.10.1)를 사용해
+        // RN 0.76.9가 기본으로 검증한 8.6.0에서 필요 이상으로 멀리 가지 않도록 한다.
+        buildToolsVersion = "36.1.0"
         minSdkVersion = 24
-        compileSdkVersion = 35
+        compileSdkVersion = 36
         targetSdkVersion = 34
         ndkVersion = "26.1.10909125"
         kotlinVersion = "1.9.25"
@@ -12,7 +20,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle")
+        classpath("com.android.tools.build:gradle:8.10.1")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
     }

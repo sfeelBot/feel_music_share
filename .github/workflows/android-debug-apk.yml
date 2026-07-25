@@ -46,16 +46,20 @@ jobs:
           java-version: "17"
 
       # ubuntu-latest 호스티드 러너에는 Android SDK가 기본 포함되어 있지만,
-      # 이 프로젝트가 요구하는 compileSdk 35 / build-tools 35.0.0 컴포넌트가
+      # 이 프로젝트가 요구하는 compileSdk 36 / build-tools 36.1.0 컴포넌트가
       # 러너 이미지 버전에 따라 빠져있을 수 있어 setup-android로 SDK 상태를
       # 명시적으로 보장한다(멱등적 — 이미 있으면 그대로 사용).
+      #
+      # compileSdk가 36인 이유: react-native-app-auth(Spotify OAuth Custom Tabs)가 의존하는
+      # androidx.browser:browser:1.9.0이 AAR 메타데이터로 compileSdk 36 이상을 요구한다
+      # (android/build.gradle 주석 참고). 그에 맞춰 AGP도 8.10.1로 올렸다.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install required Android SDK packages
         run: |
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0"
 
       - name: Install JS dependencies (npm ci)
         run: npm ci
