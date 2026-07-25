@@ -15,4 +15,10 @@
 ## 추후 논의로 보류된 항목 (해결 전까지 계속 유지)
 
 4. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
-5. **YouTube 실기기 스파이크** — 실제 기기(가급적 안드로이드+iOS 둘 다) + YouTube Premium 계정으로 (a) WebView/IFrame Player 임베드 환경에서 실제로 광고가 뜨는지, (b) 재생/탐색 명령 응답 지연이 어느 정도인지 실측이 필요. YouTube가 MVP에 포함되기로 이미 결정됐으므로 이 실측은 "포함 여부 판단용"이 아니라 "제품 카피·사용자 기대치 문구를 정확히 쓰기 위한" 목적(`docs/specs/06-mvp-scope-and-tech-stack.md` 참고) — 구현 착수 전 권고 스파이크로 계속 남아있던 항목.
+
+## 다음 라운드 예정 — 구현 후 실기기 확인 필요 (지금 당장 사용자가 할 일 아님, 참고용)
+
+5. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.**
+   - (a) **광고 노출 확인**: 실제 임베드 환경에서 영상 재생 시 프리롤/미드롤 광고가 뜨는지 육안 확인 — Premium이어도 서드파티 WebView 임베드에서 무광고가 보장되는지 공식 문서로 확답을 못 찾았기 때문(`docs/specs/03-youtube-integration.md` 7절).
+   - (b) **명령 응답 지연 실측**: 재생/일시정지/탐색 명령을 내린 뒤 실제 화면 반영까지 걸리는 시간 측정 — 동기화 드리프트 보정 설계(`05-sync-architecture.md`)에 반영할 참고 수치를 얻기 위함.
+   - 목적은 "YouTube를 포함할지 말지 판단"이 아니라(이미 포함하기로 결정됨) "제품 카피·사용자 기대치 문구를 정확히 쓰기 위한 실측"이다(`docs/specs/06-mvp-scope-and-tech-stack.md` 참고).
