@@ -2,21 +2,26 @@ import React, {useState} from 'react';
 import {ActivityIndicator, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {useTheme} from '../theme/ThemeContext';
 import {searchSpotifyTracks, type SpotifySearchTrack} from '../services/spotify/spotifyWebApi';
-import type {Track} from '../types/domain';
+import {searchYoutubeTracksMock} from '../services/youtube/youtubeMockSearch';
+import type {MusicService, Track} from '../types/domain';
 
 /**
  * 곡 검색 및 추가 바텀시트 (US-301, 00-ux-flow.md 2번 흐름 "곡 검색 및 추가 바텀시트").
- * 실제 Spotify Web API 검색(`GET /v1/search`)을 그대로 호출한다 — accessToken만 있으면 되므로
- * Firebase 연동 여부와 무관하게 이번 라운드에서 실제로 동작한다.
+ * Spotify 세션은 실제 Spotify Web API 검색(`GET /v1/search`)을 그대로 호출한다 — accessToken만
+ * 있으면 되므로 Firebase 연동 여부와 무관하게 실제로 동작한다.
+ * YouTube 세션은 실제 YouTube Data API 연동이 이번 라운드 범위 밖이라 목업 검색
+ * (`services/youtube/youtubeMockSearch.ts`)으로 UI 흐름만 완성했다 — TODO(다음 라운드): YouTube
+ * Data API v3 `search` 엔드포인트로 교체.
  */
 interface AddTrackModalProps {
   visible: boolean;
   onClose: () => void;
+  service: MusicService;
   accessToken: string | null;
   onSelectTrack: (track: Track) => void;
 }
 
-export default function AddTrackModal({visible, onClose, accessToken, onSelectTrack}: AddTrackModalProps) {
+export default function AddTrackModal({visible, onClose, service, accessToken, onSelectTrack}: AddTrackModalProps) {
   const theme = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SpotifySearchTrack[]>([]);
@@ -24,14 +29,17 @@ export default function AddTrackModal({visible, onClose, accessToken, onSelectTr
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSearch = async () => {
-    if (!accessToken) {
+    if (service === 'spotify' && !accessToken) {
       setErrorMessage('로그인이 필요해요.');
       return;
     }
     setLoading(true);
     setErrorMessage(null);
     try {
-      const items = await searchSpotifyTracks(query, accessToken);
+      const items =
+        service === 'youtube'
+          ? await searchYoutubeTracksMock(query)
+          : await searchSpotifyTracks(query, accessToken as string);
       setResults(items);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : '검색에 실패했어요.');
@@ -40,11 +48,13 @@ export default function AddTrackModal({visible, onClose, accessToken, onSelectTr
     }
   };
 
+  const searchPlaceholder = service === 'youtube' ? '영상 제목, 채널 검색' : '곡, 아티스트 검색';
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.container, {backgroundColor: theme.bg}]}>
         <View style={styles.header}>
-          <Text style={[styles.title, {color: theme.text}]}>곡 추가</Text>
+          <Text style={[styles.title, {color: theme.text}]}>{service === 'youtube' ? '영상 추가' : '곡 추가'}</Text>
           <TouchableOpacity onPress={onClose} accessibilityLabel="닫기">
             <Text style={[styles.closeText, {color: theme.textSecondary}]}>닫기</Text>
           </TouchableOpacity>
@@ -53,7 +63,7 @@ export default function AddTrackModal({visible, onClose, accessToken, onSelectTr
         <View style={styles.searchRow}>
           <TextInput
             style={[styles.input, {backgroundColor: theme.bgElevated, color: theme.text, borderColor: theme.border}]}
-            placeholder="곡, 아티스트 검색"
+            placeholder={searchPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={query}
             onChangeText={setQuery}

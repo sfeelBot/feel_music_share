@@ -5,6 +5,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
 import ParticipantsBottomSheet from '../components/ParticipantsBottomSheet';
 import NowPlayingView from './room/NowPlayingView';
+import YouTubeNowPlayingView from './room/YouTubeNowPlayingView';
 import PlaylistView from './room/PlaylistView';
 import {useSession} from '../state/SessionContext';
 import {useTheme} from '../theme/ThemeContext';
@@ -14,6 +15,10 @@ import {brand} from '../theme/tokens';
  * 세션 메인 화면 컨테이너 (00-ux-flow.md 2.10절) — Now Playing / 플레이리스트 두 탭을
  * 커스텀 세그먼트 컨트롤로 전환한다(react-navigation의 탭 네비게이터 대신 목업과 동일한
  * tab-switcher 컴포넌트를 그대로 구현 — 별도 탭 네비게이션 패키지를 추가하지 않기 위함).
+ *
+ * Now Playing 탭은 `session.service`에 따라 레이아웃이 완전히 다른 두 컴포넌트로 갈린다
+ * (2.10a Spotify vs 2.10c YouTube) — 혼합(Mixed, 2.10d)은 이번 라운드 범위 밖이라 다루지 않는다.
+ * 플레이리스트 탭은 두 서비스가 구조를 공유하므로 `PlaylistView` 하나를 그대로 재사용한다.
  */
 type Props = NativeStackScreenProps<RootStackParamList, 'Room'>;
 type Tab = 'nowPlaying' | 'playlist';
@@ -49,7 +54,11 @@ export default function RoomScreen(_props: Props) {
       </View>
 
       {tab === 'nowPlaying' ? (
-        <NowPlayingView onOpenParticipants={() => setParticipantsVisible(true)} />
+        session.service === 'youtube' ? (
+          <YouTubeNowPlayingView onOpenParticipants={() => setParticipantsVisible(true)} />
+        ) : (
+          <NowPlayingView onOpenParticipants={() => setParticipantsVisible(true)} />
+        )
       ) : (
         <PlaylistView />
       )}

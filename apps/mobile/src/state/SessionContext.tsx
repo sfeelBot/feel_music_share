@@ -49,6 +49,11 @@ interface SessionContextValue {
   requestPrevTrack: () => void;
   addTrack: (track: Track) => void;
   removeTrack: (entryId: string) => void;
+  /**
+   * 대기열("다음 곡들") 안에서 곡을 한 칸 위/아래로 옮긴다 (US-303, 00-ux-flow.md 2.10b).
+   * 이미 재생 완료된 곡·현재 재생 중인 곡은 이동 대상이 될 수 없다(정책 유지) — 아래 구현 참고.
+   */
+  requestMoveTrack: (entryId: string, direction: 'up' | 'down') => void;
   appointAdmin: (participantId: string) => void;
   revokeAdmin: (participantId: string) => void;
 }
@@ -218,6 +223,39 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     [currentParticipantId, triggerTuning],
   );
 
+  /**
+   * US-303 실제 구현. `session.playlist` 배열의 순서 자체가 재생 순서(커서 = playback.currentEntryId의
+   * 인덱스)를 뜻하므로 — requestNextTrack/requestPrevTrack/removeTrack이 모두 이 불변식에 의존한다 —
+   * 재정렬 가능 범위를 "현재 재생 중인 곡의 인덱스보다 뒤(= 아직 재생되지 않은 다음 곡들)"로만 제한한다.
+   * 그 앞(재생 완료 + 현재 재생 중)은 절대 이동하지 않는다(00-ux-flow.md 2.10b "재생 완료 섹션은
+   * 읽기 전용" 정책과 "현재 재생 중인 곡은 드래그 핸들 없음" 정책 둘 다 여기서 함께 보장된다).
+   *
+   * TODO(Firebase 연동): sessionService.reorderPlaylist가 Cloud Function 호출로 교체되면, 낙관적
+   * 로컬 갱신 대신 서버가 확정한 순서를 구독(onSnapshot/onValue)해서 반영해야 한다(04-playlist.md
+   * "동시 편집 처리" 절 — 마지막 조작 우선 적용).
+   */
+  const requestMoveTrack = useCallback((entryId: string, direction: 'up' | 'down') => {
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);
+      const idx = prev.playlist.findIndex(e => e.entryId === entryId);
+      if (idx < 0 || idx <= currentIndex) {
+        // 대상을 찾지 못했거나(이미 삭제됨) 재생 완료/현재 재생 중인 곡이면 이동시키지 않는다.
+        return prev;
+      }
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx <= currentIndex || targetIdx >= prev.playlist.length) {
+        // 위로 이동 시 현재 재생 중인 곡 자리로 넘어가거나, 아래로 이동 시 배열 끝을 넘어가면 무시.
+        return prev;
+      }
+      const reordered = [...prev.playlist];
+      [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+      const orderedEntryIds = reordered.map(e => e.entryId);
+      const playlist = sessionService.reorderPlaylist(prev.sessionId, orderedEntryIds);
+      return {...prev, playlist};
+    });
+  }, []);
+
   const appointAdmin = useCallback((participantId: string) => {
     setSession(prev => {
       if (!prev) {return prev;}
@@ -266,6 +304,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestPrevTrack,
       addTrack,
       removeTrack,
+      requestMoveTrack,
       appointAdmin,
       revokeAdmin,
     }),
@@ -282,6 +321,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestPrevTrack,
       addTrack,
       removeTrack,
+      requestMoveTrack,
       appointAdmin,
       revokeAdmin,
     ],

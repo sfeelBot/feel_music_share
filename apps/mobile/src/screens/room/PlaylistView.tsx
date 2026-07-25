@@ -9,17 +9,21 @@ import {brandColors, pickerColors} from '../../theme/tokens';
 import type {PlaylistEntry} from '../../types/domain';
 
 /**
- * 플레이리스트 탭 (00-ux-flow.md 2.10b절).
+ * 플레이리스트 탭 (00-ux-flow.md 2.10b절). Spotify/YouTube 세션 공용 — 상단 서비스 칩만
+ * `session.service`에 따라 달라진다(2.10b "서비스 칩 상시 노출" 정책).
  *
- * 순서 변경(드래그앤드롭, US-303)은 드래그 핸들(⠿)만 시각적으로 배치하고 실제 동작은 이번
- * 라운드에서 구현하지 않았다 — 제스처/드래그 라이브러리가 아직 설치돼 있지 않다.
- * TODO(다음 단계): react-native-gesture-handler + reanimated 기반 드래그 정렬 도입 + Firebase
- * reorderPlaylist 이벤트 연동.
+ * 순서 변경(US-303): react-native-draggable-flatlist 같은 드래그 라이브러리를 새로 설치하는 대신
+ * (네이티브 의존성 추가 → Android/iOS 빌드 재검증까지 다시 필요해지는 부담을 피하기 위한 판단,
+ * 04-playlist.md 110행 "드래그 앤 드롭 등"이 다른 방식도 허용함을 근거로 삼음) 각 행에 ▲/▼ 버튼을
+ * 두어 순수 JS 상태 변경만으로 실제 순서를 바꾼다(SessionContext.requestMoveTrack). "다음 곡들"
+ * 섹션(재생 완료/현재 재생 중이 아닌 곡)에서만 버튼이 보이고, 첫/마지막 곡은 해당 방향 버튼이
+ * 비활성화된다. TODO(다음 단계): Firebase 연동 시 requestMoveTrack 내부만 Cloud Function 호출로
+ * 교체하면 되도록 상태 갱신 로직을 SessionContext에 이미 분리해뒀다.
  */
 export default function PlaylistView() {
   const theme = useTheme();
   const {profile, tokens} = useAuth();
-  const {session, removeTrack, addTrack} = useSession();
+  const {session, removeTrack, addTrack, requestMoveTrack} = useSession();
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
 
@@ -39,10 +43,15 @@ export default function PlaylistView() {
     ]);
   };
 
+  const serviceChip =
+    session.service === 'youtube'
+      ? {label: '🔴 YouTube 플레이리스트 ▸', color: brandColors.youtubeRed}
+      : {label: '🟢 Spotify 플레이리스트 ▸', color: brandColors.spotifyGreen};
+
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.serviceChip} accessibilityRole="button">
-        <Text style={[styles.serviceChipText, {color: brandColors.spotifyGreen}]}>🟢 Spotify 플레이리스트 ▸</Text>
+        <Text style={[styles.serviceChipText, {color: serviceChip.color}]}>{serviceChip.label}</Text>
       </TouchableOpacity>
 
       {currentEntry && (
@@ -67,13 +76,17 @@ export default function PlaylistView() {
             onDelete={confirmDelete}
           />
         )}
-        {pending.map(entry => (
+        {pending.map((entry, index) => (
           <TrackRow
             key={entry.entryId}
             entry={entry}
             viewerParticipantId={profile?.id}
             ringColor={ringColorByParticipant.get(entry.addedByParticipantId) ?? pickerColors.coral}
             onDelete={confirmDelete}
+            canMoveUp={index > 0}
+            canMoveDown={index < pending.length - 1}
+            onMoveUp={() => requestMoveTrack(entry.entryId, 'up')}
+            onMoveDown={() => requestMoveTrack(entry.entryId, 'down')}
           />
         ))}
 
@@ -107,6 +120,7 @@ export default function PlaylistView() {
       <AddTrackModal
         visible={addModalVisible}
         onClose={() => setAddModalVisible(false)}
+        service={session.service}
         accessToken={tokens?.accessToken ?? null}
         onSelectTrack={track => {
           addTrack(track);
@@ -124,6 +138,10 @@ function TrackRow({
   viewerParticipantId,
   ringColor,
   onDelete,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
 }: {
   entry: PlaylistEntry;
   isPlaying?: boolean;
@@ -131,9 +149,15 @@ function TrackRow({
   viewerParticipantId?: string;
   ringColor: string;
   onDelete: (entry: PlaylistEntry) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const theme = useTheme();
   const isMe = entry.addedByParticipantId === viewerParticipantId;
+  // "다음 곡들" 큐에 있는 항목만(재생 중/재생 완료 제외) 순서 변경 버튼을 보여준다.
+  const canReorder = !isPlaying && !readOnly && (onMoveUp || onMoveDown);
 
   return (
     <TouchableOpacity
@@ -145,6 +169,25 @@ function TrackRow({
         <Text style={styles.playingGlyph}>▶</Text>
       ) : readOnly ? (
         <View style={styles.handlePlaceholder} />
+      ) : canReorder ? (
+        <View style={styles.reorderButtons}>
+          <TouchableOpacity
+            onPress={onMoveUp}
+            disabled={!canMoveUp}
+            accessibilityLabel={`${entry.track.title} 위로 이동`}
+            accessibilityState={{disabled: !canMoveUp}}
+            hitSlop={{top: 4, bottom: 4, left: 8, right: 8}}>
+            <Text style={[styles.reorderGlyph, {color: theme.textSecondary, opacity: canMoveUp ? 1 : 0.3}]}>▲</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onMoveDown}
+            disabled={!canMoveDown}
+            accessibilityLabel={`${entry.track.title} 아래로 이동`}
+            accessibilityState={{disabled: !canMoveDown}}
+            hitSlop={{top: 4, bottom: 4, left: 8, right: 8}}>
+            <Text style={[styles.reorderGlyph, {color: theme.textSecondary, opacity: canMoveDown ? 1 : 0.3}]}>▼</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <Text style={[styles.handleGlyph, {color: theme.textSecondary}]}>⠿</Text>
       )}
@@ -189,6 +232,8 @@ const styles = StyleSheet.create({
   playingGlyph: {fontSize: 14, width: 16, color: '#3FB68B'},
   handleGlyph: {fontSize: 16, width: 16, textAlign: 'center'},
   handlePlaceholder: {width: 16},
+  reorderButtons: {width: 16, alignItems: 'center', gap: 2},
+  reorderGlyph: {fontSize: 11, lineHeight: 12},
   trackInfo: {flex: 1},
   trackTitle: {fontSize: 14, fontWeight: '600'},
   trackArtist: {fontSize: 12, marginTop: 1},

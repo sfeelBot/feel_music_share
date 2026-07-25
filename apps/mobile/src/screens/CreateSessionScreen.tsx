@@ -13,15 +13,16 @@ import {SESSION_CAPACITY_DEFAULT, type MusicService} from '../types/domain';
 
 /**
  * 세션 생성 (US-201, US-105, US-207, 00-ux-flow.md 2.6절).
- * 이번 라운드는 Spotify 전용 세션만 실제로 만들 수 있다 — YouTube/혼합은 라디오가 비활성화되고
- * "곧 지원 예정" 안내만 표시한다(리더 지시, 이번 라운드 범위 밖).
+ * (2026-07-25 갱신) YouTube가 MVP로 승격되어 Spotify와 함께 라디오에서 실제로 선택 가능해졌다
+ * (00-ux-flow.md 2.6절 "2026-07-23 갱신 — 준비 중 비활성 처리를 해제했다"). 혼합(Mixed)은 여전히
+ * 이번 라운드 범위 밖이라 비활성 상태를 유지한다(리더 지시).
  */
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateSession'>;
 
 const INFO_BY_SERVICE: Record<MusicService, string> = {
-  spotify:
-    '이 방은 Spotify 전용이에요. 참여자 모두 Spotify Premium이 필요해요.\n(나중에 세션 설정에서 다른 서비스로 전환할 수 있어요 — 이번 버전은 Spotify만 지원)',
-  youtube: 'YouTube 세션은 곧 지원 예정이에요.',
+  spotify: '이 방은 Spotify 전용이에요. 참여자 모두 Spotify Premium이 필요해요.\n나중에 세션 설정에서 전환할 수 있어요.',
+  youtube:
+    '이 방은 YouTube 전용이에요. YouTube 정책상 무광고가 보장되지 않아 광고가 보일 수 있어요.\n나중에 세션 설정에서 전환할 수 있어요.',
   mixed: '혼합 세션은 곧 지원 예정이에요.',
 };
 
@@ -31,6 +32,7 @@ export default function CreateSessionScreen({navigation}: Props) {
   const {createSession} = useSession();
 
   const [sessionName, setSessionName] = useState('우리 둘의 플레이리스트');
+  const [service, setService] = useState<MusicService>('spotify');
   const [capacity, setCapacity] = useState(SESSION_CAPACITY_DEFAULT);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -41,7 +43,7 @@ export default function CreateSessionScreen({navigation}: Props) {
     setIsCreating(true);
     const session = createSession({
       sessionName,
-      service: 'spotify',
+      service,
       capacity,
       host: {
         participantId: profile.id,
@@ -77,8 +79,8 @@ export default function CreateSessionScreen({navigation}: Props) {
 
         <View>
           <Text style={[styles.label, {color: theme.textSecondary}]}>음악 서비스</Text>
-          <RadioRow label="Spotify" selected disabled={false} />
-          <RadioRow label="YouTube" selected={false} disabled note="곧 지원 예정" />
+          <RadioRow label="Spotify" selected={service === 'spotify'} disabled={false} onPress={() => setService('spotify')} />
+          <RadioRow label="YouTube" selected={service === 'youtube'} disabled={false} onPress={() => setService('youtube')} />
           <RadioRow label="혼합 (Mixed)" selected={false} disabled note="곧 지원 예정" />
         </View>
 
@@ -88,7 +90,7 @@ export default function CreateSessionScreen({navigation}: Props) {
         </View>
 
         <Text style={[styles.infoBanner, {color: theme.textSecondary, backgroundColor: theme.cardBg}]}>
-          ⓘ {INFO_BY_SERVICE.spotify}
+          ⓘ {INFO_BY_SERVICE[service]}
         </Text>
 
         <PrimaryButton label="세션 만들기" onPress={handleCreate} loading={isCreating} style={styles.createButton} />
@@ -97,11 +99,25 @@ export default function CreateSessionScreen({navigation}: Props) {
   );
 }
 
-function RadioRow({label, selected, disabled, note}: {label: string; selected: boolean; disabled: boolean; note?: string}) {
+function RadioRow({
+  label,
+  selected,
+  disabled,
+  note,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  disabled: boolean;
+  note?: string;
+  onPress?: () => void;
+}) {
   const theme = useTheme();
   return (
-    <View
+    <TouchableOpacity
       style={[styles.radioRow, {opacity: disabled ? 0.45 : 1}]}
+      onPress={onPress}
+      disabled={disabled || !onPress}
       accessibilityRole="radio"
       accessibilityState={{selected, disabled}}>
       <View style={[styles.radioDot, {borderColor: selected ? brand.primary : theme.border}]}>
@@ -109,7 +125,7 @@ function RadioRow({label, selected, disabled, note}: {label: string; selected: b
       </View>
       <Text style={[styles.radioLabel, {color: theme.text}]}>{label}</Text>
       {note && <Text style={[styles.radioNote, {color: theme.textSecondary}]}>{note}</Text>}
-    </View>
+    </TouchableOpacity>
   );
 }
 
