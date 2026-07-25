@@ -172,3 +172,13 @@
 - 요청: 사용자가 (1) git/cd Bash 명령어 자동 승인 권한 설정, (2) 해당 권한 설정을 스킬로 만들어달라고 요청(이름 사전 공지 요청), (3) 세션 중단 후 "계속 진행해" 지시.
 - 결과: (1) `.claude/settings.local.json`에 `Bash(git *)`/`Bash(cd *)` 추가(update-config 스킬 활용). (2) `.claude/skills/allow-git-cd/SKILL.md` 신규 작성 — 이번 세션엔 즉시 인식 안 됨(새 세션 필요), 실제 권한은 이미 적용됨. (3) 백그라운드 중단된 implementer/designer 2개를 SendMessage로 재개.
 - 외부 액션: 커밋 `00a9d9c`(push 안 함).
+
+## 2026-07-26 (세션 인계 후 재개)
+
+- 요청: 이전 세션이 핸드오프 메모에서 "YouTube 실제 재생 연동이 실제로 진행됐는지 확인 안 된 채 세션 종료"라고 남긴 것을 이어받아, 리더가 직접 상태 확인 후 다음 작업 진행.
+- 확인(리더 직접 수행, 서브에이전트 위임 없음): `git status` — `apps/mobile/package.json`/`package-lock.json`만 미커밋 변경(`react-native-webview: ^14.0.1` 추가). `docs/agents/implementation-log.md` 마지막 항목은 2026-07-25 SameWave 이름/아이콘 라운드로 끝 — YouTube WebView 연동 완료 기록 없음. **결론: 백그라운드 에이전트가 `npm install react-native-webview`만 실행하고 실제 코드 작업(YouTubeNowPlayingView.tsx 교체, 네이티브 설정, youtubePlayerStub.ts 교체)은 착수 전에 세션 종료와 함께 끊긴 것으로 확인** — 처음부터 다시 지시 필요.
+- 분배: implementer에게 YouTube 실제 재생 연동(react-native-webview + IFrame Player API, 광고 감지는 보수적으로) 재위임(백그라운드 실행 중). 미커밋 `package.json`/`package-lock.json`(webview 패키지 추가분)은 그대로 유지하고 이어서 작업하도록 지시.
+- 결과(implementer 완료): `services/youtube/youtubePlayerHtml.ts`(신규, IFrame Player HTML/JS 템플릿) + `youtubePlayerStub.ts`(파일명 유지, 내용 전면 교체 — WebView 브릿지 컨트롤러) + `YouTubeNowPlayingView.tsx`(실제 `<WebView>` 렌더링, 곡 전환 시 `loadVideoById`/`cueVideoById` 배선)로 실제 재생 연동 완료. 광고 감지는 `getVideoData().video_id` 불일치 휴리스틱(공식 상태 코드 부재로 인한 실무적 판단), 광고 중 seek 무시를 컨트롤러 레벨에서 재차 방어. `jest.config.js`/`__mocks__/react-native-webview.js` 신규(네이티브 모듈 jest mock).
+- 검증(리더 직접 재현): diff 리뷰 완료(정책 준수 — DOM 조작/광고 스킵 없음, 표준 IFrame Player API만 사용, 커스텀 컨트롤이 플레이어 바깥에 위치 확인). `npx tsc --noEmit`(0 errors)·`npx eslint .`(0 errors, 16 warnings — 전부 기존 관용적 패턴)·`npx jest`(1/1 통과) 독립 재현 일치. Android `./gradlew.bat assembleDebug --no-daemon` 독립 재현 → **BUILD SUCCESSFUL**, `react-native-webview` 네이티브 모듈이 별도 수동 설정 없이 autolinking으로 정상 빌드됨(이번 라운드 최대 리스크 지점 — 문제 없음 확인).
+- 외부 액션: 커밋 `125e91e`(`.claude/settings.json` 권한 목록, 별도 커밋) + 커밋(YouTube WebView 연동, 이 로그와 같은 커밋) 생성(push 안 함).
+- 후속 분배: CLAUDE.md 규칙(구현 완료 후 검증 필수)에 따라 verifier에게 이번 라운드 검증 위임 예정 — 광고 감지 휴리스틱은 실기기 없이는 정확도 확인 불가함을 알고 진행, 코드 리뷰 수준 + Android 빌드 재검증 + 정책 준수(8-2/8-3절) 대조에 집중하도록 지시.
