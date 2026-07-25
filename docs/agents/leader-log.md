@@ -138,3 +138,6 @@
 - 요청: 사용자가 앱 이름을 "Samewave"로 최종 확정. 추가로 Firebase 연동 설명을 md 파일에 정리해 다음 세션에 이어갈 수 있게 해달라고 요청("내일 이어서 할거야").
 - 결과(리더 직접 처리, 소규모라 서브에이전트 위임 없이 처리): `docs/design/04-app-naming.md`에 확정 배너 추가(후보 목록/추천 이력은 그대로 보존), `CLAUDE.md` 프로젝트 개요와 `README.md`에 마케팅 명칭 Samewave 반영(개발 코드네임·패키지명은 변경하지 않음 — 별도 요청 시 진행). `docs/firebase-integration-guide.md` 신규 작성 — 현재 진행 상태(프로젝트 생성 완료), 사용자가 마저 할 일(Android 앱 등록/google-services.json/DB 종류), 파일을 받으면 리더가 진행할 작업 순서(패키지 설치·네이티브 설정·firebaseClient.ts 교체·재검증)까지 여러 세션에 걸쳐 이어갈 수 있도록 정리. `docs/decisions-needed.md`의 Firebase 항목에서 이 신규 가이드로 링크 연결.
 - 외부 액션: 커밋 `4221952`(push 안 함).
+
+- 요청: 사용자가 APK 파일명·앱 표시 이름을 SameWave로 전반적으로 바꾸고, 안드로이드 기본 아이콘 대신 디자인팀이 만든 실제 아이콘(노을 그라디언트+겹치는 두 원)을 적용해달라고 요청.
+- 분배: (1) implementer에게 위임(백그라운드) — 앱 표시 이름 변경(strings.xml `app_name`, app.json `displayName`, iOS Info.plist `CFBundleDisplayName`만 변경, RN 내부 등록 키 `"mobile"`은 3곳 일치 유지하며 건드리지 않음), `03-screen-mockups.html`의 SVG 아이콘을 실제로 래스터라이즈해서 안드로이드 mipmap 전체 밀도(ic_launcher.png/ic_launcher_round.png)에 적용. (2) deployer에게 위임(백그라운드) — CI 워크플로/README의 APK 파일명을 `feel-music-share-debug.apk` → `SameWave-debug.apk`로 변경(릴리즈 태그 `android-debug-latest`는 URL 안정성 위해 유지), `docs/releases/ci-android-debug-apk.md` 갱신.
