@@ -82,3 +82,18 @@
   - AGP 8.10.1로 올리면서 Gradle도 8.11.1로 함께 올랐다 — CI(ubuntu-latest, `actions/setup-java@v4`로 JDK 17)에서도 Gradle 8.11.1이 요구하는 JDK 17 이상 조건은 이미 충족되어 있어 별도 CI JDK 버전 변경은 하지 않았다. 다만 CI 환경에서 실제로 `platforms;android-36`/`build-tools;36.1.0`을 `sdkmanager`가 정상적으로 다운로드/설치할 수 있는지는 로컬에서는 확인 불가능하므로(로컬은 이미 설치돼 있었음) 검증 에이전트가 실제 CI 실행 결과(GitHub Actions)로 별도 확인 필요.
   - `androidx.browser:browser:1.9.0`을 그대로 두고 compileSdk/AGP를 올리는 쪽으로 결정했기 때문에, 이 앱은 이제 최소 compileSdk 36 기준으로 빌드된다 — 향후 다른 라이브러리를 추가할 때도 compileSdk 36 요구사항이 새 기준선이 된다는 점을 다음 라운드 구현자가 인지해야 한다.
   - `node_modules/react-native-app-auth/android/build.gradle`의 `androidx.browser:browser:1.9.0` 하드코딩 자체는 서드파티 패키지 내부라 고치지 않았다(patch-package 등도 이번 범위 밖으로 판단, 리더 지시에 없었음).
+
+## 2026-07-25 (debug APK "Unable to load script" 수정 — JS 번들 미포함)
+- 작업: 사용자가 GitHub Releases의 debug APK(`android-debug-latest`)를 실기기에 설치했을 때 발생한 `Unable to load script` 에러 수정. 원인은 react-native-gradle-plugin의 `debuggableVariants` 기본값(`["debug"]`) — debug 변형은 Metro 서버에서 JS를 받아오는 것을 전제로 JS 번들/에셋 패키징을 스킵하는데, 우리 CI가 배포하는 debug APK는 Metro 없이 그냥 설치해 쓰는 독립 실행형 사이드로드 배포용이라 이 기본 동작과 충돌했다.
+  1. `apps/mobile/android/app/build.gradle`의 `react { ... }` 확장 블록에 `debuggableVariants = []` 추가(react-native-gradle-plugin 공식 문서 "Configuration" 절 표준 해결법). 빈 리스트로 설정하면 debug 변형도 release와 동일하게 JS 번들·에셋이 APK 안에 패키징된다.
+  2. 부작용 검토: `debuggableVariants`는 "번들을 APK에 넣을지"만 제어하고 `android:debuggable`/`BuildConfig.DEBUG` 자체나 Metro 연동을 막지 않는다 — RN의 `DevSupportManager`는 `getUseDeveloperSupport()`(디버그 빌드 기준 true)일 때 우선 Metro 개발 서버 접속을 시도하고, Metro가 응답하지 않을 때(사이드로드 실기기 상황)에만 APK에 내장된 번들로 폴백하는 구조라 로컬 `npx react-native run-android` + Metro 개발 흐름에는 영향이 없다고 판단(공식 문서 근거로 확인, 로컬에 macOS 없이 실기기로 Metro 연동 자체를 직접 재현 테스트하지는 못함 — 검증 에이전트가 실제 로컬 개발 시나리오까지 재확인 권장).
+  3. 실제 빌드 검증: JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home` 환경에서 `./gradlew.bat assembleDebug --no-daemon` 실행 → **`BUILD SUCCESSFUL in 6m 4s`** 확인. `createBundleDebugJsAndAssets` 태스크가 실행됨을 별도로 확인.
+  4. APK 내부 확인: `unzip -l app-debug.apk`로 `assets/index.android.bundle` 파일이 1,033,612 bytes(약 1.01MB)로 존재함을 확인(0바이트 아님). APK 전체 용량은 수정 전 130,163,456 bytes → 수정 후 131,131,617 bytes로 약 968KB 증가(번들 크기와 대체로 일치, 리더 예상대로 눈에 띄게 커짐).
+  5. JS/TS 회귀 확인: `npx tsc --noEmit`(에러 0), `npx eslint .`(에러 0, 기존과 동일한 13개 warning만), `npx jest`(1/1 통과) 모두 재확인.
+- 상태: 완료(검증 대기)
+- 변경 파일: `apps/mobile/android/app/build.gradle`.
+- 비고(검증 시 주의):
+  - iOS는 이번 이슈와 무관(Android debug 변형 번들링 설정 전용)이라 손대지 않았다. iOS는 별도 스토어/TestFlight 배포 경로를 쓰므로 이번 수정과 관계없다.
+  - `docs/specs/`, `docs/design/`은 읽지 않고 수정도 하지 않았다(이번 작업 범위에 해당 문서 참조가 필요 없었음).
+  - 커밋하지 않았다 — 리더 검토 후 커밋/푸시, 새 GitHub Actions debug APK 릴리즈로 실기기 재설치 테스트는 리더/사용자 몫.
+  - Metro 연동 자체가 실제로 안 끊기는지는 문서 근거로만 확인했고 이 환경(Windows, 실기기 USB 연결 없음)에서 `npx react-native run-android`로 직접 재현 테스트는 하지 못했다 — 검증 단계에서 로컬 개발 워크플로우(Metro 기동 후 디버그 빌드 실행)도 함께 확인하면 더 확실하다.
