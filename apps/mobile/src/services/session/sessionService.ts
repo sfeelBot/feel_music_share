@@ -6,12 +6,21 @@ import {
   type MusicService,
   type ParticipantInfo,
   type ParticipantMatch,
+  type PlaybackState,
   type PlaylistEntry,
+  type ServicePlaylistState,
   type SessionState,
+  type SingleMusicService,
   type Track,
 } from '../../types/domain';
+import {activePlaylistEntries, withActivePlaylistEntries} from '../../state/activeServicePlaylist';
 import {generateId, generateInviteCode} from '../../utils/id';
 import {buildDemoMixedPlaylist, buildDemoParticipants, buildDemoPlaylist, ringColorForIndex} from './mockSessionSeed';
+
+/** 빈 서비스 플레이리스트 슬롯(곡 없음, 재생 위치 기억 없음) — createSession/신규 슬롯 초기화 공용. */
+function emptyServicePlaylistState(): ServicePlaylistState {
+  return {entries: [], lastPlayback: {currentEntryId: null, positionMs: 0}};
+}
 
 /**
  * 세션(방) 데이터 액세스 레이어 — 현재는 인메모리 STUB.
@@ -49,9 +58,23 @@ export function createSession(params: {
     params.service,
     params.hostPlatform ?? 'spotify',
   );
-  const playlist: PlaylistEntry[] = isMixed ? [] : buildDemoPlaylist(participants);
+
+  // 서비스별 독립 플레이리스트(04-playlist.md "플레이리스트 구조" — 세션 1 : 서비스별 플레이리스트
+  // N, 2026-07-26 데이터 수준 구현). 판단(로그에도 남김): 데모 시드는 "세션 생성 시점에 활성화된
+  // 서비스"에만 채워 넣고, 비활성 서비스는 빈 플레이리스트로 시작한다 — 세션 생성 직후 사용자가
+  // 아직 서비스 전환을 한 번도 하지 않은 시점에 "가보지 않은 서비스"에 데모 곡이 이미 채워져 있는
+  // 건 어색하다(예: Spotify로 만든 세션인데 처음 YouTube로 전환했더니 곡이 3개 있는 상태로 시작)
+  // — 검증 시나리오("YouTube로 전환 → YouTube 플레이리스트는 비어있음")와도 부합한다.
+  const playlists: SessionState['playlists'] = isMixed
+    ? {spotify: emptyServicePlaylistState(), youtube: emptyServicePlaylistState()}
+    : {
+        spotify: params.service === 'spotify' ? {...emptyServicePlaylistState(), entries: buildDemoPlaylist(participants)} : emptyServicePlaylistState(),
+        youtube: params.service === 'youtube' ? {...emptyServicePlaylistState(), entries: buildDemoPlaylist(participants)} : emptyServicePlaylistState(),
+      };
   const mixedPlaylist: MixedPlaylistEntry[] = isMixed ? buildDemoMixedPlaylist(participants) : [];
-  const firstEntryId = isMixed ? mixedPlaylist[0]?.entryId : playlist[0]?.entryId;
+  const firstEntryId = isMixed
+    ? mixedPlaylist[0]?.entryId
+    : playlists[params.service as SingleMusicService]?.entries[0]?.entryId;
 
   const session: SessionState = {
     sessionId: generateId('session'),
@@ -61,7 +84,7 @@ export function createSession(params: {
     hostParticipantId: params.host.participantId,
     capacity,
     participants,
-    playlist,
+    playlists,
     mixedPlaylist,
     playback: {
       currentEntryId: firstEntryId ?? null,
@@ -161,6 +184,13 @@ export function joinSessionByCode(
   return {ok: true, session, participant};
 }
 
+/**
+ * 아래 addTrack/removeTrack/reorderPlaylist 셋 다 "현재 활성 서비스의 플레이리스트"에 대해서만
+ * 동작한다 — activePlaylistEntries/withActivePlaylistEntries(state/activeServicePlaylist.ts)로
+ * 비활성 서비스 쪽 `session.playlists`는 절대 건드리지 않는다(04-playlist.md "플레이리스트 구조").
+ * 혼합 세션(service==='mixed')에서는 호출되지 않아야 한다 — 호출측(SessionContext.tsx)이 이미
+ * addMixedTrack/removeMixedTrack/reorderMixedPlaylist로 분기한다.
+ */
 export function addTrack(sessionId: string, track: Track, addedBy: ParticipantInfo): PlaylistEntry[] {
   const session = sessions.get(sessionId);
   if (!session) {
@@ -174,8 +204,9 @@ export function addTrack(sessionId: string, track: Track, addedBy: ParticipantIn
     addedAt: Date.now(),
     playedStatus: 'pending',
   };
-  session.playlist = [...session.playlist, entry];
-  return session.playlist;
+  const entries = [...activePlaylistEntries(session), entry];
+  session.playlists = withActivePlaylistEntries(session, entries);
+  return entries;
 }
 
 export function removeTrack(sessionId: string, entryId: string): PlaylistEntry[] {
@@ -183,8 +214,9 @@ export function removeTrack(sessionId: string, entryId: string): PlaylistEntry[]
   if (!session) {
     return [];
   }
-  session.playlist = session.playlist.filter(item => item.entryId !== entryId);
-  return session.playlist;
+  const entries = activePlaylistEntries(session).filter(item => item.entryId !== entryId);
+  session.playlists = withActivePlaylistEntries(session, entries);
+  return entries;
 }
 
 export function reorderPlaylist(sessionId: string, orderedEntryIds: string[]): PlaylistEntry[] {
@@ -192,9 +224,10 @@ export function reorderPlaylist(sessionId: string, orderedEntryIds: string[]): P
   if (!session) {
     return [];
   }
-  const byId = new Map(session.playlist.map(entry => [entry.entryId, entry]));
-  session.playlist = orderedEntryIds.map(id => byId.get(id)).filter((e): e is PlaylistEntry => !!e);
-  return session.playlist;
+  const byId = new Map(activePlaylistEntries(session).map(entry => [entry.entryId, entry]));
+  const entries = orderedEntryIds.map(id => byId.get(id)).filter((e): e is PlaylistEntry => !!e);
+  session.playlists = withActivePlaylistEntries(session, entries);
+  return entries;
 }
 
 /** 방장 전용 — 관리자 임명 (04-playlist.md "권한 체계" 절, 2026-07-24 확정: 임명권은 방장 보유). */
@@ -220,28 +253,71 @@ export function revokeAdmin(sessionId: string, participantId: string): Participa
   return session.participants;
 }
 
+/** switchService가 실제로 바뀐 필드만 돌려주는 반환 타입 — addTrack 등 다른 함수와 같은 패턴. */
+export interface ServiceSwitchResult {
+  service: MusicService;
+  playlists: SessionState['playlists'];
+  playback: PlaybackState;
+}
+
 /**
  * 세션의 활성 음악 서비스를 전환한다 (00-ux-flow.md 2.13a/2.13b, US-105b/US-105c).
  * 혼합 세션(service==='mixed')은 호출측(state/SessionContext.tsx)이 이미 걸러야 한다 — 이 함수는
  * Spotify↔YouTube 전환만 다룬다.
  *
- * 참고(구현 유의): 지금 데이터 모델은 서비스별로 별도 플레이리스트를 보관하지 않는다 —
- * `session.playlist`는 활성 서비스가 무엇이든 공유하는 단일 배열이다. 그래서 이 함수는 `service`
- * 플래그만 바꾸고 `playlist`는 건드리지 않는데, 이는 우연히 "전환해도 곡이 사라지지 않는다"(2.13a
- * 안내 카피)와 같은 결과를 내지만, 04-playlist.md가 요구하는 "서비스별 플레이리스트 독립 보존"을
- * 데이터 수준까지 실제로 구현한 것은 아니다(서비스별로 다른 트랙 목록을 각각 유지하는 것과는 다름).
- * TODO(Firebase 연동): 서비스별 독립 플레이리스트 저장 구조로 데이터 모델을 확장해야 한다.
+ * (2026-07-26 데이터 수준 구현) 서비스별 독립 플레이리스트(`SessionState.playlists`, 위 domain.ts
+ * 참고)가 도입되면서, 이 함수는 이제 `service` 플래그만 바꾸는 게 아니라 실제로 두 단계를 수행한다:
+ * 1) 전환 직전(=비활성화되는 쪽이 되는) 서비스의 현재 재생 위치를 `playlists[oldService].lastPlayback`
+ *    에 스냅샷으로 저장한다 — 이 저장이 없으면 04-playlist.md가 요구하는 "비활성화되는 쪽 플레이리스트는
+ *    삭제되지 않고 그대로 보존되어 나중에 다시 그 서비스로 돌아오면 이어서 쓸 수 있다"가 곡 목록에는
+ *    맞아도 "이어서"(재생 위치)에는 맞지 않게 된다.
+ * 2) 새로 활성화되는 서비스의 `playlists[newService].lastPlayback`으로부터 `session.playback`을
+ *    복원한다 — 처음 가보는 서비스(또는 재생 이력이 없는 서비스)는 currentEntryId가 null로 남아있어
+ *    자연스럽게 "재생할 곡 없음" 상태로 시작한다.
+ * isPlaying은 스냅샷에 포함하지 않고 항상 true로 재개한다 — 서비스 전환은 항상 "재동기화" 이벤트라는
+ * 기존 정책을 유지한다(정확한 판단 근거는 types/domain.ts의 ServicePlaybackMemory 주석 참고).
  *
  * TODO(Firebase 연동): Cloud Function 호출로 교체하고, 권한 재검증은 반드시 서버에서 강제해야 한다
  * (appointAdmin/revokeAdmin과 동일한 원칙 — 04-playlist.md "디자인 에이전트 전달 사항" 6번).
  */
-export function switchService(sessionId: string, newService: 'spotify' | 'youtube'): SessionState | undefined {
+export function switchService(
+  sessionId: string,
+  newService: SingleMusicService,
+  switchedByParticipantId: string,
+): ServiceSwitchResult | undefined {
   const session = sessions.get(sessionId);
   if (!session || session.service === 'mixed') {
-    return session;
+    return undefined;
   }
+  if (session.service === newService) {
+    // 이미 활성 서비스와 같으면 아무 것도 하지 않는다(호출측도 이미 이 케이스를 걸러야 하지만,
+    // 데이터 계층에서도 방어적으로 동일하게 처리한다).
+    return {service: session.service, playlists: session.playlists, playback: session.playback};
+  }
+  const oldService: SingleMusicService = session.service;
+
+  session.playlists = {
+    ...session.playlists,
+    [oldService]: {
+      ...session.playlists[oldService],
+      lastPlayback: {
+        currentEntryId: session.playback.currentEntryId,
+        positionMs: session.playback.positionMs,
+      },
+    },
+  };
+
+  const restored = session.playlists[newService].lastPlayback;
   session.service = newService;
-  return session;
+  session.playback = {
+    currentEntryId: restored.currentEntryId,
+    positionMs: restored.positionMs,
+    isPlaying: true,
+    serverTimestamp: Date.now(),
+    updatedByParticipantId: switchedByParticipantId,
+  };
+
+  return {service: session.service, playlists: session.playlists, playback: session.playback};
 }
 
 /* ------------------------------------------------------------------------------------------------

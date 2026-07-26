@@ -11,7 +11,10 @@ function makeSession(entry: MixedPlaylistEntry): SessionState {
     hostParticipantId: 'me',
     capacity: 2,
     participants: [],
-    playlist: [],
+    playlists: {
+      spotify: {entries: [], lastPlayback: {currentEntryId: null, positionMs: 0}},
+      youtube: {entries: [], lastPlayback: {currentEntryId: null, positionMs: 0}},
+    },
     mixedPlaylist: [entry],
     playback: {
       currentEntryId: entry.entryId,

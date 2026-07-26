@@ -68,7 +68,7 @@
 - [ ] iOS 배포 방향(TestFlight/Ad Hoc) — 사용자가 두 차례 "추후 논의"로 보류
 - [ ] 매칭 신뢰도 가중치/임계값 실측 스파이크(`09-cross-platform-mixed-mode.md` 결정 4)
 - [ ] RTDB vs Firestore 실측 스파이크 후속(`docs/spikes/firebase-rtdb-vs-firestore.md`, DB 활성화 후 가능)
-- [ ] 서비스별 플레이리스트 독립 보존을 데이터 수준까지 구현(현재는 전환해도 `playlist` 배열을 그대로 공유 — Firebase 연동과 함께 처리 제안)
+- [x] 서비스별 플레이리스트 독립 보존을 데이터 수준까지 구현 — `SessionState.playlist` 단일 배열을 `playlists: {spotify, youtube}`(서비스별 entries + lastPlayback 재생 위치 기억)로 분리, `switchService`가 전환 시 스냅샷 저장/복원까지 수행하도록 구현 완료(2026-07-26). 단위 테스트(`serviceSwitchPlaylistIsolation.test.ts`)로 검증. 상세는 implementation-log.md "2026-07-26 (서비스별 플레이리스트 독립 보존)" 참고. Firebase 실제 연동(Firestore 구조 설계)은 여전히 TODO로 남음.
 
 ## 완료된 것 (요약, 상세는 화면별 현황 표 참고)
 

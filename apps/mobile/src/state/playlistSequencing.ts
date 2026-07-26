@@ -1,5 +1,6 @@
 /**
- * `session.playlist`(Spotify/YouTube 전용)와 `session.mixedPlaylist`(혼합) 둘 다 "배열 순서 =
+ * `session.playlists[activeService].entries`(Spotify/YouTube 전용, 2026-07-26부터 서비스별로
+ * 분리 — state/activeServicePlaylist.ts 참고)와 `session.mixedPlaylist`(혼합) 둘 다 "배열 순서 =
  * 재생 순서(커서 = playback.currentEntryId의 인덱스)"라는 동일한 불변식을 쓴다(SessionContext.tsx
  * 기존 주석 참고). 혼합 세션 추가로 이 로직이 두 번째로 필요해져서(Spotify/YouTube 전용 1번 +
  * 혼합 1번) 여기로 추출했다 — 순수 함수라 단위 테스트도 쉽다.

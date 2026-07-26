@@ -1,6 +1,7 @@
 import React, {createContext, useCallback, useContext, useMemo, useRef, useState} from 'react';
 import * as sessionService from '../services/session/sessionService';
 import type {JoinSessionResult} from '../services/session/sessionService';
+import {activePlaylistEntries, withActivePlaylistEntries} from './activeServicePlaylist';
 import {resolveParticipantMatch} from './mixedMatching';
 import {advanceToNext, advanceToPrev, nextAfterRemoval, reorderWithinQueue} from './playlistSequencing';
 import {canResignAdmin, canSwitchService} from './sessionPermissions';
@@ -203,11 +204,11 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
           },
         };
       }
-      const {list, nextEntryId} = advanceToNext(prev.playlist, prev.playback.currentEntryId);
+      const {list, nextEntryId} = advanceToNext(activePlaylistEntries(prev), prev.playback.currentEntryId);
       if (!nextEntryId) {return prev;}
       return {
         ...prev,
-        playlist: list,
+        playlists: withActivePlaylistEntries(prev, list),
         playback: {
           currentEntryId: nextEntryId,
           positionMs: 0,
@@ -238,11 +239,11 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
           },
         };
       }
-      const {list, prevEntryId} = advanceToPrev(prev.playlist, prev.playback.currentEntryId);
+      const {list, prevEntryId} = advanceToPrev(activePlaylistEntries(prev), prev.playback.currentEntryId);
       if (!prevEntryId) {return prev;}
       return {
         ...prev,
-        playlist: list,
+        playlists: withActivePlaylistEntries(prev, list),
         playback: {
           currentEntryId: prevEntryId,
           positionMs: 0,
@@ -260,8 +261,8 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
         if (!prev || !currentParticipantId) {return prev;}
         const me = prev.participants.find(p => p.participantId === currentParticipantId);
         if (!me) {return prev;}
-        const playlist = sessionService.addTrack(prev.sessionId, track, me);
-        return {...prev, playlist};
+        const entries = sessionService.addTrack(prev.sessionId, track, me);
+        return {...prev, playlists: withActivePlaylistEntries(prev, entries)};
       });
     },
     [currentParticipantId],
@@ -305,20 +306,20 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
         }
 
         const wasCurrent = prev.playback.currentEntryId === entryId;
-        const removedIndex = prev.playlist.findIndex(e => e.entryId === entryId);
+        const removedIndex = activePlaylistEntries(prev).findIndex(e => e.entryId === entryId);
         const playlistAfterRemoval = sessionService.removeTrack(prev.sessionId, entryId);
 
         if (!wasCurrent) {
-          return {...prev, playlist: playlistAfterRemoval};
+          return {...prev, playlists: withActivePlaylistEntries(prev, playlistAfterRemoval)};
         }
 
         // 04-playlist.md 기능 목록 2번: 현재 재생 중인 곡이 삭제되면 남은 큐의 다음 곡으로 자동 전환한다.
-        const next = nextAfterRemoval(prev.playlist, removedIndex);
+        const next = nextAfterRemoval(activePlaylistEntries(prev), removedIndex);
         if (!next) {
           // 다음 곡이 없으면 "재생할 곡 없음" 상태를 유지한다(정상 동작).
           return {
             ...prev,
-            playlist: playlistAfterRemoval,
+            playlists: withActivePlaylistEntries(prev, playlistAfterRemoval),
             playback: {...prev.playback, currentEntryId: null, isPlaying: false, positionMs: 0},
           };
         }
@@ -329,7 +330,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
         );
         return {
           ...prev,
-          playlist,
+          playlists: withActivePlaylistEntries(prev, playlist),
           playback: {
             currentEntryId: next.entryId,
             positionMs: 0,
@@ -344,7 +345,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
   );
 
   /**
-   * US-303 실제 구현. `session.playlist` 배열의 순서 자체가 재생 순서(커서 = playback.currentEntryId의
+   * US-303 실제 구현. `session.playlists[activeService].entries` 배열의 순서 자체가 재생 순서(커서 = playback.currentEntryId의
    * 인덱스)를 뜻하므로 — requestNextTrack/requestPrevTrack/removeTrack이 모두 이 불변식에 의존한다 —
    * 재정렬 가능 범위를 "현재 재생 중인 곡의 인덱스보다 뒤(= 아직 재생되지 않은 다음 곡들)"로만 제한한다.
    * 그 앞(재생 완료 + 현재 재생 중)은 절대 이동하지 않는다(00-ux-flow.md 2.10b "재생 완료 섹션은
@@ -363,10 +364,11 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
         const mixedPlaylist = sessionService.reorderMixedPlaylist(prev.sessionId, reordered.map(e => e.entryId));
         return {...prev, mixedPlaylist};
       }
-      const reordered = reorderWithinQueue(prev.playlist, prev.playback.currentEntryId, entryId, direction);
-      if (reordered === prev.playlist) {return prev;}
+      const currentEntries = activePlaylistEntries(prev);
+      const reordered = reorderWithinQueue(currentEntries, prev.playback.currentEntryId, entryId, direction);
+      if (reordered === currentEntries) {return prev;}
       const playlist = sessionService.reorderPlaylist(prev.sessionId, reordered.map(e => e.entryId));
-      return {...prev, playlist};
+      return {...prev, playlists: withActivePlaylistEntries(prev, playlist)};
     });
   }, []);
 
@@ -390,6 +392,12 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
    * 서비스 전환 실행 (00-ux-flow.md 2.13a 확정 → 2.13b 오버레이 이후 호출). 낙관적 로컬 갱신 +
    * late join과 동일한 "맞추는 중" 표시(triggerTuning)를 함께 트리거해 09문서 개념 순서
    * (재생 중단 → 서비스 플래그 전환 → 새 플레이리스트 로드 → 재동기화)의 마지막 단계를 흉내낸다.
+   *
+   * (2026-07-26 데이터 수준 구현) `sessionService.switchService`가 이제 "이전 서비스의 재생 위치
+   * 스냅샷 저장 + 새 서비스의 보존된 스냅샷 복원"까지 전부 계산해서 돌려주므로, 여기서는 그 결과
+   * (`service`/`playlists`/`playback`)를 그대로 `prev` 위에 병합하기만 한다 — positionMs를 0으로
+   * 강제 리셋하던 이전 로직은 제거했다(서비스별로 재생 위치를 독립적으로 기억·복원하는 것 자체가
+   * 이번 작업의 핵심 요구사항이라 여기서 다시 0으로 덮어쓰면 안 된다).
    */
   const requestServiceSwitch = useCallback<SessionContextValue['requestServiceSwitch']>(
     newService => {
@@ -400,18 +408,13 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
         // TODO(Firebase 연동): 서버(Cloud Functions) 측 권한 재검증 필요 — 이 가드는 클라이언트
         // 표시/오작동 방지용일 뿐이다(04-playlist.md "디자인 에이전트 전달 사항" 6번).
         if (!me || !canSwitchService(me.role)) {return prev;}
-        const switched = sessionService.switchService(prev.sessionId, newService);
+        const switched = sessionService.switchService(prev.sessionId, newService, currentParticipantId);
         if (!switched) {return prev;}
         return {
           ...prev,
-          service: newService,
-          playback: {
-            ...prev.playback,
-            positionMs: 0,
-            isPlaying: true,
-            serverTimestamp: Date.now(),
-            updatedByParticipantId: currentParticipantId,
-          },
+          service: switched.service,
+          playlists: switched.playlists,
+          playback: switched.playback,
         };
       });
       triggerTuning();

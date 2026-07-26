@@ -60,6 +60,46 @@ export interface PlaylistEntry {
   playedStatus: 'pending' | 'playing' | 'played';
 }
 
+/**
+ * 세션의 "활성화될 수 있는 단일 서비스" — MusicService에서 'mixed'를 제외한 부분집합.
+ * 서비스별 독립 플레이리스트(`SessionState.playlists`)는 혼합 세션에는 없는 개념이라
+ * 이 타입으로 키를 제한한다 (04-playlist.md "플레이리스트 구조" 절, 2026-07-26 구현).
+ *
+ * 참고: 구조적으로는 `MixedParticipantPlatform`과 동일한 값 집합('spotify'|'youtube')이지만
+ * 의도적으로 별도 타입으로 유지한다 — 전자는 "세션 전체의 활성 서비스", 후자는 "혼합 세션에서
+ * 참여자 개인이 고른 플랫폼"으로 개념이 다르고, 두 개념이 우연히 같은 값 집합을 갖는다고 해서
+ * 타입을 합치면 "이 값이 세션 단위인지 참여자 단위인지"가 코드 상에서 흐려진다고 판단했다.
+ */
+export type SingleMusicService = Exclude<MusicService, 'mixed'>;
+
+/**
+ * 서비스 전환(US-105b) 시 비활성화되는 쪽이 "어디까지 재생했는지" 기억해두는 스냅샷.
+ * 다시 그 서비스로 돌아오면(US-105c/US-308) 이 값으로부터 재생 위치를 복원한다.
+ *
+ * 판단 근거(구현 로그에도 동일하게 남김): currentEntryId뿐 아니라 positionMs도 서비스별로
+ * 독립시켰다 — "이어서 쓸 수 있다"(04-playlist.md 13행)는 서술이 단순히 "어느 곡이었는지"뿐
+ * 아니라 "그 곡의 어느 지점이었는지"까지 자연스럽게 포함한다고 해석했다(재생 중이던 3분짜리
+ * 곡을 1분 지점에서 전환했다가 되돌아왔는데 다시 처음부터 재생되면 "이어서 쓴다"는 사용자
+ * 기대와 어긋난다). isPlaying/serverTimestamp/updatedByParticipantId는 스냅샷에 포함하지
+ * 않았다 — 전환은 항상 "재동기화" 성격의 이벤트라 복귀 시점에 항상 새로 재생 시작(isPlaying:
+ * true, serverTimestamp: now)하는 기존 정책(SessionContext.requestServiceSwitch)을 그대로
+ * 따르는 편이 "몇 분 전에 멈춰 있던 상태 그대로 멈춰서 복귀"보다 실시간 동기화 앱의 성격에
+ * 맞다고 판단했다.
+ */
+export interface ServicePlaybackMemory {
+  currentEntryId: string | null;
+  positionMs: number;
+}
+
+/**
+ * 서비스(Spotify 또는 YouTube) 하나에 종속된 플레이리스트 묶음 — 곡 목록 + 그 서비스가
+ * 비활성화되기 직전의 재생 위치 기억(위 ServicePlaybackMemory).
+ */
+export interface ServicePlaylistState {
+  entries: PlaylistEntry[];
+  lastPlayback: ServicePlaybackMemory;
+}
+
 /* ------------------------------------------------------------------------------------------------
  * 혼합(Mixed) 세션 전용 플레이리스트 구조 (04-playlist.md "혼합 모드 플레이리스트 구조" 절, 2026-07-26 구현)
  *
@@ -164,10 +204,26 @@ export interface SessionState {
   /** 세션 정원 2~12명, 기본값 2명 (04-playlist.md "세션 정원" 절, 2026-07-24 확정) */
   capacity: number;
   participants: ParticipantInfo[];
-  /** Spotify 전용/YouTube 전용 세션에서 쓰는 단순 플레이리스트. 혼합 세션은 항상 빈 배열이다(mixedPlaylist를 대신 쓴다). */
-  playlist: PlaylistEntry[];
+  /**
+   * Spotify 전용/YouTube 전용 세션에서 쓰는 서비스별 독립 플레이리스트
+   * (04-playlist.md "플레이리스트 구조" 절 — 세션 1 : 서비스별 플레이리스트 N, 현재 N=2, 2026-07-26
+   * 데이터 수준 구현). 세션 도중 활성 서비스를 전환해도(US-105b) 비활성화되는 쪽의 `entries`/
+   * `lastPlayback`은 그대로 보존되어 나중에 다시 그 서비스로 돌아오면 이어서 쓸 수 있다
+   * (US-105c/US-308) — `services/session/sessionService.ts`의 `switchService` 참고.
+   * 혼합 세션(service==='mixed')에서는 `spotify`/`youtube` 두 값 모두 항상
+   * `{entries: [], lastPlayback: {currentEntryId: null, positionMs: 0}}`로 두고 쓰지 않는다
+   * (mixedPlaylist를 대신 쓴다 — 04-playlist.md "혼합 모드 플레이리스트 구조" 절, "근본적으로
+   * 다른 구조"라고 명시되어 있어 억지로 통합하지 않았다).
+   */
+  playlists: Record<SingleMusicService, ServicePlaylistState>;
   /** 혼합 세션 전용 플레이리스트(플랫폼 중립, 04-playlist.md). Spotify/YouTube 전용 세션에서는 항상 빈 배열이다. */
   mixedPlaylist: MixedPlaylistEntry[];
+  /**
+   * 현재 활성 서비스(또는 혼합 세션)의 "라이브" 재생 상태 — 단일 진실 공급원(05-sync-architecture.md
+   * 모델 A). Spotify/YouTube 전용 세션에서 서비스가 전환되면(switchService) 전환 직전 값이
+   * `playlists[oldService].lastPlayback`에 저장되고, 이 필드는 `playlists[newService].lastPlayback`
+   * 으로부터 다시 채워진다.
+   */
   playback: PlaybackState;
 }
 

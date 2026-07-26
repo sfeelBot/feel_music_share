@@ -5,6 +5,7 @@ import MatchingQueueSheet from '../../components/MatchingQueueSheet';
 import PickerBadge from '../../components/PickerBadge';
 import SyncStatusBadge from '../../components/SyncStatusBadge';
 import {useAuth} from '../../services/auth/AuthContext';
+import {activePlaylistEntries} from '../../state/activeServicePlaylist';
 import {useSession} from '../../state/SessionContext';
 import {resolveMixedCurrentTrackForMe, type MixedTrackNeedsAttentionView} from '../../state/mixedTrackView';
 import {useTheme} from '../../theme/ThemeContext';
@@ -18,7 +19,7 @@ import {formatDuration} from '../../utils/format';
  * 그대로 재사용된다(00-ux-flow.md 2.10d "완전히 새로운 레이아웃이 아니다 — 2.10a 또는 2.10c
  * 레이아웃을 그대로 물려받는다"). 추가되는 것은 세 가지뿐이다: (1) 동기화 배지 옆 "내 플랫폼"
  * 표시, (2) 참여자 아바타에 서비스 아이콘 오버레이, (3) 내 매칭이 아직 확인 전/실패 상태면 재생
- * 영역 대신 상태 카드를 보여주는 것. `session.playlist`/`session.mixedPlaylist` 중 어느 쪽을 볼지는
+ * 영역 대신 상태 카드를 보여주는 것. `session.playlists[activeService].entries`/`session.mixedPlaylist` 중 어느 쪽을 볼지는
  * `session.service`로 분기한다(R3.17에서 반복됐던 "서비스 가드 누락" 실수를 피하기 위해, 혼합
  * 세션에서는 `session.service === 'spotify'` 같은 단일 서비스 가드를 그대로 재사용하지 않고
  * 참여자 개인의 매칭 플랫폼 기준으로 새로 판단한다 — Free 배너 조건 참고).
@@ -60,8 +61,9 @@ export default function NowPlayingView({onOpenParticipants}: NowPlayingViewProps
     );
   }
 
-  const currentEntry = session.playlist.find(e => e.entryId === session.playback.currentEntryId);
-  const currentIndex = session.playlist.findIndex(e => e.entryId === session.playback.currentEntryId);
+  const entries = activePlaylistEntries(session);
+  const currentEntry = entries.find(e => e.entryId === session.playback.currentEntryId);
+  const currentIndex = entries.findIndex(e => e.entryId === session.playback.currentEntryId);
   const hasPrevTrack = currentIndex > 0;
   const picker = currentEntry
     ? session.participants.find(p => p.participantId === currentEntry.addedByParticipantId)

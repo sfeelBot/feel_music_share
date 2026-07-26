@@ -4,6 +4,7 @@ import PickerBadge from '../../components/PickerBadge';
 import AddTrackModal from '../../components/AddTrackModal';
 import MatchingQueueSheet from '../../components/MatchingQueueSheet';
 import {useAuth} from '../../services/auth/AuthContext';
+import {activePlaylistEntries} from '../../state/activeServicePlaylist';
 import {useSession} from '../../state/SessionContext';
 import {useTheme} from '../../theme/ThemeContext';
 import {brandColors, matchColors, pickerColors} from '../../theme/tokens';
@@ -189,9 +190,10 @@ export default function PlaylistView({onOpenSettings}: PlaylistViewProps) {
     );
   }
 
-  const currentEntry = session.playlist.find(e => e.entryId === session.playback.currentEntryId);
-  const pending = session.playlist.filter(e => e.playedStatus !== 'played' && e.entryId !== currentEntry?.entryId);
-  const played = session.playlist.filter(e => e.playedStatus === 'played');
+  const entries = activePlaylistEntries(session);
+  const currentEntry = entries.find(e => e.entryId === session.playback.currentEntryId);
+  const pending = entries.filter(e => e.playedStatus !== 'played' && e.entryId !== currentEntry?.entryId);
+  const played = entries.filter(e => e.playedStatus === 'played');
 
   const serviceChip =
     session.service === 'youtube'

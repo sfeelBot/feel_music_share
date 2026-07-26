@@ -7,6 +7,7 @@ import MatchingQueueSheet from '../../components/MatchingQueueSheet';
 import PickerBadge from '../../components/PickerBadge';
 import SyncStatusBadge from '../../components/SyncStatusBadge';
 import {useAuth} from '../../services/auth/AuthContext';
+import {activePlaylistEntries} from '../../state/activeServicePlaylist';
 import {useSession} from '../../state/SessionContext';
 import {resolveMixedCurrentTrackForMe} from '../../state/mixedTrackView';
 import {useTheme} from '../../theme/ThemeContext';
@@ -23,7 +24,7 @@ import {extractYoutubeVideoId, youtubePlayerController} from '../../services/you
  * IFrame Player 자체가 재생 진행 상태를 자기 컨트롤 안에 이미 표시하므로 중복 UI를 만들지 않는다.
  *
  * (2026-07-26 확장, 혼합 세션 2.10d) 혼합 세션에서 "나"의 참여 플랫폼이 YouTube이면 이 컴포넌트가
- * 그대로 재사용된다. 영상 소스(videoId)가 `session.playlist`가 아니라 "내 매칭 트랙"에서 나온다는
+ * 그대로 재사용된다. 영상 소스(videoId)가 `session.playlists[activeService].entries`가 아니라 "내 매칭 트랙"에서 나온다는
  * 점만 다르다 — 매칭이 아직 확인 전/실패 상태면 WebView 대신 상태 카드를 보여준다
  * (`NowPlayingView.tsx`의 동일한 판단, `state/mixedTrackView.ts` 공유).
  *
@@ -65,8 +66,9 @@ export default function YouTubeNowPlayingView({onOpenParticipants}: YouTubeNowPl
   const isMixed = session?.service === 'mixed';
   const currentEntryId = session?.playback.currentEntryId;
 
-  // 비-혼합 세션: session.playlist에서 현재 엔트리를 찾는다. 혼합 세션: "내 매칭" 결과를 쓴다.
-  const currentEntry = !isMixed ? session?.playlist.find(e => e.entryId === currentEntryId) : undefined;
+  // 비-혼합 세션: session.playlists[activeService].entries에서 현재 엔트리를 찾는다. 혼합 세션: "내 매칭" 결과를 쓴다.
+  const currentEntry =
+    !isMixed && session ? activePlaylistEntries(session).find(e => e.entryId === currentEntryId) : undefined;
   const mixedView = isMixed && session ? resolveMixedCurrentTrackForMe(session, currentParticipantId) : null;
   const mixedEntry = isMixed ? session?.mixedPlaylist.find(e => e.entryId === currentEntryId) : undefined;
 
@@ -127,7 +129,7 @@ export default function YouTubeNowPlayingView({onOpenParticipants}: YouTubeNowPl
     return null;
   }
 
-  const currentIndex = (isMixed ? session.mixedPlaylist : session.playlist).findIndex(
+  const currentIndex = (isMixed ? session.mixedPlaylist : activePlaylistEntries(session)).findIndex(
     e => e.entryId === session.playback.currentEntryId,
   );
   const hasPrevTrack = currentIndex > 0;
