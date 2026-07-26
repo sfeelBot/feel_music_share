@@ -30,6 +30,9 @@
 - 외부 액션: 사용자가 "push" 명시적 요청 → `git push origin main` 실행, `122fcc9..de3d983` 22개 커밋 push 완료(Round 5~11 전체).
 - 요청: 사용자가 "로드맵 검토 후 다음 진행" 요청. 리더가 `docs/roadmap.md` 재검토 → 액션 가능한 항목은 "낮은 우선순위" 절뿐임을 확인, iOS 배포는 재차 거론하지 않음(이미 두 차례 보류됨). AskUserQuestion으로 우선순위 확인 → 스플래시 화면, 2.14 엣지 상태 화면, 적응형 아이콘 3개 선택받음. 적응형 아이콘 추가 여부는 순수 결정 사항이라 별도로 재확인 → "추가한다" 확정.
 - 분배: 파일 겹침 없는 두 그룹으로 나눠 병렬 위임(백그라운드) — (1) implementer: 스플래시 화면(2.1)+엣지 상태 화면(2.14, 재접속 오버레이/호스트 마이그레이션 토스트 — Firebase 미연동이라 실제 트리거 로직 없이 UI+TODO로 한정 지시). (2) implementer: 적응형 아이콘(mipmap-anydpi-v26, 기존 SVG 재사용해 전경/배경 레이어 분리).
+- 결과: 둘 다 완료. (1) `SplashScreen.tsx` 신규(최소 노출 900ms 후 Home/Onboarding 자동 전환, 토큰 영속화 없어 SpotifyConnect 직행 분기는 의도적으로 생략), `ReconnectingOverlay.tsx` 신규+`RoomScreen.tsx` 호스트 마이그레이션 토스트 배선 — 둘 다 정직하게 "실제 트리거 없음, connectionStatus/hostParticipantId를 바꾸는 코드가 없어 지금은 발동 안 함"을 TODO로 명시(가짜 데모 없음). (2) `mipmap-anydpi-v26` 적응형 아이콘 신규(벡터 드로어블 배경+래스터 전경), legacy 아이콘 유지. 두 에이전트가 같은 res/ 디렉토리를 통한 빌드 과정에서 서로 다른 시점에 동일한 XML 네임스페이스 오타(`.../apis/res/android`)를 겪었으나 아이콘 에이전트가 발견해 수정, 최종적으로 둘 다 정상 빌드됨.
+- 리더 검증: `tsc`/`eslint`/`jest`/Android 증분 빌드 독립 재현(전부 일치) 후 커밋 `41dab27`.
+- 후속 분배: verifier에게 Round 12(세 기능 통합) 위임(백그라운드) — clean 재빌드 포함, "실제 트리거 없음" 주장의 grep 재확인 지시.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
