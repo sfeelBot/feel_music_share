@@ -290,3 +290,110 @@
   - 실기기 검증 필요: (1) 혼합 세션에서 곡 2개를 연달아 추가 → 매칭 큐를 열고 첫 항목 "확정하기" → 두 번째 항목이 실제로 이어서 표시되는지(시트가 조기 종료되지 않는지), (2) 곡 3개 이상을 추가해 동일하게 순서대로 전부 노출되는지, (3) "이 곡 없이 넘어가기"(`MatchFailCard`)와 "직접 검색하기"로 수동 매칭한 뒤에도 동일하게 다음 항목이 정상 노출되는지 — 이번 로그의 표는 코드/단위 테스트 기반 근거이며, 실기기에서의 최종 시각적 확인은 별도로 필요하다(Round 5 R5.17 수정 로그와 동일한 검증 범주).
   - "다음(미처리 항목 넘겨보기)" 버튼은 이번 수정에서도 추가하지 않았다 — 현재 UI/스펙(00-ux-flow.md 2.11a)에 명시적으로 요구되지 않은 신규 기능이라 스코프 확장으로 보고 손대지 않았다. `resolveQueueEntryId`의 `skippedIds` 파라미터는 향후 이 버튼이 추가될 때 재사용할 수 있도록 설계·테스트만 미리 갖춰둔 것이다.
   - `docs/qa/`, `docs/specs/`, `docs/design/`는 읽기만 하고 수정하지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.
+
+## 2026-07-26 ("코드로 참여하기" 실제 구현)
+- 작업: `HomeScreen.tsx`의 `handleJoinByCode` 스텁("준비 중" Alert)을 실제 참여 로직으로 교체.
+  1. `sessionService.ts`: `getSessionByInviteCode(inviteCode)`(읽기 전용 조회, 대소문자/공백 정규화) +
+     `joinSessionByCode(inviteCode, joiningUser, platform?)` 신규 — 참여자를 세션에 추가하고
+     `JoinSessionResult`(`{ok:true, session, participant}` | `{ok:false, reason}`)를 반환한다.
+     `reason`은 `not_found` | `capacity_full` | `platform_required` 세 가지로 명확히 구분.
+  2. `SessionContext.tsx`: `createSession`과 대칭적인 `joinSession` 액션 신규(성공 시에만 session/
+     currentParticipantId 갱신, 실패 시 결과를 그대로 반환해 화면이 분기하도록 함). 지시대로
+     context value 객체에서 `createSession` 바로 다음(관리자 임명/서비스 전환 코드와 최대한 거리를
+     두는 위치)에 추가했다 — 세션 설정 화면을 병행 작업 중인 다른 에이전트와의 병합 충돌 최소화 목적.
+  3. `HomeScreen.tsx`: 초대 코드 입력 → `joinSession` 호출 → 성공 시 `navigation.navigate('Room',
+     {sessionId})`. 세션이 혼합(mixed) 모드면 `joinSession`이 `platform_required`를 반환하고, 화면이
+     `CreateSessionScreen.tsx`의 'form'→'platform' 패턴과 동일하게 자체 `step` state로 `PlatformSelect`
+     컴포넌트(참여자 쪽 최초 실연결 — Round 7 검증 R7.31 갭 해소)를 보여준 뒤 선택된 플랫폼으로
+     `joinSession`을 재호출해 최종 확정한다. 새 네비게이션 라우트는 만들지 않고 화면 내부 상태
+     전환만으로 처리(호스트 플로우와 동일한 판단).
+  4. 실패 케이스 두 가지를 서로 다른 Alert 문구로 명확히 구분: "세션을 찾을 수 없어요"(`not_found`) vs
+     "이 세션은 정원이 가득 찼어요"(`capacity_full`). 빈 코드 입력 시에도 별도 Alert.
+- 판단 근거(정원 초과 처리, 지시대로 근거 기록): 04-playlist.md는 정원 정책을 "생성 시점 고정"이라고만
+  정의하고 정원 초과 참여 시도의 동작을 명세하지 않았다. 대기열 등록 같은 추가 기능은 스펙에 없으므로
+  만들지 않고, 참여 자체를 거부 + 사유 안내하는 쪽으로 판단했다. 정원 검사는 "이미 참여 중인 사람이
+  같은 코드로 재입장"하는 경우(같은 participantId)에는 건너뛴다 — 새 인원이 아니므로 정원이 이미
+  찼더라도 실패시키지 않는다(예: 앱을 재시작하지 않고 Room→Home으로 나갔다가 같은 코드로 재입장하는
+  경우 대비, `leaveSession`이 currentParticipantId를 지워도 프로필 자체는 그대로라 재조회가 될 수 있음).
+  또한 정원 초과 여부를 `platform_required`보다 먼저 검사하도록 순서를 잡았다 — 어차피 못 들어갈
+  세션이면 플랫폼을 고르게 하는 것 자체가 불필요한 단계이기 때문.
+- Firebase 연동 관련(하지 않은 것, TODO로 명시): 세션은 여전히 이 앱 프로세스의 in-memory `Map`에만
+  존재한다(`sessionService.ts` 상단 기존 TODO 주석과 동일한 제약). 즉 "코드로 참여하기"는 **같은
+  기기(같은 앱 인스턴스)에서 방금 만든 세션에 한해서만** 실제로 동작한다 — 다른 기기의 세션은 이
+  프로세스 메모리에 없어 항상 `not_found`가 된다. 새로 발생한 제약이 아니라 이 앱 전체가 이미 갖고
+  있던 데모 스코프 한계이며, 억지로 우회하지 않았다(지시대로).
+- 작업 범위 밖(건드리지 않음): 세션 설정 화면, 관리자 임명/해제, 서비스 전환 관련 코드. 이 worktree는
+  작업 시작 시점에 `main`보다 다소 뒤처져 있어(별도 브랜치로 분기된 채 `dbd275c` 혼합 모드 구현 등이
+  누락된 상태) `PlatformSelect.tsx`/혼합 모드 `CreateSessionScreen.tsx`/`types/domain.ts`(MixedPlaylistEntry
+  등)가 이 worktree에 아예 없었다 — 이번 작업이 의존하는 파일들이라 `git merge main`으로 fast-forward
+  동기화만 먼저 수행했다(로컬 병합, 다른 에이전트의 실제 작업 내용을 편집하지는 않음). 병합 커밋은
+  fast-forward라 새 커밋이 생기지 않았다(122fcc9 → b78621d).
+- 변경 파일: `apps/mobile/src/services/session/sessionService.ts`(`getSessionByInviteCode`/
+  `joinSessionByCode`/`JoinSessionResult` 신규), `apps/mobile/src/state/SessionContext.tsx`(`joinSession`
+  액션 신규), `apps/mobile/src/screens/HomeScreen.tsx`(`handleJoinByCode` 실로직 교체 + 혼합 모드
+  플랫폼 선택 단계), `apps/mobile/__tests__/joinSessionByCode.test.ts`(신규 — 세션 생성→참여 흐름을
+  같은 프로세스 안에서 시뮬레이션하는 단위 테스트 7건: 정상 참여/역할·링컬러, 코드 대소문자·공백
+  허용, 존재하지 않는 코드, 정원 초과, 혼합 세션 platform_required, 혼합 세션 platform 지정 성공,
+  재입장 시 정원 우회).
+- 상태: 완료(검증 대기) — 단, Android 네이티브 빌드는 아래 "비고"의 환경 제약으로 이 worktree
+  경로에서는 직접 확인하지 못했다.
+- 비고(검증 시 주의):
+  - `npx tsc --noEmit`: 0 errors.
+  - `npx eslint .`: 0 errors, 22 warnings(전부 기존 `react-native/no-inline-styles` 경고, 신규 경고
+    없음 — 이번 변경 파일에서 새로 발생한 경고 없음).
+  - `npx jest`: 6 suites / 30 tests 전부 통과(신규 `joinSessionByCode.test.ts` 7건 포함, 회귀 없음).
+  - **Android `assembleDebug` 빌드 블로커(내 코드 변경과 무관, 환경 제약)**: 이 worktree 경로
+    (`E:\music share\.claude\worktrees\agent-ab4f705e4e664e61e\...`)가 `main` 체크아웃 경로(`E:\music
+    share\apps\mobile\...`)보다 훨씬 깊어, `react-native-safe-area-context`/`react-native-screens`의
+    신 아키텍처 CMake/ninja 코드젠 빌드(`app:buildCMakeDebug[arm64-v8a]`)에서 생성되는 오브젝트 파일
+    경로가 Windows 260자 제한을 넘겨 `ninja: error: ... Filename longer than 260 characters`로 실패한다.
+    `verification-log.md`의 이전 라운드들은 전부 (짧은) `main` 체크아웃 경로에서 `BUILD SUCCESSFUL`을
+    반복 확인해왔다 — 즉 이번 실패는 내가 만든 코드(순수 JS/TS, 네이티브 파일 무변경)의 회귀가
+    아니라 이 worktree 디렉터리 깊이 자체에서 비롯된 구조적 제약으로 판단한다. 레지스트리 변경
+    (Windows 긴 경로 지원)이나 프로젝트 신 아키텍처 설정 변경은 이번 작업 범위 밖이라 임의로
+    건드리지 않았다 — 검증 에이전트가 (a) 병합 후 `main`의 짧은 경로에서 빌드하거나 (b) 이 blocker를
+    별도로 리더에게 보고하는 쪽을 권장한다.
+  - `docs/specs/`, `docs/design/`는 읽기만 하고 수정하지 않았다.
+  - 커밋은 하지 않았다 — 리더 검토 후 처리. worktree 브랜치: `worktree-agent-ab4f705e4e664e61e`
+    (작업 시작 시 `main`과의 fast-forward 동기화 포함, HEAD는 `main`의 `b78621d`와 동일한 지점 위에
+    이번 변경들이 커밋되지 않은 워킹트리 상태로 얹혀 있음).
+
+## 2026-07-26 (세션 설정 화면, worktree `worktree-agent-a9d7e2ffe97d0f204`)
+- 작업: 세션 설정(00-ux-flow.md 2.13/2.13a/2.13b) 정식 화면 신규 구현 — "내 역할" 표시(+ 관리자 사임하기), 정원 읽기 전용 표시, 서비스 전환(방장/관리자 전용 활성화 + 확인 다이얼로그 + 전환 중 오버레이), 혼합 세션의 "내가 참여 중인 플랫폼" 읽기 전용 표시(기존에 `ParticipantsBottomSheet.tsx`에 임시로 있던 것을 이 화면으로 이전).
+- 상태: 완료(검증 대기)
+
+### 0. worktree 동기화 (구현 착수 전 필수 선행 작업)
+이 작업이 배정된 worktree(`worktree-agent-a9d7e2ffe97d0f204`)는 착수 시점에 `main`보다 수십 커밋 뒤처져 있었다(마지막 반영 커밋이 `122fcc9` — 혼합 모드 구현·매칭 파이프라인·Round 9 검증 등 이후 이력 전체가 빠진 상태였다). 이번 작업 지시가 명시적으로 의존하는 파일들(`ParticipantsBottomSheet.tsx`의 혼합 세션 임시 텍스트, `SessionContext.tsx`의 `myPlatform`/`mixedPlaylist`, `types/domain.ts`의 `MixedParticipantPlatform` 등)이 전부 그 뒤처진 이력 안에 있었으므로, 그대로는 작업 자체가 불가능한 상태였다. `git merge main`으로 이 worktree 브랜치를 최신 `main`(`b78621d`)까지 먼저 따라잡은 뒤(충돌 없이 clean merge) 구현을 시작했다 — CLAUDE.md의 "병합은 리더가 처리한다"는 (완료된 기능 브랜치를 최종적으로 main에 합치는) 최종 병합을 가리키는 것으로 해석했고, 작업에 필요한 선행 커밋을 받아오는 이 사전 동기화는 별개로 판단했다. 검증 에이전트가 이 브랜치를 확인할 때 `git log`에 "Merge main to catch up..." 커밋이 보이는 것은 이 때문이며, 의도된 것이다.
+
+### 1. 진입점 판단 (임의 결정, 근거)
+`00-ux-flow.md` 플로우차트(72/91행)는 세션 메인에서 "참여자 목록 바텀시트"와 "세션 설정"을 별개의 도착 노드로 그렸을 뿐, 어떤 UI 트리거로 갈리는지는 명시하지 않았다. 헤더에는 "⋮" 아이콘 하나만 있고(`03-screen-mockups.html`의 모든 `.session-header`가 동일), 목업상 참여자 시트와 세션 설정 둘 다 이 아이콘에서 출발하는 것으로 보이나 그 사이 전이 UI는 목업에 없다. 헤더에 아이콘을 하나 더 추가하는 대신, `ParticipantsBottomSheet.tsx` 하단(닫기 버튼 위)에 "⚙ 세션 설정" 링크를 추가해 그리로 이동하는 방식을 택했다 — (1) 목업에 없는 새 헤더 아이콘을 만들지 않아도 되고, (2) 지난 라운드가 이미 이 시트를 "⋮ 메뉴의 실질적인 세션 정보 허브"로 취급해온 관례(이번에 옮겨낸 임시 텍스트의 주석 참고)와 일관되며, (3) "참여자를 보다가 설정도 확인하고 싶어졌다"는 자연스러운 탐색 동선을 제공하기 때문이다.
+
+### 2. 신규/변경 파일
+1. **`apps/mobile/src/state/sessionPermissions.ts`(신규)** — 권한/서비스 분기 순수 함수 모음: `canSwitchService`(방장/관리자만 true), `canResignAdmin`(관리자만 true), `shouldShowServiceSwitch`(혼합 세션이면 false), `oppositeService`, `serviceLabel`, `roleDisplayLabel`. `SessionContext.tsx`(가드)와 `SessionSettingsView.tsx`(UI 분기) 양쪽에서 재사용해 "권한 판단 로직이 두 곳에 따로 존재해 서로 어긋나는" 위험을 없앴다.
+2. **`apps/mobile/__tests__/sessionPermissions.test.ts`(신규)** — 위 6개 함수 전부에 대한 단위 테스트(권한별 분기, 혼합 세션 예외, 라벨 매핑).
+3. **`apps/mobile/src/services/session/sessionService.ts`** — `switchService(sessionId, newService)` 추가. 혼합 세션이면 아무 것도 하지 않고 원본을 그대로 반환. 주석에 데이터 모델의 알려진 한계를 명시했다(아래 "알려진 제약" 참고).
+4. **`apps/mobile/src/state/SessionContext.tsx`** — `requestServiceSwitch`/`resignAdmin` 액션 추가. 두 함수 모두 `appointAdmin`/`revokeAdmin` 바로 옆에 배치했고(지시사항대로 `joinSession` 관련 코드와 거리를 뒀다), `useMemo` value/deps 배열에도 같은 자리에 추가했다. `requestServiceSwitch`는 전환 후 `triggerTuning()`을 호출해 late join과 같은 "맞추는 중" 표시를 함께 유발한다(2.13b가 개념적으로 요구하는 "재동기화 시작"을 흉내).
+5. **`apps/mobile/src/screens/room/SessionSettingsView.tsx`(신규)** — 세션 설정 화면 본체. `Modal`(`presentationStyle="fullScreen"`)로 구현했다(react-navigation 라우트를 새로 추가하지 않은 이유는 파일 상단 주석 참고 — `RootStackParamList` 변경은 이번 라운드 범위 밖으로 판단, `ParticipantsBottomSheet`도 이미 같은 Modal 오버레이 패턴을 씀). 서비스 전환 확인 다이얼로그(2.13a)·전환 중 오버레이(2.13b)는 `03-screen-mockups.html`의 `.dialog-overlay`/`.dialog-card`/`.transition-overlay__*` 마크업과 카피를 그대로 이식했다 — 유일한 각색은 CSS `spin` 애니메이션이 돌리던 정적 ⏳ 이모지를 RN 표준 `ActivityIndicator`로 대체한 것뿐(텍스트 카피는 100% 동일).
+6. **`apps/mobile/src/screens/RoomScreen.tsx`** — `SessionSettingsView` 렌더 + `settingsVisible` state 추가. `viewerRole`을 `session.participants`에서 `currentParticipantId`로 파생. 전환 완료 토스트(2.13b가 요구하는 "전환됐어요" 안내)를 위해 기존 토스트 인프라가 없어 헤더 아래 얇은 배너(`toast`/`toastText` 스타일)를 최소 형태로 새로 만들었다(3.2초 후 자동 소멸).
+7. **`apps/mobile/src/components/ParticipantsBottomSheet.tsx`** — 이전 라운드가 임시로 넣어뒀던 "내가 참여 중인 플랫폼" 텍스트(및 이를 위해서만 쓰이던 `viewerPlatform`/`isMixed` 로컬 변수, `myPlatformInfo` 스타일)를 제거하고, 그 자리에 있던 상단 표시를 없앤 대신 하단에 "세션 설정" 링크(`onOpenSettings` prop)를 추가했다. 역할 배지·Free 태그·관리자 임명 메뉴 등 나머지는 그대로 두었다(지시 준수). 더 이상 쓰이지 않게 된 `viewerParticipantId` 구조분해도 함께 제거했다(destructuring에서만 제거, prop 타입 자체는 유지 — 호출부 `RoomScreen.tsx`가 여전히 넘겨주고 있어 향후 재사용 가능).
+
+### 3. 알려진 제약 (검증 시 참고)
+- **서비스별 플레이리스트 독립 보존은 UI 카피 수준까지만 재현했다.** 현재 데이터 모델(`SessionState.playlist`)은 활성 서비스와 무관하게 단일 배열을 공유한다 — Spotify↔YouTube 전환 시 실제로 "서로 다른 두 벌의 곡 목록을 각각 유지"하는 데이터 구조가 아니다(전환해도 같은 `playlist` 배열을 계속 보여줄 뿐이라 결과적으로 "곡이 사라지지 않는" 것처럼 보이지만, 04-playlist.md가 요구하는 "서비스별 독립 보존"을 데이터 수준까지 구현한 것은 아니다). `sessionService.switchService` 주석에 TODO(Firebase 연동 시 데이터 모델 확장 필요)로 명시해뒀다 — 이는 이번 라운드 스코프(세션 설정 화면 UI/흐름)를 벗어나는 더 큰 데이터 모델 작업이라 손대지 않았다.
+- **PlaylistView.tsx 상단 서비스 칩("🟢 Spotify 플레이리스트 ▸")은 여전히 탭해도 반응하지 않는다.** `00-ux-flow.md` 457행이 "칩을 탭하면 세션 설정의 서비스 전환 화면(2.13a)으로 바로 이동하는 단축 진입점으로 겸용한다"고 명시했으나, 이 칩을 세션 설정 화면과 연결하는 것은 이번 작업 지시 범위(`RoomScreen.tsx`/`ParticipantsBottomSheet.tsx`/신규 화면/`SessionContext.tsx`)에 포함되지 않아 손대지 않았다 — 후속 라운드 과제로 남겨둔다.
+- **토스트는 이번 라운드에 처음 만든 최소 컴포넌트다.** 프로젝트 전체에 재사용 가능한 Toast 컴포넌트가 아직 없어(grep으로 확인) `RoomScreen.tsx`에 로컬 state+배너로 최소 구현했다. 여러 화면에서 토스트가 더 필요해지면 공용 컴포넌트로 추출하는 것을 제안한다.
+- **관리자 사임 확인 다이얼로그는 `Alert.alert`(OS 네이티브)를 썼다** — `PlaylistView.tsx`의 곡 삭제 확인과 동일한 기존 패턴 재사용. `02-key-ui-patterns.md` 6.4a절이 "정확한 카피는 확정 전"이라고 명시했으므로 임의로 톤을 잡되(취소/사임하기), 최종 카피 확정은 기획 후속 논의 몫으로 남겨둔다.
+
+### 4. 검증 — 정적 검사
+- `apps/mobile`에서 `npx tsc --noEmit`: **0 errors**.
+- `npx eslint .`: **0 errors, 23 warnings** — 전부 기존 패턴(`react-native/no-inline-styles`), 신규 파일(`SessionSettingsView.tsx`)의 경고 1건도 기존 코드베이스 전반의 동일 패턴(삼항 연산자 인라인 opacity)과 같은 종류.
+- `npx jest`: **6 suites / 32 tests 전부 통과**(신규 `sessionPermissions.test.ts` 6건 포함, 기존 5개 스위트 26건 회귀 없음).
+
+### 5. 검증 — Android 빌드 (환경 제약, 내 변경과 무관)
+`cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon`(지시된 환경변수 그대로 사용)가 `:app:buildCMakeDebug[arm64-v8a]` 단계에서 실패했다 — `ninja: error: Stat(...RNCSafeAreaViewShadowNode.cpp.o): Filename longer than 260 characters`. 이는 Windows `MAX_PATH`(260자) 한계이며 순수 TS/JS만 수정한 이번 작업과 무관함을 다음으로 확인했다:
+- 실패한 객체 파일의 전체 경로 길이를 계산한 결과, 이 worktree 경로(`.../.claude/worktrees/agent-a9d7e2ffe97d0f204/...`) 기준 355자였을 뿐 아니라, **저장소 기본 체크아웃 경로(`E:\music share\apps\mobile\...`) 기준으로 환산해도 277자**로 여전히 260자를 초과했다 — 즉 worktree의 추가 경로 깊이가 원인이 아니라, `react-native-safe-area-context`의 새 아키텍처(Fabric) codegen이 만들어내는 CMake/ninja 중간 산출물 경로 구조 자체가 이 리포지토리 위치에서는 Windows 기본 `MAX_PATH` 한계를 구조적으로 넘어선다.
+- 레지스트리(`LongPathsEnabled`) 활성화나 리포지토리를 더 짧은 경로로 옮기는 것은 시스템 전역 설정 변경이라 구현 에이전트 권한 밖으로 판단해 시도하지 않았다. `tsc`/`eslint`/`jest`는 모두 통과했으므로 이번 변경 자체의 정합성은 확인됐다 — Android 네이티브 빌드 검증은 검증 에이전트가 이 환경 제약을 인지한 상태에서 별도로 (a) 더 짧은 경로에서 재시도하거나 (b) Windows 장경로 지원을 켠 환경에서 재시도하는 것을 제안한다. iOS는 기존 라운드들과 동일하게 macOS 부재로 미검증(구조적 제약, 신규 아님).
+
+- 변경 파일: 신규 — `apps/mobile/src/state/sessionPermissions.ts`, `apps/mobile/__tests__/sessionPermissions.test.ts`, `apps/mobile/src/screens/room/SessionSettingsView.tsx`. 수정 — `apps/mobile/src/services/session/sessionService.ts`, `apps/mobile/src/state/SessionContext.tsx`, `apps/mobile/src/screens/RoomScreen.tsx`, `apps/mobile/src/components/ParticipantsBottomSheet.tsx`.
+- 비고(검증 시 주의):
+  - 실기기/에뮬레이터 시나리오: (1) 방장 시점 — Spotify 세션에서 세션 설정 진입 → "전환하기" 탭 → 확인 다이얼로그(재생 중단/보존 안내 문구 확인) → "전환하기" 확정 → 전환 중 오버레이(약 1.4초) → 세션 메인으로 자동 복귀 + 상단 토스트 확인 → 플레이리스트 탭에서 서비스가 YouTube로 바뀌었는지, "다시 전환하기"로 Spotify로 되돌아가는지. (2) 관리자 시점 — 세션 설정에 "관리자 사임하기" 링크가 보이는지, 탭 시 `Alert` 확인 → 사임 후 "내 역할"이 "일반 참여자"로 바뀌고 전환 버튼이 즉시 비활성화되는지(방장이 다시 임명하면 원상복구되는지도 함께). (3) 일반사용자 시점 — 전환 버튼이 비활성(회색)이고 안내 문구가 보이는지, 탭해도 다이얼로그가 뜨지 않는지. (4) 혼합 세션 — 세션 설정에 서비스 전환 항목 자체가 없고 "내가 참여 중인 플랫폼" 읽기 전용 카드만 보이는지, `ParticipantsBottomSheet`에는 더 이상 이 텍스트가 없는지.
+  - 커밋은 하지 않았다 — 리더 검토 후 처리. worktree 브랜치: `worktree-agent-a9d7e2ffe97d0f204`(경로: `E:\music share\.claude\worktrees\agent-a9d7e2ffe97d0f204`). 이 브랜치는 착수 전 `main`(`b78621d`)을 이미 병합해 최신 상태다.

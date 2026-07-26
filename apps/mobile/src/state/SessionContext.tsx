@@ -1,7 +1,9 @@
 import React, {createContext, useCallback, useContext, useMemo, useRef, useState} from 'react';
 import * as sessionService from '../services/session/sessionService';
+import type {JoinSessionResult} from '../services/session/sessionService';
 import {resolveParticipantMatch} from './mixedMatching';
 import {advanceToNext, advanceToPrev, nextAfterRemoval, reorderWithinQueue} from './playlistSequencing';
+import {canResignAdmin, canSwitchService} from './sessionPermissions';
 import {generateId} from '../utils/id';
 import type {
   MatchedTrackCandidate,
@@ -49,6 +51,19 @@ interface SessionContextValue {
     hostPlatform?: MixedParticipantPlatform;
     host: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
   }) => SessionState;
+  /**
+   * "코드로 참여하기"(HomeScreen.tsx) — 초대 코드로 기존 세션에 참여자로 합류한다. createSession과
+   * 대칭적으로, 성공/실패를 화면이 분기할 수 있도록 결과를 그대로 반환한다(성공 시에만 session/
+   * currentParticipantId를 갱신하고, 실패 시에는 로컬 상태를 건드리지 않는다).
+   * TODO(Firebase 연동): sessionService.joinSessionByCode 주석 참고 — 지금은 같은 앱 프로세스 안의
+   * 세션에만 실제로 참여할 수 있다(다른 기기 세션은 이 프로세스 메모리에 없어 조회 불가).
+   */
+  joinSession: (params: {
+    inviteCode: string;
+    joiningUser: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
+    /** 혼합 세션일 때만 필요. 아직 선택 전이면 생략 — 결과가 reason:'platform_required'로 온다. */
+    platform?: MixedParticipantPlatform;
+  }) => JoinSessionResult;
   leaveSession: () => void;
   requestPlay: () => void;
   requestPause: () => void;
@@ -66,6 +81,21 @@ interface SessionContextValue {
   requestMoveTrack: (entryId: string, direction: 'up' | 'down') => void;
   appointAdmin: (participantId: string) => void;
   revokeAdmin: (participantId: string) => void;
+  /**
+   * 세션 설정(00-ux-flow.md 2.13/2.13a/2.13b)의 "전환하기" 확정 시 호출 — 활성 서비스를
+   * Spotify↔YouTube로 바꾼다. 방장/관리자만 허용(클라이언트 측 가드, `sessionPermissions.canSwitchService`
+   * 재사용). 혼합 세션(session.service==='mixed')이나 대상 서비스가 이미 활성 서비스와 같으면
+   * 아무 일도 하지 않는다 — 혼합 세션에는 이 개념 자체가 없다(09문서 "결정 3").
+   *
+   * TODO(Firebase 연동): 실제 권한 검증은 Cloud Functions가 서버 측에서 강제해야 한다
+   * (04-playlist.md "디자인 에이전트 전달 사항" 6번 — appointAdmin/revokeAdmin과 동일 원칙).
+   */
+  requestServiceSwitch: (newService: 'spotify' | 'youtube') => void;
+  /**
+   * 관리자 본인이 스스로 일반사용자로 권한을 반납한다 (02-key-ui-patterns.md 6.4a절, 세션 설정
+   * "내 역할" 영역의 "관리자 사임하기"). 호출자가 관리자가 아니면 아무 일도 하지 않는다.
+   */
+  resignAdmin: () => void;
 
   // ---- 혼합(Mixed) 세션 전용 (04-playlist.md "혼합 모드 플레이리스트 구조", 2026-07-26 신규) ----
   /** 지금 로그인한 참여자("나")가 이 혼합 세션에서 선택한 플랫폼. 혼합 세션이 아니면 null. */
@@ -123,6 +153,15 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     setSession(created);
     setCurrentParticipantId(params.host.participantId);
     return created;
+  }, []);
+
+  const joinSession = useCallback<SessionContextValue['joinSession']>(params => {
+    const result = sessionService.joinSessionByCode(params.inviteCode, params.joiningUser, params.platform);
+    if (result.ok) {
+      setSession(result.session);
+      setCurrentParticipantId(result.participant.participantId);
+    }
+    return result;
   }, []);
 
   const leaveSession = useCallback(() => {
@@ -347,6 +386,50 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     });
   }, []);
 
+  /**
+   * 서비스 전환 실행 (00-ux-flow.md 2.13a 확정 → 2.13b 오버레이 이후 호출). 낙관적 로컬 갱신 +
+   * late join과 동일한 "맞추는 중" 표시(triggerTuning)를 함께 트리거해 09문서 개념 순서
+   * (재생 중단 → 서비스 플래그 전환 → 새 플레이리스트 로드 → 재동기화)의 마지막 단계를 흉내낸다.
+   */
+  const requestServiceSwitch = useCallback<SessionContextValue['requestServiceSwitch']>(
+    newService => {
+      if (!currentParticipantId) {return;}
+      setSession(prev => {
+        if (!prev || prev.service === 'mixed' || prev.service === newService) {return prev;}
+        const me = prev.participants.find(p => p.participantId === currentParticipantId);
+        // TODO(Firebase 연동): 서버(Cloud Functions) 측 권한 재검증 필요 — 이 가드는 클라이언트
+        // 표시/오작동 방지용일 뿐이다(04-playlist.md "디자인 에이전트 전달 사항" 6번).
+        if (!me || !canSwitchService(me.role)) {return prev;}
+        const switched = sessionService.switchService(prev.sessionId, newService);
+        if (!switched) {return prev;}
+        return {
+          ...prev,
+          service: newService,
+          playback: {
+            ...prev.playback,
+            positionMs: 0,
+            isPlaying: true,
+            serverTimestamp: Date.now(),
+            updatedByParticipantId: currentParticipantId,
+          },
+        };
+      });
+      triggerTuning();
+    },
+    [currentParticipantId, triggerTuning],
+  );
+
+  const resignAdmin = useCallback(() => {
+    if (!currentParticipantId) {return;}
+    setSession(prev => {
+      if (!prev) {return prev;}
+      const me = prev.participants.find(p => p.participantId === currentParticipantId);
+      if (!me || !canResignAdmin(me.role)) {return prev;}
+      const participants = sessionService.revokeAdmin(prev.sessionId, currentParticipantId);
+      return {...prev, participants};
+    });
+  }, [currentParticipantId]);
+
   // ---- 혼합(Mixed) 세션 전용 (04-playlist.md, 09-cross-platform-mixed-mode.md "결정 2") ----
 
   const myPlatform = useMemo<MixedParticipantPlatform | null>(() => {
@@ -567,6 +650,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       isHost,
       syncStatus,
       createSession,
+      joinSession,
       leaveSession,
       requestPlay,
       requestPause,
@@ -577,6 +661,8 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestMoveTrack,
       appointAdmin,
       revokeAdmin,
+      requestServiceSwitch,
+      resignAdmin,
       myPlatform,
       addMixedTrack,
       confirmMyMatch,
@@ -591,6 +677,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       isHost,
       syncStatus,
       createSession,
+      joinSession,
       leaveSession,
       requestPlay,
       requestPause,
@@ -601,6 +688,8 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestMoveTrack,
       appointAdmin,
       revokeAdmin,
+      requestServiceSwitch,
+      resignAdmin,
       myPlatform,
       addMixedTrack,
       confirmMyMatch,

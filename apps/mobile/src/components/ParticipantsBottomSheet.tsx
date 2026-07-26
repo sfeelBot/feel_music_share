@@ -21,10 +21,10 @@ import type {ParticipantInfo, SessionState} from '../types/domain';
  * - 혼합 세션: 참여자 아바타에 참여 플랫폼 아이콘 오버레이(2.6c/2.10d) + 매칭 대기 건수 보조 텍스트
  *   (02-key-ui-patterns.md 5.6절 "참여자 목록에서도 함께 노출" 제안, 필수는 아니라 최소 형태로 구현)
  * - 방장 전용: 참여자별 ⋮ 메뉴로 관리자 임명/해제
- * - (2026-07-26 신규) 혼합 세션 전용 "내가 참여 중인 플랫폼" 읽기 전용 표시 — 아직 세션 설정(2.13)
- *   화면 자체가 이 코드베이스에 없어(서비스 전환 UI도 아직 없음), 이 바텀시트를 "⋮" 메뉴의 실질적인
- *   세션 정보 진입점으로 보고 여기에 배치했다(스코프 판단, 로그에 근거 남김). 서비스 전환 UI 자체가
- *   존재하지 않으므로 "숨긴다"는 요구사항은 자동으로 충족된다.
+ * - (2026-07-27 이전, R10) 이전 라운드에 이 시트 상단에 임시로 넣어뒀던 혼합 세션 전용 "내가 참여
+ *   중인 플랫폼" 읽기 전용 표시는 정식 세션 설정 화면(`screens/room/SessionSettingsView.tsx`,
+ *   00-ux-flow.md 2.13절)이 생기면서 그쪽으로 이전했다 — 이 시트는 이제 하단 "세션 설정" 링크로
+ *   그 화면을 열 뿐, 표시 자체는 더 이상 여기 두지 않는다(implementation-log.md 참고).
  *
  * TODO(Firebase 연동): 관리자 임명/해제는 반드시 서버(Cloud Functions)에서 권한을 재검증해야 한다
  * (04-playlist.md "디자인 에이전트 전달 사항" 6번) — 이 컴포넌트는 클라이언트 표시만 담당한다.
@@ -41,6 +41,8 @@ interface ParticipantsBottomSheetProps {
   viewerParticipantId?: string | null;
   onAppointAdmin: (participantId: string) => void;
   onRevokeAdmin: (participantId: string) => void;
+  /** "⋮" 메뉴 하단의 "세션 설정" 진입점 — 00-ux-flow.md 2.13절 정식 화면을 연다. */
+  onOpenSettings: () => void;
 }
 
 function isPlayable(session: SessionState, participant: ParticipantInfo): boolean {
@@ -69,23 +71,18 @@ export default function ParticipantsBottomSheet({
   session,
   participants,
   viewerIsHost,
-  viewerParticipantId,
   onAppointAdmin,
   onRevokeAdmin,
+  onOpenSettings,
 }: ParticipantsBottomSheetProps) {
   const theme = useTheme();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  const isMixed = session.service === 'mixed';
   const playableCount = participants.filter(p => isPlayable(session, p)).length;
   const headerTitle =
     playableCount === participants.length
       ? `참여자 (${participants.length})`
       : `참여자 (${participants.length}) · 재생 ${playableCount}명`;
-
-  const viewerPlatform = viewerParticipantId
-    ? participants.find(p => p.participantId === viewerParticipantId)?.platform
-    : undefined;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -93,13 +90,6 @@ export default function ParticipantsBottomSheet({
       <View style={[styles.sheet, {backgroundColor: theme.bgElevated}]}>
         <View style={[styles.grabber, {backgroundColor: theme.border}]} />
         <Text style={[styles.title, {color: theme.text}]}>{headerTitle}</Text>
-
-        {isMixed && viewerPlatform && (
-          <Text style={[styles.myPlatformInfo, {color: theme.textSecondary, backgroundColor: theme.trackBg}]}>
-            내가 참여 중인 플랫폼: {viewerPlatform === 'spotify' ? 'Spotify' : 'YouTube'} (혼합 세션은 세션 전체
-            전환이 없어요 — 각자 자신의 플랫폼으로 참여해요)
-          </Text>
-        )}
 
         <FlatList
           data={participants}
@@ -124,6 +114,9 @@ export default function ParticipantsBottomSheet({
             />
           )}
         />
+        <TouchableOpacity onPress={onOpenSettings} style={styles.settingsBtn} accessibilityRole="button">
+          <Text style={[styles.settingsText, {color: theme.text}]}>⚙ 세션 설정</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button">
           <Text style={[styles.closeText, {color: theme.textSecondary}]}>닫기</Text>
         </TouchableOpacity>
@@ -224,7 +217,6 @@ const styles = StyleSheet.create({
   },
   grabber: {alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 14},
   title: {fontSize: 16, fontWeight: '700', marginBottom: 12},
-  myPlatformInfo: {fontSize: 11.5, lineHeight: 16, borderRadius: 10, padding: 10, marginBottom: 12},
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -251,6 +243,8 @@ const styles = StyleSheet.create({
   },
   menuHint: {fontSize: 10, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 6},
   menuItem: {fontSize: 13, fontWeight: '600', paddingHorizontal: 12, paddingVertical: 8},
+  settingsBtn: {alignItems: 'center', paddingTop: 14},
+  settingsText: {fontSize: 14, fontWeight: '700'},
   closeBtn: {alignItems: 'center', paddingTop: 8},
   closeText: {fontSize: 14, fontWeight: '600'},
 });
