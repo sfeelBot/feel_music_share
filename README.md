@@ -37,6 +37,8 @@
 
 화면 목업(폰 프레임 갤러리, 라이트/다크 모드 대응): [feel_music_share — 화면 목업](https://claude.ai/code/artifact/fc3c834b-38c2-4218-88a1-ea3c0be4fb4b)
 
+사용자 여정 지도(Spotify 전용/YouTube 전용/혼합 세션 3가지 시나리오, 실제 구현 기준): [Samewave — 사용자 여정 지도](https://claude.ai/code/artifact/42f555f5-eb71-4f57-8657-66ee9d858bf8)
+
 ## 문서
 
 - 기획: [`docs/specs/`](docs/specs/)
