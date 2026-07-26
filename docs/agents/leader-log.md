@@ -12,25 +12,22 @@
 
 ## 현재 상황 요약 (수시 갱신 — 아래 절과 달리 append 아님, 매번 덮어씀)
 
-> 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). 마지막 갱신: 2026-07-26.
+> 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). **화면별 상세 현황·다음 순서는 이제 `docs/roadmap.md`(살아있는 문서, CLAUDE.md 리더 규칙 9번)가 전담한다 — 여기서는 그 문서를 갱신했다는 사실과 그 외 오케스트레이션 이슈만 요약한다.** 마지막 갱신: 2026-07-26.
 
 ### 예상 리스크 및 해결할 문제
 
-1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능(안내 완료, 연결 여부 대기). iOS는 macOS/Xcode 부재로 여전히 구조적으로 불가능. Spotify 로그인(Client ID 반영 완료, 리다이렉트 URI 등록도 사용자 확인 완료)이 실제로 동작하는지도 실기기 로그인 시도로만 최종 확인 가능.
-2. **Firebase 연동 미완료 — 원인 2가지**: ① 사용자가 공유한 `google-services.json`(저장소 루트, 아직 미커밋)의 패키지명이 `come.mobile`로 오타(정확히는 `com.mobile`) — Firebase 콘솔에서 재등록 필요. ② RTDB/Firestore 둘 다 콘솔에서 아직 활성화 안 됨(2026-07-26 스파이크로 REST API 확인, `docs/spikes/firebase-rtdb-vs-firestore.md`에 참고용 권고 있음). `docs/decisions-needed.md` 참고.
+1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능(안내 완료, 연결 여부 대기). iOS는 macOS/Xcode 부재로 여전히 구조적으로 불가능. Spotify 로그인이 실제로 동작하는지도 실기기 로그인 시도로만 최종 확인 가능.
+2. **Firebase 연동 미완료 — 원인 2가지**: ① `google-services.json`(저장소 루트, 미커밋)의 패키지명 오타(`come.mobile`→`com.mobile` 재등록 필요). ② RTDB/Firestore 둘 다 콘솔 미활성화. `docs/decisions-needed.md` 참고.
 3. **YouTube Data API v3 미완료** — YouTube 검색이 여전히 목업 상태.
 4. **iOS 배포 방향 미정(보류)**: 사용자가 두 차례 "추후 논의"로 보류.
 5. **적응형 아이콘(Android 8.0+) 없음**: legacy 아이콘 교체만으로 이번 스코프 완료, 추후 별도 결정 사항.
-6. **알려진 기능 갭(다음 라운드 후보)**: "코드로 참여하기"는 여전히 Alert 스텁(참여자 쪽 세션 참여 플로우 자체가 없음 — 혼합 모드의 참여자 플랫폼 선택(2.6c)도 이 때문에 호스트 쪽만 연결됨, R7.31). 세션 설정(2.13) 정식 화면도 아직 없음(혼합 세션 참여 플랫폼 표시는 `ParticipantsBottomSheet.tsx`에 임시로 얹어둔 상태).
+6. 화면별 갭 목록(초대 코드 미표시, 플레이리스트 서비스 칩 미연결 등)은 `docs/roadmap.md`에 정리됨 — 여기 중복 기재하지 않는다.
 
 ### 현재 진행중인 task
 
-1. **완료됨(2026-07-26)**: (a) YouTube 실제 재생 연동 — Round 5(R5.17 버그) → Round 6 재검증 통과(커밋 `7b0d44c`). (b) **혼합(Mixed) 세션 모드 실제 구현 — Round 7(R7.13 버그 발견) → Round 8 재검증 통과, 최종 완료**(구현 커밋 `dbd275c`, 수정 커밋 `095e3cf`). 세 세션 유형(Spotify 전용/YouTube 전용/혼합) 전부 구현+검증 완료 상태. (c) 하네스에 "스파이크(선행검증)" 서브에이전트 역할 신설(`.claude/agents/spiker.md`) 및 "세션 한도 복구" 스킬 신설(`.claude/skills/session-limit-recovery/`, 사전 감지 불가·사후 복구만 가능함을 사용자에게 명확히 설명 후 진행). (d) Spotify Client ID 반영 완료(사용자 제공, 리다이렉트 URI 등록도 확인받음) — 실기기 로그인 테스트만 남음. (e) 실기기에서 발견된 버그(Spotify Premium 안내 링크 죽은 버튼) 수정 완료, verifier Round 9 검증 통과(정책 준수 확인 포함, 실패 0건) — 최종 완료.
-2. **완료(2026-07-26)**: "코드로 참여하기"(worktree `worktree-agent-ab4f705e4e664e61e`)와 "세션 설정 정식 화면"(worktree `worktree-agent-a9d7e2ffe97d0f204`)을 격리된 git worktree에서 병렬 구현. 둘 다 커밋 없이 `main`(`b78621d`) 위 워킹트리 변경으로만 존재해, 리더가 각 worktree에서 `git diff --cached`로 패치를 뽑아 `git apply`로 순차 적용(대부분 파일은 자동 적용 성공) — `SessionContext.tsx`/`docs/agents/implementation-log.md`만 두 patch의 컨텍스트가 겹쳐 `git apply` 실패, 리더가 Edit 도구로 직접 수동 병합(인터페이스/구현부/`useMemo` 반환 객체/deps 배열 4곳 전부 확인). 병합 후 `tsc`/`eslint`/`jest`(7 suites/39 tests) 전부 통과, Android 빌드도 주 체크아웃 경로에서 BUILD SUCCESSFUL 확인(worktree 구현 에이전트 중 한 명이 제기한 "260자 경로 제약이 구조적"이라는 우려는 재현 안 됨 — worktree 자체의 경로 깊이가 원인이었던 것으로 결론). 커밋 `caea14d`, worktree 2개는 정리(브랜치 삭제 + 디렉토리 제거, Windows 긴 경로 문제로 `git worktree remove`는 실패했으나 Bash `rm -rf`로 처리).
-- 외부 액션: 커밋 `caea14d`, push 안 함.
-- 후속 분배: verifier에게 Round 10(두 기능 통합 검증) 위임(백그라운드) — 병합 정합성(4개 지점 빠짐없이 확인) 최우선 지시, clean Android 재빌드로 경로 길이 이슈 재확인도 요청. (f) 사용자 여정 지도(`docs/design/05-user-journey-map.html`) 신규 제작 + Artifact 발행(`https://claude.ai/code/artifact/42f555f5-eb71-4f57-8657-66ee9d858bf8`) + README 반영 완료 — Figma 연동이 이 환경에서 불가능함을 사용자에게 설명 후 대안으로 진행.
-2. **다음 순서 후보(미확정, 사용자 확인 필요)**: "코드로 참여하기" 실제 구현, 세션 설정(2.13) 정식 화면 신설, 또는 외부 계정(Firebase/YouTube API) 설정 완료를 기다리며 실제 연동 착수 — 다음에 뭘 우선할지는 사용자 확인 후 진행.
-3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 콘솔에서 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결 여부도 대기(필수 아님, 되면 실기기 검증 품질이 크게 좋아짐 — 특히 Spotify 로그인, YouTube 재생, 혼합 모드 매칭 확인 큐).
+1. **완료됨(2026-07-26, 이번 세션 전체)**: YouTube 실제 재생 연동(Round 5→6) → 혼합 세션 모드(Round 7→8) → Spotify Client ID 반영 + Premium 안내 모달(Round 9) → 사용자 여정 지도 제작+Artifact 발행(`https://claude.ai/code/artifact/42f555f5-eb71-4f57-8657-66ee9d858bf8`) → **"코드로 참여하기" + 세션 설정 화면(2.13/2.13a/2.13b) 병렬 구현(격리 worktree) 및 리더 수동 병합 → Round 10 검증 31개 항목 전부 통과**(커밋 `caea14d`). 하네스에 스파이크 역할(`spiker`)·세션 한도 복구 스킬(`session-limit-recovery`) 신설. `docs/roadmap.md`(화면별 현황+진행순서 살아있는 문서) 신규 작성.
+2. **다음 순서**: `docs/roadmap.md` "다음 순서" 절 참고 — 우선순위 1번(초대 코드 표시, 2.7 갭)과 2번(플레이리스트 서비스 칩 연결, 2.10b 갭)이 다음 구현 후보. 사용자 확인 후 착수.
+3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
