@@ -801,4 +801,70 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 
 **결론: 통과.** 이번 라운드의 핵심 리스크였던 "리더의 수동 병합 중 일부 코드가 누락되지는 않았는가"를 `SessionContext.tsx`의 4개 지점(인터페이스/구현/useMemo value/deps)과 `sessionService.ts`의 두 기능 영역, import 문, `implementation-log.md`의 두 로그 항목까지 전부 대조했고 — 어느 한 곳도 누락·중복·손실이 없음을 확인했다(R10.1~R10.8). 코드로 참여하기(3가지 실패 경로 구분, 혼합 세션 참여자 플랫폼 선택, 정원/재입장/코드 정규화 로직)와 세션 설정 화면(권한별 서비스 전환 게이팅, 혼합 세션 예외, 정원 읽기 전용, 관리자 사임, 다이얼로그→오버레이→토스트 흐름) 둘 다 지시된 요구사항을 코드 트레이스로 충족함을 확인했다(R10.9~R10.23). `sessionPermissions.ts`의 6개 순수 함수가 `SessionContext.tsx`와 `SessionSettingsView.tsx` 양쪽에서 로직 중복 없이 일관되게 재사용됨도 확인했다(R10.19). 정적 검증(tsc/eslint/jest)과 Android **clean 포함 완전 재빌드**를 독립적으로 재현해 리더의 증분 빌드 확인보다 더 엄격한 조건에서도 BUILD SUCCESSFUL을 얻었고, 세션 설정 구현 에이전트가 제기했던 codegen 경로 길이 우려가 주 체크아웃 경로에서는 재현되지 않음을 직접 확인했다(R10.27). Round 1~9가 통과시킨 기존 Spotify/YouTube/혼합 세션 기능에 대한 회귀도 없다(R10.29~R10.31) — `RoomScreen.tsx`/`ParticipantsBottomSheet.tsx`의 변경이 순수 추가형이며 기존 로직을 삭제·수정한 곳이 없음을 라인 단위로 확인했다. 두 건의 사소한 주석 부정확성(참고 1, 2)은 기능 동작에 영향이 없어 실패로 분류하지 않았으나 다음 라운드에서 정정을 권고한다.
 
+---
+
+## Round 11 검증 (초대 코드 표시 + 플레이리스트 서비스 칩 연결)
+
+> 검증 대상 커밋: `bedbc72` ("Show invite code in session settings; wire playlist chip to settings") — `docs/roadmap.md`의 2.7("초대 공유")·2.10b("플레이리스트 탭") 갭 2건을 해소하는 소규모 라운드. 초대 코드 표시(`SessionSettingsView.tsx`에 `InviteCodeRow` + `Share.share()`)와 플레이리스트 서비스 칩 → 세션 설정 연결(`PlaylistView.tsx`의 `onOpenSettings` prop, `RoomScreen.tsx`의 기존 `settingsVisible` 재사용), 그리고 Round 10에서 비차단으로 지적된 문서 주석 오류 2건(`sessionService.ts`, `PlatformSelect.tsx`) 정정을 포함한다.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git show bedbc72 --stat`/`git show bedbc72 -- <각 파일>`로 diff 직접 확인 → `SessionSettingsView.tsx`/`PlaylistView.tsx`/`RoomScreen.tsx` 전체 파일 재독 → `PlaylistView.tsx`의 `isMixed` 조건부 렌더링 흐름을 직접 추적(혼합 세션 분기가 서비스 칩 자체를 렌더링하지 않는지) → `sessionService.ts`의 `getSessionByInviteCode` 호출부를 grep으로 재확인 → `HomeScreen.tsx`/`CreateSessionScreen.tsx`에서 `PlatformSelect` 사용처 확인 → `package.json` 변경 없음(신규 의존성 없음) 확인 → `apps/mobile`에서 tsc/eslint/jest 독립 재현 → Android `assembleDebug` 독립 재현.
+> 환경: Windows 11 Pro (10.0.26200), JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 없음 — iOS는 이번에도 코드 리뷰 수준까지만(네이티브 파일 미변경, 구조적 제약, Round 1~10과 동일).
+
+### 1. 초대 코드 표시 (2.7 갭 해소)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R11.1 | `InviteCodeRow`가 단일 서비스 세션과 혼합 세션 양쪽 렌더 분기 모두에 배치됐는가(diff상 2곳) | 통과 | `SessionSettingsView.tsx` 98행(`shouldShowServiceSwitch(session.service)`가 false인 혼합 세션 조기 반환 분기, `RoleSection` 바로 아래·`CapacityRow`/`MixedPlatformRow` 위)과 130행(Spotify/YouTube 단일 서비스 분기, `RoleSection` 바로 아래·`CapacityRow`/`ServiceSwitchRow` 위) 두 곳 모두에 `<InviteCodeRow inviteCode={session.inviteCode} sessionName={session.sessionName} />`가 동일하게 배치돼 있음을 직접 확인 — 세션 유형과 무관하게 항상 노출됨. |
+| R11.2 | `session.inviteCode`/`session.sessionName` 필드가 실제로 `SessionState` 타입에 존재하는가(타입 불일치로 인한 런타임 undefined 위험 배제) | 통과 | `types/domain.ts` 160~161행에 `inviteCode: string`/`sessionName: string`이 `SessionState` 인터페이스에 정의돼 있음을 확인. `tsc --noEmit` 0 errors로도 재확인(R11.6). |
+| R11.3 | `InviteCodeRow`가 코드를 실제로 화면에 렌더링하는가(라벨 + 코드 텍스트 + 안내문구) | 통과 | 200~229행 `InviteCodeRow` 함수 — `Text`로 "초대 코드" 라벨, `{inviteCode}`(스타일 `inviteCodeText`: 26px/800weight/letterSpacing 4로 코드 강조), 안내문구("이 코드를 상대에게 알려주면 '코드로 참여하기'로...") 순서로 렌더링. 사용된 스타일(`card`/`rowLabel`/`inviteCodeText`/`helperText`/`switchButton`/`switchButtonText`) 전부 `styles` 객체에 정의돼 있어 누락 없음(366행 `inviteCodeText`가 이번 diff에서 신규 추가된 것도 확인). |
+| R11.4 | `Share.share()` 호출이 올바른 메시지 형식(세션명 + 초대 코드 포함)을 쓰는가 | 통과 | 205~207행 `Share.share({message: \`${sessionName} 세션에 초대할게요! Samewave 앱에서 초대 코드 "${inviteCode}"로 참여해보세요.\`})` — 세션명과 코드가 모두 메시지 본문에 실제로 삽입되는 템플릿 리터럴 구조이며, 앱 마케팅 명칭(Samewave, CLAUDE.md 확정 사항)도 정확히 반영. |
+| R11.5 | 공유 실패(사용자 취소 포함)를 조용히 무시해 크래시 없는가 | 통과 | 203~211행 `shareInviteCode`가 `try { await Share.share(...) } catch { /* 사용자가 공유를 취소한 경우 등 — 별도 에러 처리 없이 조용히 무시한다. */ }` 구조 — catch 블록이 비어있고 재throw/Alert 없이 그대로 종료돼 `Share.share`가 reject해도(iOS/Android 모두 사용자 취소 시 종종 reject) 상위로 전파되지 않음. |
+
+### 2. 플레이리스트 서비스 칩 → 세션 설정 연결 (2.10b 갭 해소)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R11.6 | `PlaylistView.tsx`의 서비스 칩 `onPress`가 정확히 `onOpenSettings`를 호출하는가 | 통과 | 203~209행 `<TouchableOpacity style={styles.serviceChip} onPress={onOpenSettings} accessibilityRole="button" accessibilityLabel={...}>` — Spotify/YouTube 단일 서비스 분기(196~209행, `isMixed`가 false일 때 도달하는 return 블록)에서만 렌더링되며 `onPress`가 정확히 prop으로 받은 `onOpenSettings`를 그대로 연결. |
+| R11.7 | `RoomScreen.tsx`가 `PlaylistView`에 `onOpenSettings={() => setSettingsVisible(true)}`를 넘기는가 | 통과 | 116행 `<PlaylistView onOpenSettings={() => setSettingsVisible(true)} />` — 56행에서 선언된 기존 `settingsVisible` state(이미 `SessionSettingsView`/`ParticipantsBottomSheet`의 "세션 설정" 링크가 공유하던 state, 134~143행)를 그대로 재사용, 신규 state 없음을 확인. |
+| R11.8 | 혼합 세션에서는 서비스 칩 자체가 렌더링되지 않아(매칭 배지로 대체) 미연결이 실제로 문제가 안 되는가 — 조건부 렌더링 로직을 직접 추적 | 통과 | `PlaylistView.tsx` 65행 `const isMixed = session.service === 'mixed'`, 82행 `if (isMixed) { ... return (<View>...);}` — 이 혼합 분기(82~190행) 안에는 `matchBadge`(91~108행, 매칭 확인 배지 — `onPress={() => setMatchingQueueVisible(true)}`로 `MatchingQueueSheet`를 여는 별도 기능)만 존재하고 `serviceChip`/`onOpenSettings` 관련 JSX가 전혀 없음. `onOpenSettings`를 실제로 사용하는 `TouchableOpacity`(203~209행, `styles.serviceChip`)는 82행의 `if (isMixed) return (...)` 블록 **밖**, 192행 이후의 단일 서비스 분기에만 존재 — 조기 반환 구조라 혼합 세션에서는 이 컴포넌트 자체가 트리에 존재하지 않음을 직접 확인(주장이 아니라 함수 흐름 자체로 확인됨). 따라서 "혼합 세션에서 칩이 안 눌린다"는 회귀 위험이 원천적으로 없음. |
+| R11.9 | 혼합 세션의 매칭 배지(`matchBadge`)가 이번 변경으로 실수로 세션 설정에 연결되지 않았는가(잘못된 배선 회귀) | 통과 | 91~108행 `matchBadge`의 `onPress`가 `() => setMatchingQueueVisible(true)`로 이번 diff에서도 변경되지 않은 채 유지됨을 확인 — `onOpenSettings`가 이 컴포넌트 어디에서도 참조되지 않음(파일 전체에서 `onOpenSettings` 사용처는 R11.6의 1곳뿐). |
+
+### 3. 문서 주석 정정 (Round 10 비차단 지적 2건)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R11.10 | `sessionService.ts`의 `getSessionByInviteCode` JSDoc이 정확한 내용으로 고쳐졌는가 | 통과 | 84~87행 — "HomeScreen.tsx의 사전 조회에도... 쓰인다"는 과장 서술이 "현재는 아래 `joinSessionByCode` 내부에서만 호출된다(HomeScreen.tsx는 이 함수를 직접 호출하지 않고 joinSessionByCode를 통해서만 코드를 조회한다)"로 정정됨. `grep -rn "getSessionByInviteCode" apps/mobile/src`로 실제 호출부를 재확인한 결과 94행(정의)과 132행(`joinSessionByCode` 내부) 단 2곳만 매칭 — `HomeScreen.tsx`나 다른 파일에서 직접 호출하는 곳이 없어 새 주석이 실제 코드와 정확히 일치함을 확인. |
+| R11.11 | `PlatformSelect.tsx`의 낡은 "Alert 스텁" 주석이 정확한 내용으로 고쳐졌는가 | 통과 | 9~14행 — "코드로 참여하기가 아직 Alert 스텁이라 참여자 쪽 진입 경로가 없다"는 구식 서술이 "호스트(CreateSessionScreen)·참여자(HomeScreen의 '코드로 참여하기', 혼합 세션 참여 시) 양쪽 플로우 모두에 실제로 연결되어 있다(커밋 caea14d)"로 정정됨. `grep -rn "PlatformSelect" apps/mobile/src`로 실제 사용처를 재확인한 결과 `CreateSessionScreen.tsx`(호스트)와 `HomeScreen.tsx`(101행, `<PlatformSelect value={joiningPlatform} onChange={setJoiningPlatform} />`, 참여자) 양쪽 모두에서 실제로 렌더링됨을 확인 — 새 주석이 실제 코드와 정확히 일치함을 확인. |
+
+### 4. 회귀 확인
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R11.12 | `SessionSettingsView.tsx` — Round 10에서 검증된 역할표시/정원/서비스전환/관리자사임 로직에 회귀가 없는가 | 통과 | `git show bedbc72 -- .../SessionSettingsView.tsx` diff를 직접 확인 — 변경분은 전부 추가형(import에 `Share` 1개 추가, 파일 상단 JSDoc 블록 확장, `InviteCodeRow` 컴포넌트 신규 정의 + 2곳 호출, `inviteCodeText` 스타일 1개 추가)이며, `RoleSection`/`CapacityRow`/`MixedPlatformRow`/`ServiceSwitchRow`/`ServiceSwitchDialog`/`TransitionOverlay`/`confirmResign`/`shouldShowServiceSwitch` 분기 로직·`canSwitchService`/`canResignAdmin` 가드·다이얼로그→오버레이→토스트 콜백 체인 등 Round 10이 검증한 어떤 기존 코드도 diff에 삭제/수정으로 등장하지 않음. 전체 파일을 다시 읽어 Round 10 검증 당시 로직(R10.15~R10.20)과 라인 단위로 대조한 결과도 동일 — 회귀 없음. |
+| R11.13 | `PlaylistView.tsx` — 기존 매칭 상태 표시, 순서변경 버튼 등에 회귀가 없는가 | 통과 | `git show bedbc72 -- .../PlaylistView.tsx` diff를 직접 확인 — 변경분은 전부 추가형(파일 상단 JSDoc 블록 확장, `PlaylistViewProps` 인터페이스 신규 정의, 함수 시그니처에 `{onOpenSettings}` 구조분해 추가, 서비스 칩 `TouchableOpacity`에 `onPress`/`accessibilityLabel` 2개 속성 추가)이며, `MixedTrackRow`의 매칭 상태 라벨(`matchStatusLabel`, searching/failed/matched 3분기), `TrackRow`/`MixedTrackRow`의 `canReorder`+▲/▼ 버튼(`requestMoveTrack` 호출), `confirmDelete`/`confirmDeleteMixed`(길게 눌러 삭제), `AddTrackModal` 배선 등 기존 로직 어디에도 삭제/수정이 없음을 전체 파일 재독으로 확인 — 회귀 없음. |
+
+### 5. 정적 검증 + 빌드 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R11.14 | `npx tsc --noEmit` (apps/mobile) | 통과 | 0 errors, 출력 없음. |
+| R11.15 | `npx eslint .` (apps/mobile) | 통과 | **0 errors, 23 warnings** — Round 10과 정확히 동일한 파일/줄 목록(전부 기존 `react-native/no-inline-styles` 패턴), 신규 경고 없음. `InviteCodeRow`/서비스 칩 변경분에서 새로운 warning 발생하지 않음을 직접 대조. |
+| R11.16 | `npx jest` (apps/mobile) | 통과 | **7 suites / 39 tests 전부 통과**(`App.test.tsx`, `joinSessionByCode.test.ts`, `sessionPermissions.test.ts`, `trackMatcher.test.ts`, `playlistSequencing.test.ts`, `mixedTrackView.test.ts`, `matchQueueNavigation.test.ts`) — Round 10과 동일한 baseline, 회귀 없음(이번 라운드는 신규 테스트 파일 추가 없이 기존 스위트가 그대로 통과함을 확인). |
+| R11.17 | `package.json` 변경 없음(신규 의존성 없음) | 통과 | `git diff HEAD~1 HEAD -- apps/mobile/package.json` 출력 없음(변경 없음) — `Share`가 `react-native` 코어 API임을 import 문(`SessionSettingsView.tsx` 2행)으로도 재확인, 새 네이티브/JS 패키지 설치 없음. |
+| R11.18 | Android `./gradlew.bat assembleDebug --no-daemon` (환경변수: JAVA_HOME/ANDROID_HOME/ANDROID_SDK_ROOT/GRADLE_USER_HOME 지시대로) | 통과 | **BUILD SUCCESSFUL in 10s**, 203 actionable tasks(23 executed, 180 up-to-date). 순수 JS/TS 변경이라 네이티브 태스크 대부분 UP-TO-DATE로 재사용됐고, JS 번들은 디버그 빌드에서 Metro가 런타임에 서빙하는 구조라 이 결과가 네이티브 셸 빌드 자체의 무결성을 확인하는 데는 충분함(Round 9와 동일한 검증 패턴). |
+| R11.19 | iOS 코드 리뷰 수준(구조적 제약) | 통과(리뷰 수준) | `git show bedbc72 --stat`에 `apps/mobile/ios`/`apps/mobile/android` 네이티브 디렉터리가 전혀 등장하지 않음(변경 파일 7개 전부 JS/TS/docs) — 순수 JS/TS 변경이라 iOS 쪽 구조적 리스크는 낮다고 판단하나, 실제 iOS 빌드/런타임은 이번에도 macOS 부재로 미검증(Round 1~10과 동일한 구조적 제약, 신규 아님). |
+
+### Round 11 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 19 (R11.1~R11.19) |
+| ⛔ 미검증(환경 제약, 실패 아님) | iOS 실빌드/런타임 — 네이티브 파일 무변경, 코드 리뷰 수준까지만 수행(Round 1~10과 동일한 구조적 제약) |
+| 실패 | 없음 |
+
+**결론: 통과.** 초대 코드 표시(`InviteCodeRow`)가 혼합/단일 서비스 두 렌더 분기 모두에 빠짐없이 배치돼 세션 유형과 무관하게 항상 노출됨을 확인했고(R11.1), `Share.share()`가 세션명·코드를 포함한 올바른 메시지를 쓰며 실패(취소 포함)를 조용히 무시해 크래시 위험이 없음을 확인했다(R11.4~R11.5). 플레이리스트 서비스 칩은 `onOpenSettings`로 정확히 연결됐고(R11.6~R11.7), 혼합 세션에서는 "칩 자체가 물리적으로 렌더링되지 않는다"는 구현 측 주장을 그대로 믿지 않고 `isMixed` 조기 반환 구조를 직접 추적해 사실임을 코드로 확인했다(R11.8) — 매칭 배지의 기존 `onPress`(매칭 큐 시트 오픈)도 실수로 재배선되지 않았음을 확인했다(R11.9). Round 10에서 비차단으로 지적된 문서 주석 오류 2건 모두 실제 코드와 정확히 일치하는 내용으로 정정됐음을 grep 재확인으로 검증했다(R11.10~R11.11). `SessionSettingsView.tsx`/`PlaylistView.tsx` 양쪽 diff가 순수 추가형이라 Round 10이 검증한 기존 로직(역할표시/정원/서비스전환/관리자사임/매칭상태표시/순서변경)에 회귀가 없음을 라인 단위로 확인했다(R11.12~R11.13). 정적 검증(tsc/eslint/jest)이 Round 10과 동일한 baseline으로 전부 통과했고, `package.json` 변경 없음으로 "신규 의존성 없음" 주장도 사실로 확인했으며(R11.17), Android `assembleDebug`도 BUILD SUCCESSFUL을 독립 재현했다(R11.18). iOS는 네이티브 파일 미변경으로 구조적 리스크가 낮으나 이번에도 macOS 부재로 코드 리뷰 수준까지만 수행했다(R11.19, 기존 라운드와 동일한 환경 제약).
+
+**리더에게 제안**: `docs/roadmap.md`의 2.7 행("초대 공유")과 2.10b 행("플레이리스트 탭") 상태를 🟡(검증 대기)에서 ✅(완료)로, "다음 순서" 1번·2번 절의 "검증 대기" 문구도 "✅ 완료(Round 11 통과)"로 갱신할 것을 제안한다(직접 수정하지 않음 — 리더 처리 사항).
+
 **결론: 통과.** 커밋 `977298c`는 지시된 범위(diff 확인, 정책 준수, 로그인 재사용, 에러 핸들링, 다크모드 토큰, 정적 검증, Android 빌드) 전 항목에서 통과했다. 특히 정책 준수(R9.2~R9.4)를 저장소 전체 검색까지 포함해 확인한 결과, `docs/specs/04-playlist.md`가 2026-07-24 확정한 해석 A(참여 자체는 항상 허용, 재생 제어만 제한) 정책과 정확히 일치하며 이 화면에 새로운 `isPremium` 차단 로직이 추가되지 않았음을 코드로 확인했다. 정적 검증(R9.8~R9.10)과 Android 빌드(R9.11)는 구현 로그의 주장과 사실상 일치(테스트 스위트 수 표기 차이는 Round 8 스냅샷 반영 누락일 뿐 회귀 아님)하게 독립 재현됐다. 실기기 OAuth 콜백 자체(R9.13)는 지시사항이 명시한 대로 미검증으로 남긴다 — 이는 실패가 아니라 환경 제약이며, 이 화면의 배선/네비게이션/정책 준수까지가 이번 검증 범위였다.
