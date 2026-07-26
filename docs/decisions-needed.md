@@ -8,7 +8,7 @@
 
 ## 외부 계정 설정 필요 (사용자 액션)
 
-1. **Spotify Developer 앱 등록** (developer.spotify.com/dashboard) — Client ID 발급 + 리다이렉트 URI 2개(`feelmusicshare://spotify-auth-callback`, `feelmusicshare://spotify-remote-callback`) 등록. 실제 Spotify 로그인 동작의 전제조건. (2026-07-25: 사용자가 곧 설정 후 공유 예정이라고 확인)
+1. **Spotify Developer 앱 등록** (developer.spotify.com/dashboard) — (2026-07-26) **Client ID는 발급받아 공유 완료**, `apps/mobile/src/config/env.ts`에 반영 완료(커밋 `229a2bc`). **아직 확인 필요**: 리다이렉트 URI 2개(`feelmusicshare://spotify-auth-callback`, `feelmusicshare://spotify-remote-callback`)를 Dashboard에 등록했는지 — 이게 안 돼 있으면 로그인 콜백이 앱으로 돌아오지 못해 로그인이 끝까지 안 된다. 사용자 확인 대기 중.
 2. **Firebase 연동** — (2026-07-26 진행 상황) 프로젝트 생성은 완료(`feel-music-share`). **아직 남은 것**:
    - ① **`google-services.json` 재등록 필요** — 2026-07-26에 사용자가 저장소 루트에 공유한 파일을 확인한 결과, Firebase 콘솔에 등록된 패키지 이름이 `come.mobile`로 오타가 나 있음(실제 앱 `applicationId`는 `com.mobile`, `apps/mobile/android/app/build.gradle` 확인). 이 상태로는 Google Services Gradle 플러그인이 매칭 실패로 빌드가 깨진다 — Firebase 콘솔에서 잘못 등록된 앱을 정리하고 패키지 이름 **정확히 `com.mobile`**로 재등록 후 새 `google-services.json`을 다시 공유해야 함.
    - ② **Realtime Database vs Firestore 중 무엇을 쓸지 결정 필요** — 아직 콘솔에서 둘 다 활성화(=데이터베이스 생성)되어 있지 않은 상태임을 2026-07-26 스파이크로 확인(`docs/spikes/firebase-rtdb-vs-firestore.md`, REST API 요청으로 Firestore는 `SERVICE_DISABLED`, RTDB는 인스턴스 없음을 검증). 스파이크의 참고용 권고: 재생 동기화 상태는 RTDB, 플레이리스트는 Firestore가 구조적으로 더 적합(하이브리드 고려 가능) — 단순화 우선이면 RTDB 단일 구성도 대안. 최종 선택은 사용자 몫. 콘솔에서 최소 하나를 "데이터베이스 만들기"로 활성화하면 후속 스파이크로 실제 지연시간 실측도 가능해짐.
