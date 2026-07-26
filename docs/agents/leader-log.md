@@ -202,3 +202,12 @@
 - 확인(리더 직접 수행): `.claude/agents/`에 planner/designer/implementer/verifier/deployer 5개만 존재, CLAUDE.md 표에도 선행검증(스파이크) 역할이 없음을 확인 — 실제로 부재했음.
 - 결과(리더 직접 처리): 신규 서브에이전트 역할 "스파이크(Spike)" 추가 — `.claude/agents/spiker.md`(정의, 기존 5개와 동일 포맷: 역할/산출물/로그 규칙/하지 않는 것 — verifier와의 차이(사후 검증 vs 사전 검증)를 명시), `docs/agents/spike-log.md`(로그 템플릿 신규), `CLAUDE.md` 하네스 표에 스파이크 행 추가 + 워크플로우 절에 "스파이크는 필요할 때만 끼워 넣는다" 원칙 문장 추가.
 - 후속 분배: 신설 `spiker` 에이전트를 호출하려 했으나 이번 세션에는 새 에이전트 타입이 즉시 인식되지 않아(에이전트 목록이 세션 시작 시 로드됨 — `allow-git-cd` 스킬 때와 동일 패턴) `general-purpose`에게 `spiker.md` 정의를 역할로 채택해 대신 수행하도록 지시, RTDB vs Firestore 비교 스파이크 위임(백그라운드 실행 중) — 문서/사례 조사 우선, 이 환경에서 실측(REST API round-trip) 가능 여부도 판단해 시도하되 안 되면 정직하게 "실측 불가"로 기록하도록 지시. 산출물은 `docs/spikes/firebase-rtdb-vs-firestore.md`.
+- 외부 액션: `.claude/agents/spiker.md`/`docs/agents/spike-log.md`(신규)/`CLAUDE.md` 하네스 표 갱신을 커밋 `a1a15b6`으로 처리(push 안 함).
+
+- 결과(verifier Round 5 완료): YouTube WebView+IFrame Player 연동(커밋 `7a888f2`) 검증 — 정적 검증 3종, Android `clean assembleDebug` 완전 재빌드, 정책 준수(8-2/8-3절 — DOM 조작 없음, 컨트롤 오버레이 없음, 광고 중 seek 무시), 회귀(R3.17 등 기존 서비스 격리 가드 손상 없음) 모두 통과. **신규 실패 1건(R5.17) 발견**: `YouTubeNowPlayingView.tsx`의 WebView 부착 `useEffect`가 빈 의존성 배열이라 최초 마운트 1회만 실행됨 — 플레이리스트가 비어 WebView가 언마운트됐다가 새 곡 추가로 재마운트되면 이 effect가 재실행되지 않아 컨트롤러 내부 ref가 `null`로 고착, 이후 재생 명령이 영구히 처리되지 않음(US-301/302 정상 사용 흐름에서 발생, 코드 트레이스로 확정 재현). 리더가 직접 `YouTubeNowPlayingView.tsx` 71~74행을 읽어 재확인함.
+- 산출물: `docs/qa/spotify-mvp-round1-checklist.md`("## Round 5 검증"), `docs/agents/verification-log.md` 갱신(커밋 전).
+- 후속 분배: implementer에게 R5.17 수정 위임(백그라운드) — 의존성 배열을 `currentVideoId` 유무 변화에 반응하도록 수정 지시.
+
+- 결과(spiker 대행 — RTDB vs Firestore 스파이크 완료): 실측은 불가로 판명(Firestore `SERVICE_DISABLED`, RTDB 인스턴스 없음 — 프로젝트는 존재하나 두 서비스 모두 콘솔에서 아직 활성화 안 됨을 대조 요청으로 검증). 문서/사례 조사로 대체 — 공식 문서 기준 RTDB ≤10ms/Firestore ≤30ms, 2026년 최신 커뮤니티 자료도 "고빈도 소량 갱신+다수 구독은 RTDB, 복합 쿼리/대규모 확장은 Firestore" 통념 유지 확인. 참고용 권고(결정 아님): 재생 상태=RTDB/플레이리스트=Firestore 하이브리드, 또는 단순화 우선 시 RTDB 단일 구성.
+- 산출물: `docs/spikes/firebase-rtdb-vs-firestore.md`(신규), `docs/agents/spike-log.md` 갱신.
+- 사용자 확인: "Firebase 연동 부분 해결됐나" 질문에 리더가 미해결 상태(패키지명 오타 + DB 미활성화 2가지 원인) 정확히 답변, `decisions-needed.md` Firebase 항목을 최신 상태로 갱신(삭제하지 않음 — 실제 결정/완료 아님).

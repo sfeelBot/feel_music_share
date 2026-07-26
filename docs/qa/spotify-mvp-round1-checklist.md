@@ -324,3 +324,84 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 **결론: 이번 라운드(커밋 `d22c6b3`, `b6877b5`)는 지시받은 검증 범위 내에서 "완료"로 간주할 수 있다.** 정적 검증(tsc/eslint/jest) 3종은 round 3과 완전히 동일한 결과(0 errors, 16 warnings, 1/1 테스트)로 재현되어 회귀가 없음을 뒷받침했고, Android는 `clean assembleDebug` 완전 재빌드까지 독립 재현에 성공했다. 표시 이름은 `aapt2 dump badging`으로 `application-label:'SameWave'`를 직접 확인했고, RN 내부 등록 키 3곳(`app.json.name`/`MainActivity.getMainComponentName()`/`AppDelegate.moduleName`)이 전부 `"mobile"`로 일치해 앱 실행이 깨질 위험이 없음을 확인했다. 아이콘은 5개 밀도 전부 APK 내부 PNG와 소스 리포 PNG가 바이트 단위로 완전히 동일함을 확인했고, xxxhdpi 아이콘을 직접 시각 검토해 디자인 문서의 노을 그라디언트+겹치는 두 원 디자인이 실제로 반영됐음(기본 안드로이드 아이콘이 아님)을 확인했다. 배포 파일명 변경(`SameWave-debug.apk`)도 워크플로/문서 3곳 모두 일관되게 반영됨을 확인했다.
 
 다만 다음 항목은 "통과"가 아니라 명시적으로 "미검증"으로 남긴다: (1) iOS는 이 환경의 구조적 제약(macOS/Xcode 부재)으로 실빌드·런타임 검증이 원천적으로 불가능하며 — `Info.plist` 변경은 문법 수준(육안 구조 검토)에서만 이상 없음을 확인했다. (2) 두 커밋이 아직 원격에 push되지 않아 실제 GitHub Actions 실행에서 새 파일명(`SameWave-debug.apk`)으로 릴리즈가 정상 게시되는지는 push 이후 별도 확인이 필요하다. (3) YAML 문법의 프로그램적 파싱 검증은 이 환경에 파서가 없어 육안 검토로만 대체했다. 이 세 가지는 실패가 아니라 구조적/시점적 제약에 따른 미검증이며, round 1~3에서 이미 별도로 열려 있던 이슈(R3.17 `ParticipantsBottomSheet` 서비스 미인지, 딥링크 관련 사항 등)는 이번 두 커밋의 변경 범위 밖이라 그대로 미해결 상태로 남아 있고 이번 판정에 영향을 주지 않는다.
+
+## Round 5 검증 (2026-07-26)
+
+> 검증 대상 커밋: `7a888f2` ("Implement real YouTube playback via WebView + IFrame Player API") — YouTube 세션의 실제 영상 재생 연동. UI 골격뿐이던 `YouTubeNowPlayingView`/`youtubePlayerStub`를 `react-native-webview` 기반 IFrame Player 제어로 전면 교체.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git show --stat`/`git diff`로 diff 직접 확인 + 신규/변경 파일(`youtubePlayerHtml.ts`, `youtubePlayerStub.ts`, `YouTubeNowPlayingView.tsx`, `SessionContext.tsx` 관련 함수)을 라인 단위로 코드 리뷰 + `docs/specs/03-youtube-integration.md`(8절)·`docs/design/02-key-ui-patterns.md`(2.2a/4절)·`docs/design/00-ux-flow.md`(2.10c)와 대조 + `apps/mobile`에서 tsc/eslint/jest 독립 재현 + Android `clean` → `assembleDebug --no-daemon` 완전 재빌드 독립 재현(캐시 미사용) + APK 내부 JS 번들 존재 확인(R2 이후 회귀 여부) + 인접 서비스 격리 가드(R3.17 관련 컴포넌트) 재확인 + Spotify 쪽 파일 변경 여부 diff 확인(회귀).
+> 환경: Windows 11 Pro (10.0.26200), Node v24.15.0, npm 11.12.1, JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 여전히 없음 — iOS 실빌드/런타임은 이번에도 구조적으로 불가능. 실제 Android 기기/에뮬레이터도 이 세션에서는 사용하지 않음(빌드 성공 여부만 확인, 런타임 미검증은 아래 명시).
+
+### 변경 파일 확인
+
+`git diff 7a888f2^ 7a888f2 --stat`으로 직접 확인 — 신규: `apps/mobile/src/services/youtube/youtubePlayerHtml.ts`, `apps/mobile/__mocks__/react-native-webview.js`. 전면 교체: `apps/mobile/src/services/youtube/youtubePlayerStub.ts`. 수정: `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`, `apps/mobile/jest.config.js`, `apps/mobile/package.json`/`package-lock.json`(`react-native-webview: ^14.0.1` 추가). `apps/mobile/src` 전체 diff에서 `youtube/` 폴더와 `YouTubeNowPlayingView.tsx` 외에는 어떤 파일도 변경되지 않았음을 확인(`git diff --stat -- apps/mobile/src | grep -v youtube` 결과 `YouTubeNowPlayingView.tsx` 한 줄만 남음) — Spotify 화면·공용 컴포넌트·`SessionContext.tsx`는 이번 커밋에서 전혀 건드리지 않았다는 구현 로그의 주장과 일치.
+
+### 1. 정적 검증 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R5.1 | `npx tsc --noEmit` (apps/mobile) | ✅ 통과 | 0 errors, 출력 없음. `React.ElementRef<typeof WebView>` 우회로 이전에 보고된 오버로드 오류(`No overload matches this call`)가 재현되지 않음을 확인. |
+| R5.2 | `npx eslint .` (apps/mobile) | ✅ 통과 | 0 errors, 16 warnings — round 3/4와 정확히 동일한 개수, 전부 기존에 이미 확인된 조건부 inline-style 관용 패턴(`YouTubeNowPlayingView.tsx`의 `opacity: hasPrevTrack ? 1 : 0.4` 1건 포함, `NowPlayingView.tsx`의 동일 패턴과 종류가 같음 — 신규 유형 경고 없음). |
+| R5.3 | `npx jest` (apps/mobile) | ✅ 통과 | `__tests__/App.test.tsx` 1/1 통과. `__mocks__/react-native-webview.js`(jest manual mock)가 정상 작동해 네이티브 모듈 부재로 인한 `TurboModuleRegistry` 예외 없이 전체 트리가 렌더링됨을 확인. |
+
+세 항목 모두 구현 로그의 주장과 독립적으로 재현되어 일치한다.
+
+### 2. Android 클린 빌드 재현 (독립)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R5.4 | `./gradlew.bat clean --no-daemon` | ✅ 통과 | `BUILD SUCCESSFUL in 1m 19s`. 로그에 `react_codegen_RNCWebViewSpec-*`(4개 ABI) clean 태스크가 정상 실행됨을 확인 — codegen 산출물이 실제로 존재했다는 뜻이라 이전 빌드(구현 에이전트 보고분)가 캐시 재사용이 아니라 실제로 webview 네이티브 모듈을 빌드했었음을 뒷받침. |
+| R5.5 | `./gradlew.bat assembleDebug --no-daemon` (clean 직후, 캐시 미사용 완전 재빌드) | ✅ 통과 | `BUILD SUCCESSFUL in 3m 57s`, 203 actionable tasks(173 executed, 30 up-to-date). 로그에 `:react-native-webview:compileDebugKotlin`, `:react-native-webview:extractDebugAnnotations`, `:react-native-webview:bundleDebugAar`, `:react-native-webview:assembleDebug` 등이 모두 성공 실행됨을 확인 — settings.gradle의 autolinking이 신규 네이티브 모듈을 정상 인식한다는 구현 로그 주장을 캐시 없는 완전 재빌드로 독립 재현. |
+| R5.6 | APK 내부 JS 번들 패키징 여부(2026-07-25 라운드에서 고쳤던 "Unable to load script" 회귀 여부) | ✅ 통과(회귀 없음) | `unzip -l app-debug.apk`로 `assets/index.android.bundle`(1,064,104 bytes) 존재 확인 — 0바이트/누락 아님, debug 변형도 번들이 계속 패키징되고 있음을 재확인. |
+
+### 3. 정책 준수 — YouTube API Developer Policies / Required Minimum Functionality 대조 (코드 리뷰)
+
+근거 문서: `docs/specs/03-youtube-integration.md` 5절/8-2절/8-3절, `docs/design/02-key-ui-patterns.md` 2.2a·4절, `docs/design/00-ux-flow.md` 2.10c.
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R5.7 | 표준 IFrame Player API 함수만 사용, DOM 조작·광고 스킵 코드 없음(Section III.I.5/6) | ✅ 통과 | `youtubePlayerHtml.ts`를 전체 라인 단위로 읽음 — 호출되는 함수는 `YT.Player` 생성자, `playVideo/pauseVideo/seekTo/loadVideoById/cueVideoById/getVideoData/getPlayerState`뿐이다. `document.querySelector`, DOM 노드 직접 조작, iframe `src` 재작성, 광고 자동 스킵/음소거 로직은 코드 어디에도 없음(전체 135줄 직접 확인). |
+| R5.8 | 광고 감지는 정보성으로만 사용, 감지 로직 자체가 플레이어를 조작하지 않음 | ✅ 통과 | `detectAdPlaying()`은 `getVideoData().video_id`를 요청 videoId와 **비교만** 하고 `postToRN`으로 RN에 알릴 뿐, 감지 결과로 스스로 아무 플레이어 명령도 실행하지 않는다(순수 조회 함수). 이 휴리스틱은 공식 상태 코드 부재에 따른 실무적 판단이라는 점이 파일 헤더/스펙(8-1절)에 명시돼 있고, 정확도(오탐/미탐 가능성)는 실기기 검증 필요 사항으로 별도 관리되고 있어 "확인 필요"를 "확정"으로 과장하지 않는 서술 태도도 일관됨. |
+| R5.9 | 커스텀 컨트롤은 플레이어 영역 **바깥**에 배치(레이어링 금지) | ✅ 통과 | `YouTubeNowPlayingView.tsx`의 JSX 트리를 직접 추적: `playerContainer`(WebView 렌더 영역)와 `controls`(⏮⏯⏭ 버튼)가 형제 `<View>` 요소로 순차 배치되며, `position: 'absolute'`/`zIndex` 등 오버레이 스타일이 둘 중 어디에도 없음(styles 객체 전체 확인). 광고 상태 배지(`SyncStatusBadge`)도 `controls` 아래에 별도 flow 요소로 렌더 — 플레이어 위에 겹치는 요소 없음. |
+| R5.10 | 최소 200×200px 이상 유지 | ✅ 통과 | `playerContainer`/`webview` 스타일 모두 `minHeight: 200`, `width: '100%'` — 실기기 폭이 200px 미만일 가능성은 사실상 없으므로 정책 요구사항 충족. |
+| R5.11 | 커스텀 재생 버튼이 실제 재생을 트리거(장식 버튼 금지) | ✅ 통과 | `handleTogglePlay`가 `requestPlay()/requestPause()`(세션 로컬 상태)와 함께 `youtubePlayerController.playVideo()/pauseVideo()`(실제 IFrame Player 명령)를 **동시에** 호출함을 확인 — STUB이 아니라 실제 커맨드가 나간다. |
+| R5.12 | 광고 재생 중 서버발 seek 명령 무시(8-3절, 컨트롤러 레벨 방어) | ✅ 통과(코드 확인, 단 현재 미사용) | `WebViewYoutubePlayerController.seekTo()`가 `if (this.isAd) { return; }`로 조기 반환 — 정책 요구사항을 코드로 정확히 구현했다. 다만 `SessionContext.tsx`(이번 라운드에서 건드리지 않음)에는 아직 서버발 seek을 트리거하는 동기화 엔진 자체가 없어(Firebase 미연동), 이 가드가 실제로 호출되는 경로가 현재는 존재하지 않는다 — "방어 코드가 미리 준비돼 있으나 아직 아무도 호출하지 않는다"는 상태이며, 이는 이번 라운드 지시 범위(재생 연동)와 일관되고 결함은 아니다(다음 라운드에서 실제 동기화 엔진이 붙을 때 이 가드가 정말 동작하는지 재확인 필요). |
+| R5.13 | 신규 5번째 동기화 상태를 만들지 않고 기존 "맞추는 중"을 재사용(02문서 2.2a) | ✅ 통과 | `effectiveSyncStatus`가 `isAdPlaying`일 때만 `{...syncStatus, state: 'tuning', reasonLabel: '광고 재생 중'}`으로 파생 — 새 상태 값을 추가하지 않고 기존 `SyncStatusBadge`의 `reasonLabel` 필드를 재사용하는 기존 패턴 그대로. |
+
+### 4. YouTube ↔ 다른 서비스 격리 회귀 확인 (R3.17류 패턴 재점검)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R5.14 | `ParticipantsBottomSheet.tsx`의 `session.service === 'spotify'` 가드(R3.17에서 고친 부분)가 이번 라운드에서도 유지되는가 | ✅ 통과(회귀 없음) | `git diff 7a888f2^ 7a888f2`에 `ParticipantsBottomSheet.tsx`가 전혀 등장하지 않음 — 파일 자체가 변경되지 않았고, 직접 열람한 결과 `showFreeTierUi = session.service === 'spotify'` 가드가 그대로 남아 있음. |
+| R5.15 | `NowPlayingView.tsx`(Spotify), `PlaylistView.tsx`, `AddTrackModal.tsx`, `RoomScreen.tsx`의 서비스 조건부 로직이 이번 커밋으로 손상되지 않았는가 | ✅ 통과(회귀 없음) | 위 파일들 전부 이번 커밋 diff에 등장하지 않음(2절 "변경 파일 확인" 참고) — `grep "service ==="`로 각 파일의 가드가 여전히 그대로 존재함을 재확인(`RoomScreen.tsx`의 `session.service === 'youtube'` 라우팅, `NowPlayingView.tsx`의 Free 배너 가드, `PlaylistView.tsx`/`AddTrackModal.tsx`의 서비스별 분기 등). |
+| R5.16 | Spotify 세션 화면(재생 컨트롤, STUB 호출 패턴)이 이번 변경으로 영향받지 않았는가 | ✅ 통과(회귀 없음) | `NowPlayingView.tsx`는 여전히 `spotifyRemote.ts` STUB을 호출하지 않는 이전 상태 그대로(diff에 등장하지 않음) — YouTube 쪽만 실제 컨트롤러 연동으로 승격됐고 Spotify 쪽 동작 방식(로컬 상태만 갱신)은 변경되지 않아 두 서비스 간 동작 비대칭이 새로 생기지 않음(기존에도 있던 "Spotify는 원격 앱 제어, YouTube는 임베드 직접 제어"라는 구조적 차이가 그대로 유지될 뿐). |
+
+### 5. 신규 발견 — WebView 재부착(ref attach) 경합 버그 (코드 정적 추적으로 확인, 실기기 불필요)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R5.17 | `currentEntryId`가 `null`(재생할 곡 없음) → 이후 다시 유효한 곡으로 바뀌는 경우, WebView가 정상적으로 재부착되어 명령을 받는가 | ❌ 실패 | **재현(코드 트레이스, 실기기 불필요):** ① YouTube 세션에서 플레이리스트의 모든 곡을 삭제 — `SessionContext.removeTrack`이 다음 곡도 없으므로 `playback.currentEntryId: null`로 전환(`SessionContext.tsx` 202행). `YouTubeNowPlayingView`는 `currentVideoId`가 `null`이 되어 `<WebView>` 대신 "재생할 영상이 없어요" `<Text>`를 렌더(126~140행) — 이 시점에 `webViewRef.current`는 `null`이다. ② "곡 추가" 모달로 새 곡을 추가 — `SessionContext.addTrack`(170~181행)은 플레이리스트에 append만 할 뿐 `playback.currentEntryId`를 갱신하지 않으므로 여전히 `null`. ③ Now Playing 탭을 벗어나지 않은 채 "다음 곡"(⏭) 버튼을 탭 — 이 버튼에는 `disabled` 가드가 전혀 없어(169~174행, `hasPrevTrack`과 달리 "다음 곡"은 항상 활성) 언제든 누를 수 있다. `requestNextTrack`(`SessionContext.tsx` 106~136행)은 `prev.playlist.findIndex(e => e.entryId === null)`이 `-1`을 반환하는 것을 이용해 `next = prev.playlist[-1 + 1] = prev.playlist[0]`으로 계산하므로, `currentEntryId`가 새로 추가된(또는 첫 번째) 곡으로 갱신되고 `isPlaying: true`가 된다. ④ 이제 `currentVideoId`가 truthy로 바뀌어 `<WebView>`가 **처음으로** JSX에 등장(마운트)한다. 하지만 WebView 부착 담당 effect(`YouTubeNowPlayingView.tsx` 71~74행)는 `useEffect(() => { youtubePlayerController._attachWebView(webViewRef.current); ... }, [])`로 **빈 의존성 배열**이라 컴포넌트 최초 마운트 시 단 한 번만 실행된다 — 그 시점(①)에는 WebView가 아직 렌더되지 않아 `webViewRef.current`가 `null`이었으므로, 컨트롤러는 `null`로 부착된 채 영구히 남는다. WebView가 나중에 실제로 마운트돼도(④) 이 effect는 재실행되지 않아 `youtubePlayerController`의 내부 `webViewRef`는 계속 `null`이다. ⑤ "곡 전환" effect(79~89행)는 `currentEntry`가 바뀐 것을 감지해 `loadVideoById`를 호출하지만, `WebViewYoutubePlayerController.run()`(`youtubePlayerStub.ts` 138~146행)이 `this.webViewRef`가 없으므로 명령을 `pendingCommands` 큐에 쌓기만 한다. 이후 WebView가 `ready` 메시지를 보내도 `flushPendingCommands()`(129~136행)는 `if (!this.webViewRef) { return; }`로 조기 종료해 큐를 영구히 비우지 못한다 — **결과적으로 새로 추가한 영상이 로드되지 않고, 화면은 계속 빈 검은 WebView(또는 최초 렌더 시 구운 빈 videoId(`''`) 상태)로 남는다.** 사용자가 Now Playing 탭을 벗어났다가(플레이리스트 탭 등) 다시 돌아오면 `YouTubeNowPlayingView`가 완전히 언마운트/재마운트되면서(`RoomScreen.tsx`가 탭에 따라 컴포넌트 자체를 조건부 렌더링, 55~64행) `_attachWebView(null)` cleanup → 새 마운트에서 재부착이 정상적으로 일어나 스스로 복구되지만, 그 전까지는 재생 명령이 전혀 반영되지 않는 상태로 조용히 멈춰 있다(에러 메시지·크래시 없이 무반응이라 사용자가 원인을 알기 어려움). |
+| | 관련 파일 | | `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`(71~74행 `useEffect(..., [])`), `apps/mobile/src/services/youtube/youtubePlayerStub.ts`(`run`/`flushPendingCommands`), `apps/mobile/src/state/SessionContext.tsx`(`requestNextTrack`의 `findIndex` 기반 `null → 0` 폴백, `addTrack`이 `currentEntryId`를 갱신하지 않는 부분). |
+| | 권장 수정 방향(참고, 결정은 구현 에이전트 몫) | | (1) attach effect의 의존성을 `[Boolean(currentVideoId)]` 등으로 바꿔 WebView가 실제로 마운트/언마운트될 때마다 재부착되게 하거나, (2) `useRef` 대신 콜백 ref(`useCallback((node) => { youtubePlayerController._attachWebView(node); }, [])`)로 전환해 React가 ref를 갱신할 때마다 자동으로 `_attachWebView`가 호출되게 하는 편이 더 근본적인 해결책으로 보인다(콜백 ref는 매 마운트/언마운트마다 자동 호출되므로 별도 `useEffect` 동기화가 필요 없어짐). |
+
+이 항목은 실기기 없이도 코드 정적 추적만으로 확정적으로 재현 가능한 로직 결함이라 "미검증"이 아니라 "실패"로 판정한다. 다만 도달 조건(현재 재생 곡을 포함해 플레이리스트를 전부 비운 뒤, 탭을 벗어나지 않고 새 곡을 추가하고 "다음 곡"을 누르는 특정 순서)이 일반적인 데모 플로우(항상 3곡이 시드된 상태로 시작)에서는 우연히 발생하지 않는 좁은 경로라는 점은 함께 기록해둔다 — 다만 "플레이리스트를 비웠다가 다시 채우는" 흐름 자체는 US-301/302(곡 추가/삭제)가 명시적으로 허용하는 정상 사용 패턴이라 엣지 케이스로 치부하고 넘기기는 어렵다고 판단했다.
+
+### 6. 미검증 (환경 제약 / 실기기 필요 — 실패 아님)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R5.18 | iOS 실빌드/런타임 | ⛔ 미검증(환경 제약, 구조적, round 1~4와 동일) | 이번 커밋은 `ios/` 파일을 전혀 건드리지 않았다(`git diff --stat`에 ios 경로 없음). 신규 코드(`youtubePlayerHtml.ts`, `youtubePlayerStub.ts`, `YouTubeNowPlayingView.tsx`)를 검토한 결과 `Platform.OS` 분기나 iOS 전용 API 사용은 없음 — `react-native-webview`는 크로스플랫폼 패키지이고 사용된 prop(`allowsInlineMediaPlayback`, `mediaPlaybackRequiresUserAction`)도 iOS/Android 양쪽에서 지원되는 공식 prop이다(라이브러리 타입 정의상 플랫폼 제한 없음). 다만 이는 코드 리뷰 수준 확인이며, 실제 iOS 빌드(CocoaPods 설치 포함)·WKWebView 런타임 동작은 macOS/Xcode 부재로 이 환경에서 원천적으로 검증 불가능하다. |
+| R5.19 | 광고 감지 휴리스틱(`getVideoData().video_id` 불일치 판정)의 실제 정확도 | ⛔ 미검증(실기기 필요, 지시사항상 이번 라운드 필수 아님) | 구현 에이전트가 스스로 명시한 미검증 항목과 동일 — 로직 자체(R5.7/R5.8)는 정책에 부합하게 구현돼 있으나, 실제 YouTube 광고 삽입 시 이 판정이 오탐/미탐 없이 동작하는지는 실기기에서만 확인 가능. |
+| R5.20 | `mockSessionSeed.ts` 데모 시드가 실제 YouTube videoId가 아니라 실기기에서 `onError`로 이어질 가능성 | ⛔ 미검증(기존에 알려진 제약, 이번 라운드 범위 밖) | 코드로 재확인: `mockSessionSeed.ts`는 서비스와 무관하게 항상 `spotify:track:demoN` 형식이고(`extractYoutubeVideoId`가 접두사 불일치 시 원본 문자열을 그대로 videoId로 폴백), `youtubeMockSearch.ts`(AddTrackModal 경로)도 `youtube:video:mockN` 형식이라 실제 존재하는 YouTube 영상 ID가 아니다 — 둘 다 실기기에서는 `onError` 콜백으로 이어질 것으로 예상된다는 구현 로그의 자체 진단과 코드 상 일치함을 확인. YouTube Data API 실연동 전까지 근본 해결 불가(이번 라운드 명시적 범위 밖) — 실패로 카운트하지 않음. |
+| R5.21 | WebView 자동재생(`autoplay`/`mediaPlaybackRequiresUserAction={false}`)이 실기기에서 사용자 제스처 없이 동작하는가 | ⛔ 미검증(실기기 필요) | HTML 템플릿에 `autoplay` playerVar와 WebView의 `mediaPlaybackRequiresUserAction={false}` prop이 모두 설정돼 있어 설정 자체는 정확하나(코드 레벨 확인 완료), Android/iOS 각 플랫폼의 실제 자동재생 정책(특히 iOS Safari/WKWebView는 무음소거 자동재생을 더 엄격히 제한하는 경향)은 실기기에서만 확인 가능. |
+
+### Round 5 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 16 (R5.1~R5.16) |
+| ❌ 실패 | 1 (R5.17 — WebView ref 재부착 경합 버그, 코드 정적 추적으로 확정 재현) |
+| ⛔ 미검증(환경 제약/실기기 필요, 실패 아님) | 4 (R5.18 iOS 실빌드·런타임, R5.19 광고 감지 정확도, R5.20 데모 videoId 실존 여부, R5.21 자동재생 실기기 동작 — R5.19~R5.21은 구현 에이전트가 이미 스스로 명시한 항목과 동일, 이번 라운드 필수 검증 범위 아님) |
+
+**결론: 이번 라운드(커밋 `7a888f2`)는 "완료"로 간주하지 않는다 — 구현 에이전트에게 R5.17(WebView ref 재부착 버그) 수정을 요청해 반려 권고한다.** 정책 준수(DOM 조작 없음, 표준 API만 사용, 컨트롤 비오버레이, 광고 중 seek 억제, 200px 최소 크기, 실재생 트리거) 항목은 코드 리뷰로 전부 통과 확인했고, 정적 검증 3종과 Android 클린 빌드도 캐시 없이 독립 재현에 성공했으며, 기존에 고쳐졌던 서비스 격리 가드(R3.17)나 Spotify 쪽 화면도 이번 커밋으로 인한 회귀가 없음을 확인했다 — 이 부분은 구현 로그의 주장을 신뢰할 수 있는 수준으로 뒷받침한다. 다만 새로 검토한 WebView 부착 로직(`_attachWebView`를 부르는 `useEffect(..., [])`)에서 "플레이리스트를 비웠다가 같은 탭에서 다시 채우고 다음 곡을 누르는" 정상적인 사용 흐름 하나가 재생 명령을 영구히 무반응 상태로 빠뜨리는 결함을 발견했다(R5.17, 실기기 없이 코드 트레이스만으로 확정 재현 가능). 도달 조건이 좁긴 하나 US-301/302가 허용하는 정상 플로우 조합이라 엣지 케이스로 넘기지 않고 실패로 판정했다. 나머지 미검증 항목(iOS 전체, 광고 감지 정확도, 데모 videoId 실존성, 자동재생 실기기 동작)은 이번 라운드 지시사항이 이미 "실기기 검증은 이번 라운드 필수 아님"으로 명시한 범위와 정확히 일치하므로 실패로 카운트하지 않았다.
