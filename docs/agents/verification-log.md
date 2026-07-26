@@ -120,3 +120,16 @@
   - **회귀 확인**: diff가 `SessionContext.tsx`/`ParticipantsBottomSheet.tsx`/`NowPlayingView.tsx`/`YouTubeNowPlayingView.tsx`를 전혀 건드리지 않아 Round 7이 통과시킨 정책 준수(조용한 확정 금지)와 서비스 격리(R3.17류 개별 가드)에 영향 없음. 2.11c의 후보 선택 예외 경로(`selectMyMatchCandidate`, R7.7이 확인한 "goToNextInQueue를 호출하지 않는 유일한 예외")도 이번 diff에서 변경되지 않아 그대로 유지됨을 확인.
   - 전체 항목: 통과 17 / 참고 1(R8.8, 헤더 카운터가 항상 "1/남은개수"로 표시되는 사소한 UX 참고사항, 실패 아님) / 미검증 iOS 실빌드(환경 제약, 신규 아님). **"완료"로 간주한다** — R7.13이 구조적으로 해소됐고 다른 회귀도 발견되지 않음. Round 7의 25개 통과 항목 + 이번 R7.13 해소를 합쳐 **혼합 모드(Round 7 + Round 8) 전체를 "완료"로 결론짓는다.**
 
+## 2026-07-26 (Round 9, Spotify Premium 안내 모달)
+- 검증 대상: 실기기에서 발견된 버그 수정 — `SpotifyConnectScreen.tsx`의 "Premium이 없으신가요? →" 링크에 `onPress` 핸들러가 없어 눌러도 아무 반응이 없던 문제(커밋 `977298c` "Wire up "no Premium?" link with an info modal instead of a dead button"). 새 네비게이션 라우트 대신 같은 화면에 안내 `Modal`을 추가해 "로그인 계속하기"(기존 `login()` 재사용) / "Spotify Premium 알아보기"(`Linking.openURL`) / 닫기 3버튼을 배선. 지금까지 리더 자체 diff 리뷰만 거쳤고 정식 verifier 라운드는 처음. `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 9 검증 (Spotify Premium 안내 모달)" 절 추가(append). 단일 화면 소규모 변경이라 전체 체크리스트를 반복하지 않고 diff/정책 준수/배선/다크모드/정적 검증/Android 빌드에 집중.
+- 플랫폼: 둘 다 (Android는 `assembleDebug --no-daemon`으로 `BUILD SUCCESSFUL in 10s` 독립 재현. iOS는 이번 diff도 네이티브 파일을 전혀 건드리지 않아 구조적 리스크는 낮으나 macOS/Xcode 부재로 코드 리뷰 수준까지만 수행 — Round 1~8과 동일한 환경 제약. 실기기 Spotify OAuth 콜백 자체는 지시사항에 따라 "미검증(환경 제약)"으로만 기록, 이번 라운드 검증 범위 밖.)
+- 결과: 통과
+- 상세:
+  - `git show 977298c` diff를 직접 확인 — `SpotifyConnectScreen.tsx`(79줄 변경, 신규 컴포넌트/네비게이션 라우트 없음) + `implementation-log.md`(13줄 추가) 2개 파일에 정확히 국한됨(`navigation/types.ts` 변경 없음, 새 라우트 없음 확인).
+  - **정책 준수(가장 중요한 확인 항목)**: `docs/specs/04-playlist.md` "Free 계정(무료 등급) 처리" 절을 직접 재확인 — 2026-07-24 확정된 "해석 A"(참여 자체는 항상 허용, 동기화 재생 제어만 제한)와 "해석 B"(세션 진입 자체 제한, 폐기됨) 문구를 원문으로 대조. 모달 본문 문구가 이 확정 정책과 표현·의미 모두 정확히 일치. 화면 코드 전체(1~151행)에 `isPremium`/`accountTier` 등 등급 판별 식별자가 전혀 없고, `login()` 호출과 `navigation.replace('Home')` 모두 등급과 무관하게 조건 없이 실행됨을 확인 — 새로운 차단 로직 없음. 저장소 전체(`grep -rn "isPremium|premium" apps/mobile/src`)에서도 등급 게이팅 로직이 이번 diff에 포함되지 않은 기존 파일들(`HomeScreen.tsx`, `NowPlayingView.tsx` 등)에만 있음을 재확인해, 로직이 다른 곳으로 우회 이전됐을 가능성도 배제.
+  - "로그인 계속하기"가 새 인증 로직 없이 기존 `useAuth().login()`을 그대로 재사용함을 확인(화면 상단 기존 로그인 버튼과 동일 함수 참조, `AuthContext.tsx`/`spotifyAuth.ts`는 diff에 포함되지 않음). `Linking.openURL(...).catch(() => {})`로 명시적 에러 핸들링이 있어 브라우저 오픈 실패 시에도 모달이 깨지지 않고 "닫기"로 정상 빠져나갈 수 있음을 확인.
+  - 다크모드: 모달 카드/제목/본문/닫기 텍스트가 전부 `theme.bgElevated`/`theme.text`/`theme.textSecondary` 토큰을 사용하며, `theme/tokens.ts`에 라이트·다크 양쪽 값이 정의돼 있음을 확인. 오버레이 스크림(`rgba(0,0,0,0.5)`)은 관용적으로 고정값이어도 무방.
+  - 정적 검증 독립 재현: `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 22 warnings — Round 8과 정확히 동일한 파일/경고, `SpotifyConnectScreen.tsx`는 경고 목록에 없음), `npx jest`(5 suites/23 tests 전부 통과, 회귀 없음 — 구현 로그가 "4 suites/16 tests"로 적은 것은 Round 8 이전 스냅샷 반영 누락으로 보이나 실질적 회귀는 아님). Android `assembleDebug --no-daemon` → BUILD SUCCESSFUL in 10s.
+  - 실기기 Spotify OAuth 콜백(모달 애니메이션, 브라우저 전환, 딥링크 복귀, 다크모드 육안 대비)은 지시사항에 따라 이번 라운드 범위 밖으로 남기고 "미검증(환경 제약)"으로만 기록 — 실패로 카운트하지 않음.
+  - 전체 항목: 통과 12 / 미검증(환경 제약, 실패 아님) 1(실기기 OAuth 콜백/브라우저 전환/딥링크 복귀/다크모드 육안 확인) / 실패 0. **"완료"로 간주한다.**
+

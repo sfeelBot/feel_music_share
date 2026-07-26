@@ -650,3 +650,66 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 **결론: 통과.** R7.13(대기 항목 정확히 2건일 때 조기 종료, 3건 이상일 때 항목 건너뜀)의 근본 원인이었던 숫자 `cursor` state와 그에 의존한 "처리 전 길이" 산술이 diff에서 실제로 완전히 제거됐고, 대체된 `resolveQueueEntryId`가 매 렌더 그 시점의 실제 `myPendingMatchEntryIds`만 참조하는 구조이므로 React state batching 여부와 무관하게 항상 올바른 다음 항목을 가리킨다는 것을 코드 트레이스(R8.3~R8.6)와 단위 테스트 내용 검토(R8.9)로 확인했다. 정적 검증(R8.10~R8.12)과 Android 빌드(R8.13)는 구현 로그의 주장과 정확히 일치하게 독립 재현됐고, 변경 범위가 주장대로 4개 파일에 국한돼(R8.1) Round 7의 다른 통과 항목(정책 준수, 서비스 격리, 2.11c 예외 경로)에 회귀가 없음도 확인했다(R8.15~R8.17).
 
 **혼합 모드 라운드 전체에 대한 판단**: Round 7의 25개 통과 항목(정책 2건, 서비스 격리 3건, 전체 플로우 트레이스 대부분, 데이터 모델 일관성, 기존 세션 회귀 없음, 단위 테스트 3종, 정적 검증/빌드)은 이미 통과였고, 유일한 실패였던 R7.13이 이번 Round 8에서 해소됐다 — 따라서 **혼합 모드(Round 7 + Round 8) 전체를 "완료"로 결론지어도 된다.** 남은 항목은 모두 실패가 아니라 이미 문서화된 환경적 제약(iOS 실빌드, Spotify/YouTube 재생 스텁, YouTube mock videoId, 매칭 가중치 잠정값, 코드 참여 미연결)이거나 사소한 UX 참고사항(R7.32, R8.8)뿐이다.
+
+---
+
+## Round 9 검증 (Spotify Premium 안내 모달)
+
+> 검증 대상 커밋: `977298c` ("Wire up "no Premium?" link with an info modal instead of a dead button") — 실기기에서 발견된 버그(`SpotifyConnectScreen.tsx`의 "Premium이 없으신가요? →" 링크에 `onPress` 핸들러 없음) 수정. 이번까지 정식 verifier 라운드가 없었고 리더 자체 diff 리뷰만 거친 상태에서 처음 검증. 단일 화면 소규모 변경이라 전체 체크리스트를 반복하지 않고 지시된 항목(diff 확인, 정책 준수, 배선/에러 핸들링, 다크모드, 정적 검증, Android 빌드)에 집중한다.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git show 977298c`로 diff 라인 단위 확인 → `SpotifyConnectScreen.tsx` 현재 전체 파일 재확인 → `docs/specs/04-playlist.md` "Free 계정(무료 등급) 처리" 절(해석 A 확정 문구) 직접 재확인 → `grep`으로 이 파일 및 관련 컴포넌트(`AuthContext.tsx`, `Buttons.tsx`, `theme/tokens.ts`)에서 새로운 `isPremium` 게이팅 로직이 추가됐는지 저장소 전체 검색 → `apps/mobile`에서 tsc/eslint/jest 독립 재현 → Android `assembleDebug --no-daemon` 독립 재현.
+> 환경: Windows 11 Pro (10.0.26200), JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 없음 — 이번 diff도 네이티브 파일을 건드리지 않아 iOS 실빌드는 구조적 제약으로 미검증. 실기기 Spotify OAuth 콜백 자체도 실기기 부재로 미검증(지시사항이 명시한 검증 범위 밖).
+
+### 1. diff 확인 및 변경 범위
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R9.1 | `git show 977298c` diff가 구현 로그가 주장한 범위(`SpotifyConnectScreen.tsx` 단일 파일 수정 + `implementation-log.md`)와 정확히 일치하는가 | 통과 | `git show 977298c --stat` — `apps/mobile/src/screens/SpotifyConnectScreen.tsx`(79줄 변경, 신규 컴포넌트/네비게이션 라우트 없음), `docs/agents/implementation-log.md`(13줄 추가) 2개 파일뿐. 새 네비게이션 라우트(`RootStackParamList` 변경) 없음을 확인 — `navigation/types.ts`가 diff에 없음. |
+
+### 2. 정책 준수 — Free 계정 세션 참여 항상 허용(해석 A)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R9.2 | `docs/specs/04-playlist.md` "Free 계정(무료 등급) 처리" 절의 확정 정책 재확인 | 통과 | 84행 "Free 계정 사용자는 곡 재생(동기화 재생 대상)이 불가능하다"(재생 제어만 제한), 87~88행 "해석 A(제안) → 확정" / "해석 B: 세션 진입 자체를 Premium 계정으로 제한한다 (2026-07-24 폐기 — 채택하지 않음)"를 문서에서 직접 확인. 모달 본문 문구("로그인하고 세션에 참여해서 플레이리스트에 곡을 추가·삭제·순서변경할 수 있어요. 다만 곡 재생(동기화 재생)에는 참여할 수 없어요")가 이 확정 문구와 표현·의미 모두 정확히 일치. |
+| R9.3 | 이 화면(`SpotifyConnectScreen.tsx`)에 새로운 차단 로직이나 `isPremium` 체크로 로그인/네비게이션을 막는 코드가 추가됐는가 | 통과(위반 없음) | 파일 전체(1~151행)를 재확인 — `isPremium`, `accountTier`, `product` 등 등급 판별 관련 식별자가 이 파일에 전혀 등장하지 않는다. `login()`은 `handleContinueLogin`(37~40행)에서 조건 없이 바로 호출되고, 로그인 버튼(65~70행) 자체도 애초에 조건 없이 항상 활성 상태(`disabled` prop 미지정, `status === 'signing_in'`일 때만 `loading` 표시). `navigation.replace('Home')`(31~35행 `useEffect`)도 `status === 'signed_in'`이면 등급과 무관하게 항상 실행됨 — Free/Premium을 가리는 어떤 조건문도 로그인·화면 전환 경로에 없음. |
+| R9.4 | 저장소 전체에서 이번 diff로 인해 새로 추가된 `isPremium` 게이팅이 있는가(다른 화면으로 로직이 우회 이전됐을 가능성 배제) | 통과(신규 게이팅 없음) | `grep -rn "isPremium\|premium" apps/mobile/src`로 전체 재검색 — `isPremium`/`accountTier` 판별 로직은 `HomeScreen.tsx`(경고 배너), `NowPlayingView.tsx`(`viewerIsFree`, 재생 컨트롤 제한), `CreateSessionScreen.tsx`(참여자 tier 태깅), `ParticipantsBottomSheet.tsx`(재생 인원 카운트) 등 기존에 이미 존재하던 위치에만 있고, 전부 이번 커밋 diff(977298c)에 포함되지 않은 파일이다(R9.1의 2개 파일 목록과 무관). 즉 이번 변경이 등급 판별 로직 자체를 건드리거나 새로 추가하지 않았고, 순수하게 "링크 탭 → 안내 → 기존 login() 재사용"만 배선했음을 확인. |
+
+### 3. 로그인 재사용 및 에러 핸들링
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R9.5 | "로그인 계속하기" 버튼이 새로운 인증 로직 없이 기존 `useAuth().login()`을 그대로 재사용하는가 | 통과 | `SpotifyConnectScreen.tsx` 28행 `const {status, error, login} = useAuth();`, 37~40행 `handleContinueLogin`이 `setFreeInfoVisible(false)` 후 `login()`만 호출 — 새 인자·새 옵션 없이 화면 상단 "Spotify로 로그인" 버튼(66~70행)이 호출하는 것과 동일한 함수 참조. `AuthContext.tsx`를 확인한 결과 이번 diff에 `AuthContext.tsx`/`spotifyAuth.ts`는 전혀 포함되지 않음(R9.1) — 내부 OAuth 로직(`loginWithSpotify`)은 완전히 건드리지 않았다. |
+| R9.6 | `Linking.openURL` 호출에 에러 핸들링이 있어 실패해도 모달이 깨지지 않는가 | 통과 | 42~46행 `handleOpenPremiumPage`가 `Linking.openURL(SPOTIFY_PREMIUM_URL).catch(() => { /* 무시 */ })`로 `.catch`를 명시적으로 붙여 rejection을 흡수한다 — unhandled promise rejection이나 컴포넌트 크래시로 이어지지 않는다. `freeInfoVisible` state는 이 핸들러에서 전혀 건드리지 않으므로(닫기 로직 없음) 브라우저 오픈 실패 시에도 모달이 열린 채로 유지되어 사용자가 "닫기"로 직접 빠져나갈 수 있다 — 의도된 동작. |
+
+### 4. 다크모드 대응
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R9.7 | 모달 카드/텍스트가 하드코딩 색상 대신 테마 토큰을 사용하는가 | 통과 | 모달 카드 배경 84행 `{backgroundColor: theme.bgElevated}`, 제목 85행 `{color: theme.text}`, 본문 86행 `{color: theme.textSecondary}`, 닫기 텍스트 105행 `{color: theme.textSecondary}` 전부 `useTheme()`(27행)에서 가져온 토큰 사용. `theme/tokens.ts`를 확인한 결과 `bgElevated`/`text`/`textSecondary` 모두 라이트(72/77행)·다크(95/100행) 테마 양쪽에 값이 정의되어 있어 다크모드에서도 정상적으로 다른 값이 적용됨을 확인. 오버레이 배경(`rgba(0,0,0,0.5)`, 137행)은 반투명 스크림이라 테마와 무관하게 고정값이어도 무방(라이트/다크 공통으로 자연스러운 관용적 패턴, 기존 다른 모달류와 일치). 1차 버튼(`SpotifyButton`)은 브랜드 그린 고정색이라 테마 무관, 2차 버튼(`SecondaryButton`)은 컴포넌트 내부(`Buttons.tsx` 26~46행)에서 이미 `theme.border`/`theme.bgElevated`/`theme.text`를 자체적으로 사용하므로 추가 확인 불필요. |
+
+### 5. 정적 검증 및 빌드 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R9.8 | `npx tsc --noEmit` (apps/mobile) | 통과 | 0 errors, 출력 없음. 구현 로그 주장과 일치. |
+| R9.9 | `npx eslint .` (apps/mobile) | 통과 | **0 errors, 22 warnings** — 전부 Round 8과 동일한 파일·동일한 `react-native/no-inline-styles` 경고(줄 단위 목록 대조 완료). `SpotifyConnectScreen.tsx`는 경고 목록에 전혀 등장하지 않음 — 이 파일에서 새로 발생한 경고 없음. 구현 로그 주장과 정확히 일치. |
+| R9.10 | `npx jest` (apps/mobile) | 통과 | **5 suites / 23 tests 전부 통과**(`App.test.tsx`, `trackMatcher.test.ts`, `playlistSequencing.test.ts`, `mixedTrackView.test.ts`, `matchQueueNavigation.test.ts`) — Round 8 이후 상태 그대로 회귀 없음. 구현 로그가 "4 suites/16 tests"로 적었던 것은 Round 8 이전 스냅샷을 기준으로 한 것으로 보이며(실제로는 Round 8에서 이미 5 suites/23 tests로 확장됨) 실질적 회귀는 아님 — 전부 통과이므로 결과에 영향 없음. |
+| R9.11 | Android `assembleDebug --no-daemon` | 통과 | `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`로 `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon` → **BUILD SUCCESSFUL in 10s**, 203 actionable tasks(23 executed, 180 up-to-date — 순수 JS/TS 변경이라 네이티브 재빌드 거의 없음, 신규 네이티브 의존성 없음). |
+| R9.12 | iOS 코드 리뷰 수준(구조적 제약) | 통과(리뷰 수준) | diff가 `apps/mobile/ios`/`apps/mobile/android` 네이티브 디렉터리를 전혀 건드리지 않음(R9.1) — 순수 JS/TS 컴포넌트 변경만이라 iOS 쪽 구조적 리스크는 낮다고 판단하나, 실제 iOS 빌드/런타임 검증은 이번에도 macOS 부재로 수행하지 못했다(Round 1~8과 동일한 구조적 제약, 신규 아님). |
+
+### 6. 실기기 미검증 항목 (지시사항 범위 밖, 명시적으로 기록)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R9.13 | 실기기/에뮬레이터에서 (1) 링크 탭 시 모달이 실제로 뜨는지, (2) "로그인 계속하기" 탭 시 모달이 닫히고 기존 Spotify OAuth 플로우(시스템 브라우저)가 정상 시작되는지, (3) "Spotify Premium 알아보기" 탭 시 외부 브라우저로 spotify.com/premium이 열리는지, (4) "닫기" 탭 시 모달만 닫히고 원래 화면으로 안전하게 복귀하는지, (5) 다크모드 육안 대비 | 미검증(환경 제약) | 지시사항이 명시한 대로 실기기 없이는 Spotify OAuth 콜백 자체를 검증할 수 없어 이번 라운드 범위 밖으로 남긴다. 코드 트레이스로는(R9.3, R9.5~R9.7) 배선이 논리적으로 올바름을 확인했으나, 실제 런타임 동작(모달 애니메이션, 브라우저 전환, 딥링크 복귀)은 실기기/에뮬레이터에서 별도로 재확인이 필요하다 — 실패가 아니라 미검증으로 분류. |
+
+### Round 9 종합
+
+| 구분 | 개수 |
+|---|---|
+| 통과 | 12 (R9.1~R9.12) |
+| 미검증(환경 제약, 실패 아님) | R9.13 — 실기기 OAuth 콜백/브라우저 전환/딥링크 복귀/다크모드 육안 확인, 지시사항이 명시한 검증 범위 밖 |
+| 실패 | 없음 |
+
+**결론: 통과.** 커밋 `977298c`는 지시된 범위(diff 확인, 정책 준수, 로그인 재사용, 에러 핸들링, 다크모드 토큰, 정적 검증, Android 빌드) 전 항목에서 통과했다. 특히 정책 준수(R9.2~R9.4)를 저장소 전체 검색까지 포함해 확인한 결과, `docs/specs/04-playlist.md`가 2026-07-24 확정한 해석 A(참여 자체는 항상 허용, 재생 제어만 제한) 정책과 정확히 일치하며 이 화면에 새로운 `isPremium` 차단 로직이 추가되지 않았음을 코드로 확인했다. 정적 검증(R9.8~R9.10)과 Android 빌드(R9.11)는 구현 로그의 주장과 사실상 일치(테스트 스위트 수 표기 차이는 Round 8 스냅샷 반영 누락일 뿐 회귀 아님)하게 독립 재현됐다. 실기기 OAuth 콜백 자체(R9.13)는 지시사항이 명시한 대로 미검증으로 남긴다 — 이는 실패가 아니라 환경 제약이며, 이 화면의 배선/네비게이션/정책 준수까지가 이번 검증 범위였다.
