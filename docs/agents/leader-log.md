@@ -16,17 +16,18 @@
 
 ### 예상 리스크 및 해결할 문제
 
-1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능(안내 완료, 연결 여부 대기). iOS는 macOS/Xcode 부재로 여전히 구조적으로 불가능.
-2. **Firebase 연동 미완료 — 원인 2가지 확인됨**: ① 사용자가 공유한 `google-services.json`(저장소 루트, 아직 미커밋)의 패키지명이 `come.mobile`로 오타(정확히는 `com.mobile`) — Firebase 콘솔에서 재등록 필요. ② RTDB/Firestore 둘 다 콘솔에서 아직 활성화 안 됨(2026-07-26 스파이크로 REST API 확인). `docs/decisions-needed.md` 참고.
-3. **Spotify Developer 앱 / YouTube Data API v3도 미완료** — 로그인·YouTube 검색이 스텁/목업 상태.
+1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능(안내 완료, 연결 여부 대기). iOS는 macOS/Xcode 부재로 여전히 구조적으로 불가능. Spotify 로그인(Client ID 반영 완료, 리다이렉트 URI 등록도 사용자 확인 완료)이 실제로 동작하는지도 실기기 로그인 시도로만 최종 확인 가능.
+2. **Firebase 연동 미완료 — 원인 2가지**: ① 사용자가 공유한 `google-services.json`(저장소 루트, 아직 미커밋)의 패키지명이 `come.mobile`로 오타(정확히는 `com.mobile`) — Firebase 콘솔에서 재등록 필요. ② RTDB/Firestore 둘 다 콘솔에서 아직 활성화 안 됨(2026-07-26 스파이크로 REST API 확인, `docs/spikes/firebase-rtdb-vs-firestore.md`에 참고용 권고 있음). `docs/decisions-needed.md` 참고.
+3. **YouTube Data API v3 미완료** — YouTube 검색이 여전히 목업 상태.
 4. **iOS 배포 방향 미정(보류)**: 사용자가 두 차례 "추후 논의"로 보류.
 5. **적응형 아이콘(Android 8.0+) 없음**: legacy 아이콘 교체만으로 이번 스코프 완료, 추후 별도 결정 사항.
+6. **알려진 기능 갭(다음 라운드 후보)**: "코드로 참여하기"는 여전히 Alert 스텁(참여자 쪽 세션 참여 플로우 자체가 없음 — 혼합 모드의 참여자 플랫폼 선택(2.6c)도 이 때문에 호스트 쪽만 연결됨, R7.31). 세션 설정(2.13) 정식 화면도 아직 없음(혼합 세션 참여 플랫폼 표시는 `ParticipantsBottomSheet.tsx`에 임시로 얹어둔 상태).
 
 ### 현재 진행중인 task
 
-1. **완료됨(2026-07-26)**: YouTube 실제 재생 연동(WebView+IFrame Player) — verifier Round 5에서 발견한 버그(R5.17, WebView 재부착 경합)까지 implementer가 수정하고 Round 6 재검증 통과(커밋 `7b0d44c`). 하네스에 "스파이크(선행검증)" 서브에이전트 역할 신설(`.claude/agents/spiker.md`, 커밋 `a1a15b6`) — 이번 세션엔 새 에이전트 타입이 즉시 인식 안 돼 `general-purpose`가 대행, 다음 세션부터 정식 인식될 것. RTDB vs Firestore 비교 스파이크 완료(`docs/spikes/firebase-rtdb-vs-firestore.md`) — 실측은 불가(둘 다 미활성화), 문서 조사 기반 권고만 제공.
-2. **다음 순서**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — YouTube 라운드가 완전히 끝났으니 착수 가능.
-3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 콘솔에서 활성화, Spotify Developer 앱, YouTube Data API 설정 공유. 갤럭시폰 USB 연결 여부도 대기(필수 아님).
+1. **완료됨(2026-07-26)**: (a) YouTube 실제 재생 연동 — Round 5(R5.17 버그) → Round 6 재검증 통과(커밋 `7b0d44c`). (b) **혼합(Mixed) 세션 모드 실제 구현 — Round 7(R7.13 버그 발견) → Round 8 재검증 통과, 최종 완료**(구현 커밋 `dbd275c`, 수정 커밋 `095e3cf`). 세 세션 유형(Spotify 전용/YouTube 전용/혼합) 전부 구현+검증 완료 상태. (c) 하네스에 "스파이크(선행검증)" 서브에이전트 역할 신설(`.claude/agents/spiker.md`) 및 "세션 한도 복구" 스킬 신설(`.claude/skills/session-limit-recovery/`, 사전 감지 불가·사후 복구만 가능함을 사용자에게 명확히 설명 후 진행). (d) Spotify Client ID 반영 완료(사용자 제공, 리다이렉트 URI 등록도 확인받음) — 실기기 로그인 테스트만 남음. (e) 실기기에서 발견된 버그(Spotify Premium 안내 링크 죽은 버튼) 수정 완료, verifier 검증 진행 중(Round 9). (f) 사용자 여정 지도(`docs/design/05-user-journey-map.html`) 신규 제작 + Artifact 발행(`https://claude.ai/code/artifact/42f555f5-eb71-4f57-8657-66ee9d858bf8`) + README 반영 완료 — Figma 연동이 이 환경에서 불가능함을 사용자에게 설명 후 대안으로 진행.
+2. **다음 순서 후보(미확정, 사용자 확인 필요)**: "코드로 참여하기" 실제 구현, 세션 설정(2.13) 정식 화면 신설, 또는 외부 계정(Firebase/YouTube API) 설정 완료를 기다리며 실제 연동 착수 — 다음에 뭘 우선할지는 사용자 확인 후 진행.
+3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 콘솔에서 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결 여부도 대기(필수 아님, 되면 실기기 검증 품질이 크게 좋아짐 — 특히 Spotify 로그인, YouTube 재생, 혼합 모드 매칭 확인 큐).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
