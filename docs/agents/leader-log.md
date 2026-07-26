@@ -33,6 +33,7 @@
 - 결과: 둘 다 완료. (1) `SplashScreen.tsx` 신규(최소 노출 900ms 후 Home/Onboarding 자동 전환, 토큰 영속화 없어 SpotifyConnect 직행 분기는 의도적으로 생략), `ReconnectingOverlay.tsx` 신규+`RoomScreen.tsx` 호스트 마이그레이션 토스트 배선 — 둘 다 정직하게 "실제 트리거 없음, connectionStatus/hostParticipantId를 바꾸는 코드가 없어 지금은 발동 안 함"을 TODO로 명시(가짜 데모 없음). (2) `mipmap-anydpi-v26` 적응형 아이콘 신규(벡터 드로어블 배경+래스터 전경), legacy 아이콘 유지. 두 에이전트가 같은 res/ 디렉토리를 통한 빌드 과정에서 서로 다른 시점에 동일한 XML 네임스페이스 오타(`.../apis/res/android`)를 겪었으나 아이콘 에이전트가 발견해 수정, 최종적으로 둘 다 정상 빌드됨.
 - 리더 검증: `tsc`/`eslint`/`jest`/Android 증분 빌드 독립 재현(전부 일치) 후 커밋 `41dab27`.
 - 후속 분배: verifier에게 Round 12(세 기능 통합) 위임(백그라운드) — clean 재빌드 포함, "실제 트리거 없음" 주장의 grep 재확인 지시.
+- **블로커(session-limit-recovery 스킬 적용)**: Round 12 verifier가 계정 세션 한도로 실패(task-notification status: failed, "resets 10:20pm KST"). 파일 변경은 없었던 것으로 보임(검증만 하는 라운드라 커밋할 산출물 자체가 아직 없었음). `SendMessage`로 즉시 재개 시도(한도가 이미 풀렸을 가능성 확인 차 1회 시도) — 결과 대기 중. 재실패하면 10:20pm KST 이후 새로 지시 필요(원 지시 내용은 위 "후속 분배" 문단 및 이 로그 항목 직전의 커밋 `41dab27` 설명 참고). 그 사이 사용자가 "push해" 요청 → 커밋 `0f74d30` 포함 `686315a..0f74d30` push 완료.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
