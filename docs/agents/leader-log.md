@@ -41,7 +41,15 @@
 
 - 요청: 사용자가 실기기 Spotify 로그인 화면 스크린샷 공유 — "The user is not registered for this application. Please check your settings on https://developer.spotify.com/dashboard." 오류.
 - 진단(리더 직접 수행): 코드 문제 아님 — Client ID/리다이렉트 URI가 전부 정상 동작해 실제 Spotify OAuth 화면까지 도달한 것으로 확인(오히려 긍정적 신호). Spotify 앱이 Development Mode(등록 사용자만 로그인 가능, 최대 25명)라 로그인 시도한 계정이 허용 목록에 없어서 발생하는 표준 오류. 해결책(Dashboard → Settings → User Management → 계정 추가) 안내.
-- 외부 액션: `docs/decisions-needed.md` 항목 1번을 이 진단 내용으로 갱신(커밋 예정).
+- 외부 액션: `docs/decisions-needed.md` 항목 1번을 이 진단 내용으로 갱신(커밋 `795fc5d`).
+
+- 결과(verifier Round 12 재개 완료): 스플래시+엣지상태+적응형아이콘(커밋 `41dab27`) 27/27 통과, iOS/Android clean 빌드 포함. 특히 "재접속/호스트 마이그레이션 트리거가 실제로 없다"는 핵심 주장을 전체 코드베이스 grep으로 독립 재확인(가짜 트리거 없음). 동시에 다른 백그라운드 에이전트가 같은 워킹트리에서 작업 중임을 mtime 비교로 스스로 인지하고 결과 오염 없음을 확인하는 등 검증 절차가 견고했음.
+- 결과(spiker, 매칭 신뢰도 오프라인 벤치마크 완료): 실측 불가를 Client Credentials Flow 실제 시도(`invalid_client`)로 실증 확인 후, `trackMatcher.ts` 로직을 그대로 복사한 스크립트로 20개 합성 케이스 벤치마크 수행. 핵심 안전장치(동명이곡 방어) 유효 확인, 가중치 유지 권장. 개선 여지 2건 발견(대시 접미사 미정규화, 라이브 버전 신호 손실) — 다음 라운드 후보로 기록만, 결정은 안 함.
+- 외부 액션: 커밋 `964e624`(Round 12 QA + 매칭 신뢰도 스파이크), push 안 함.
+
+- 결과(implementer, 서비스별 플레이리스트 독립 보존 완료): `SessionState.playlist` 단일 배열 → `playlists: Record<SingleMusicService, ServicePlaylistState>`(서비스별 entries+재생위치 스냅샷)로 코어 데이터 모델 변경. `switchService`가 전환 시 스냅샷 저장/복원. `activeServicePlaylist.ts` 신규 셀렉터로 소비 화면 3곳 통합. 혼합 세션(`mixedPlaylist`) 미영향.
+- 리더 검증: `tsc`/`eslint`/`jest`(8 suites/43 tests)/Android 빌드 독립 재현 후 커밋 `e29c1ec`.
+- 후속 분배: verifier에게 Round 13(코어 데이터 모델 변경, 파급효과 큼) 위임(백그라운드) — 서비스별 격리·재생위치 복원·혼합 세션 무영향·소비 화면 전수 확인·기존 라운드 회귀 확인을 특히 꼼꼼히 지시, clean Android 재빌드 포함.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
