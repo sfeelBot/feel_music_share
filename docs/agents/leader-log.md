@@ -34,6 +34,10 @@
 - 리더 검증: `tsc`/`eslint`/`jest`/Android 증분 빌드 독립 재현(전부 일치) 후 커밋 `41dab27`.
 - 후속 분배: verifier에게 Round 12(세 기능 통합) 위임(백그라운드) — clean 재빌드 포함, "실제 트리거 없음" 주장의 grep 재확인 지시.
 - **블로커(session-limit-recovery 스킬 적용)**: Round 12 verifier가 계정 세션 한도로 실패(task-notification status: failed, "resets 10:20pm KST"). 파일 변경은 없었던 것으로 보임(검증만 하는 라운드라 커밋할 산출물 자체가 아직 없었음). `SendMessage`로 즉시 재개 시도(한도가 이미 풀렸을 가능성 확인 차 1회 시도) — 결과 대기 중. 재실패하면 10:20pm KST 이후 새로 지시 필요(원 지시 내용은 위 "후속 분배" 문단 및 이 로그 항목 직전의 커밋 `41dab27` 설명 참고). 그 사이 사용자가 "push해" 요청 → 커밋 `0f74d30` 포함 `686315a..0f74d30` push 완료.
+
+- 요청: 사용자가 "허용 기다리지않고 할수있는 업무들은 미리 다 해둬" — 확인 없이도 진행 가능한 작업은 선제적으로 계속 처리하라는 지시.
+- 판단: `docs/roadmap.md` 잔여 항목 재검토 — iOS 배포는 두 차례 명시적 보류라 제외. RTDB vs Firestore 실측은 DB 활성화 전까지 완전히 불가라 제외. 나머지 둘은 재해석 시 지금도 진행 가능하다고 판단: (1) 매칭 신뢰도 스파이크 — 실제 API 실측(로그인 필요)은 불가하지만, `trackMatcher.ts` 알고리즘을 합성 테스트 케이스(동명이곡/리마스터/피처링 표기 등)로 검증하는 오프라인 벤치마크는 가능(정직하게 "실측 아님"으로 라벨링 지시). (2) 서비스별 플레이리스트 독립 보존 — "Firebase와 함께 처리 제안"은 있었지만 실제로는 인메모리 데이터 모델 변경만으로 지금 구현 가능한 순수 코드 작업.
+- 분배: 병렬 위임(백그라운드, 파일 겹침 없음 — spiker는 `apps/mobile/` 미접근) — (1) spiker: 매칭 신뢰도 오프라인 벤치마크(`docs/spikes/matching-confidence-benchmark.md`). (2) implementer: `SessionState.playlist` 단일 필드를 서비스별 분리 구조로 변경(코어 데이터 모델 리팩터링, 파급 효과 크므로 판단 근거를 상세히 남기도록 지시, 회귀 특히 주의).
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
