@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon background layer (Android 8.0+ / API 26+).
+  Same dusk gradient ("Warm Amber -> Dusk Coral -> Deep Plum") as the legacy
+  mipmap-*/ic_launcher.png icon and docs/design/03-screen-mockups.html's
+  <figure class="icon-showcase"> inline SVG (id="duskBg" linearGradient).
+  Reproduced as a vector drawable (rather than a PNG) because a plain
+  two-point linear gradient over a rectangle maps 1:1 onto
+  <gradient android:type="linear"> with no loss of fidelity, unlike the
+  foreground layer (radial gradient + mix-blend-mode + fine detail), which
+  keeps a PNG asset instead.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="16.2"
+                android:endY="108"
+                android:tileMode="clamp">
+                <item android:offset="0" android:color="#FFB25B" />
+                <item android:offset="0.52" android:color="#FF6F61" />
+                <item android:offset="1" android:color="#4A2545" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

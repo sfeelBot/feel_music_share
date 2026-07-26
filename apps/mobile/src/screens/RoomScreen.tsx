@@ -1,9 +1,10 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
 import ParticipantsBottomSheet from '../components/ParticipantsBottomSheet';
+import ReconnectingOverlay from '../components/ReconnectingOverlay';
 import NowPlayingView from './room/NowPlayingView';
 import YouTubeNowPlayingView from './room/YouTubeNowPlayingView';
 import PlaylistView from './room/PlaylistView';
@@ -33,13 +34,24 @@ import {brand} from '../theme/tokens';
  * 늘어나 목업에 없는 새 UI 요소를 만들지 않아도 되고, (2) 참여자 시트를 열었다가 "아 설정을 보고
  * 싶었지"라고 바뀌는 자연스러운 탐색 경로를 제공하며, (3) 이전 라운드가 참여자 시트를 "⋮ 메뉴의
  * 실질적인 세션 정보 진입점"으로 이미 취급해온 관례와 일관되기 때문이다.
+ *
+ * 예외/엣지 상태(00-ux-flow.md 2.14, 2026-07-26 추가) 배선:
+ * - 재접속 중 오버레이(US-206) → `ReconnectingOverlay`. "내 참여자 레코드의
+ *   connectionStatus==='reconnecting'"이라는 정직한 조건으로 연결했지만, 그 값을 실제로 바꾸는
+ *   네트워크 감지 로직은 아직 없다(컴포넌트 자체 주석의 TODO 참고) — 지금 목업 데이터에서는 항상
+ *   'connected'라 실제로 뜨지 않는다.
+ * - 호스트 마이그레이션 토스트(US-204) → 기존 세션 설정 전환 완료 토스트와 같은 인프라
+ *   (`toastMessage`/`showToast`)를 재사용한다. `session.hostParticipantId`가 실제로 바뀌는 순간을
+ *   감지해 토스트를 띄우는 로직 자체는 진짜로 동작하지만(가짜 트리거 아님), 지금 코드베이스
+ *   어디에도 hostParticipantId를 바꾸는 액션이 없어(방장 이탈 감지는 Firebase Presence 연동 이후
+ *   과제) 실제로는 발동하지 않는다 — 발동 조건만 정직하게 준비해둔 상태.
  */
 type Props = NativeStackScreenProps<RootStackParamList, 'Room'>;
 type Tab = 'nowPlaying' | 'playlist';
 
 const TOAST_DISPLAY_MS = 3200;
 
-export default function RoomScreen(_props: Props) {
+export default function RoomScreen({navigation}: Props) {
   const theme = useTheme();
   const {
     session,
@@ -50,12 +62,14 @@ export default function RoomScreen(_props: Props) {
     resignAdmin,
     myPlatform,
     currentParticipantId,
+    leaveSession,
   } = useSession();
   const [tab, setTab] = useState<Tab>('nowPlaying');
   const [participantsVisible, setParticipantsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevHostIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -65,13 +79,35 @@ export default function RoomScreen(_props: Props) {
     };
   }, []);
 
-  const showToast = (message: string) => {
+  const showToast = useCallback((message: string) => {
     setToastMessage(message);
     if (toastTimer.current) {
       clearTimeout(toastTimer.current);
     }
     toastTimer.current = setTimeout(() => setToastMessage(null), TOAST_DISPLAY_MS);
-  };
+  }, []);
+
+  // 호스트 마이그레이션 토스트(US-204) — 실제로 hostParticipantId가 바뀌는 순간에만 반응한다.
+  // 위 컴포넌트 주석 참고: 지금은 그 값을 바꾸는 액션 자체가 없어 실질적으로 발동하지 않는다.
+  useEffect(() => {
+    if (!session) {
+      prevHostIdRef.current = null;
+      return;
+    }
+    const prevHostId = prevHostIdRef.current;
+    prevHostIdRef.current = session.hostParticipantId;
+    if (prevHostId && prevHostId !== session.hostParticipantId) {
+      const newHost = session.participants.find(p => p.participantId === session.hostParticipantId);
+      if (newHost) {
+        showToast(`호스트가 자리를 비웠어요. ${newHost.displayName}님이 새 호스트가 되었어요.`);
+      }
+    }
+  }, [session, showToast]);
+
+  const handleLeaveSession = useCallback(() => {
+    leaveSession();
+    navigation.navigate('Home');
+  }, [leaveSession, navigation]);
 
   if (!session) {
     return (
@@ -83,6 +119,8 @@ export default function RoomScreen(_props: Props) {
 
   const nowPlayingPlatform = session.service === 'mixed' ? myPlatform ?? 'spotify' : session.service;
   const viewerRole = session.participants.find(p => p.participantId === currentParticipantId)?.role ?? 'regular';
+  const myConnectionStatus =
+    session.participants.find(p => p.participantId === currentParticipantId)?.connectionStatus ?? 'connected';
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: theme.bg}]} edges={['top']}>
@@ -140,6 +178,11 @@ export default function RoomScreen(_props: Props) {
         onRequestServiceSwitch={requestServiceSwitch}
         onResignAdmin={resignAdmin}
         onSwitchComplete={showToast}
+      />
+
+      <ReconnectingOverlay
+        visible={myConnectionStatus === 'reconnecting'}
+        onLeaveSession={handleLeaveSession}
       />
     </SafeAreaView>
   );
