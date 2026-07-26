@@ -238,3 +238,12 @@
 - 요청: 사용자가 실기기에서 "spotify 프리미엄이 없다고 클릭 시 다음 화면으로 넘어가지 않고 있어" 버그 리포트.
 - 확인(리더 직접 수행): `SpotifyConnectScreen.tsx` 51행의 "Premium이 없으신가요? →" `TouchableOpacity`에 `onPress` 핸들러 자체가 없음을 확인(죽은 버튼). `docs/design/00-ux-flow.md` 2.3/2.4절 원래 디자인(2.4 "Premium 아님 안내" 화면으로 이동)을 확인했으나, 그 화면 자체가 `navigation/types.ts`에도 없어 애초에 구현된 적이 없었음. 이후 정책이 바뀐 것도 함께 확인 — `docs/specs/04-playlist.md` "Free 계정 처리" 절이 2026-07-24에 "세션 참여 자체는 항상 허용"(해석 A)으로 확정되어, 원래 디자인의 "차단" 취지는 이제 맞지 않음. `AuthContext.tsx`도 이미 `isPremium` 여부와 무관하게 로그인만 되면 `signed_in`으로 전환하는 구조라 정책과 우연히 일치하는 상태임을 확인.
 - 분배: implementer에게 위임(백그라운드) — 죽은 버튼을 "차단"이 아니라 "안내 후 계속 진행 가능"하게 고치도록 지시(가벼운 모달/Alert vs 정식 화면 신규 두 방향 중 판단은 위임, 근거를 로그에 남기도록 지시). 회원 로그인을 막는 코드는 추가하지 말라고 명시.
+- 결과(implementer 완료): 새 네비게이션 라우트 없이 같은 화면에 가벼운 안내 `Modal` 추가(Free 계정도 로그인/참여/플레이리스트 편집 가능하나 재생 제어만 불가 — 04문서 확정 정책 그대로) + "로그인 계속하기"(기존 `login()` 재사용)/"Premium 알아보기"(외부 브라우저)/닫기 3버튼. 리더가 diff 직접 리뷰 — 새 네비게이션/인증 로직 추가 없이 최소 변경으로 확인, 정적 검증(tsc/eslint/jest/Android build) 독립 재현 없이 이미 구현 에이전트가 확인한 결과와 diff 자체가 명확해 R3.17급 소규모 판단으로 커밋.
+- 외부 액션: 커밋 `977298c`("Wire up "no Premium?" link with an info modal instead of a dead button"), push 안 함.
+
+- 결과(verifier Round 7 — 혼합 모드 대규모 검증 완료): **부분 통과**. 핵심 정책 2건(매칭 조용히 확정 안 됨 — UI 우회 경로까지 추적해 확인, Free 가드 참여자별 격리 — R3.17 재발 없음)은 통과. **신규 실패 R7.13** 발견: `MatchingQueueSheet.tsx`의 `goToNextInQueue`가 React state batching 때문에 stale한 `myPendingMatchEntryIds.length`로 다음 커서를 계산 — 대기 항목이 정확히 2건이면 첫 항목 처리 직후 시트가 조기 종료돼 두 번째 항목을 못 보여주고, 3건 이상이면 항목이 건너뛰어짐(Round 5 R5.17과 동일한 정적 추적 방식으로 확정 재현). 데이터 모델 일관성, 기존 세션 회귀 없음(diff+조건식 동치 증명), 단위 테스트 내용, 정적 검증 3종+Android clean 재빌드 전부 통과.
+- 후속 분배: implementer에게 R7.13 수정 위임(백그라운드) — cursor 인덱스 산술 대신 entryId 기반 큐 네비게이션으로 바꾸는 방향을 제안하되 판단은 위임, 순수 로직 추출+단위 테스트 추가도 권장.
+
+- 요청: 사용자가 "앱 사용 시나리오를 피그마 도구를 이용해서 시각적으로 표현해. 어떻게 할지 다시 기획하고 디자인하도록 해" 요청.
+- 확인(리더 직접 수행): 이 환경에 Figma 연동 없음 + Figma 공개 API는 애초에 읽기 전용이라 외부에서 디자인을 그려 넣는 것 자체가 구조적으로 불가능함을 확인, 사용자에게 설명. AskUserQuestion으로 실제 목적 확인 → "앱 사용 흐름을 시각적으로 보고 싶음"(인터랙티브 사용자 여정 다이어그램) 선택받음.
+- 분배: designer에게 위임(백그라운드) — `docs/design/05-user-journey-map.html` 신규, Spotify 전용/YouTube 전용/혼합 3개 시나리오를 단계별 타임라인+화면 축소 표현으로 연결, 특히 혼합 모드 매칭 확인 흐름을 상세히. 문서상 설계가 아니라 `docs/qa/spotify-mvp-round1-checklist.md`에 기록된 **실제 구현된 동작**을 반영하도록 지시(예: 방금 구현된 Premium 안내가 원래 설계였던 "차단 화면"이 아니라 "안내 모달"이 됐다는 점). 완료되면 리더가 Artifact로 발행 예정(designer는 발행 안 함).
