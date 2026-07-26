@@ -229,3 +229,8 @@
 
 - 요청: 사용자가 "현재까지 진행상황 push 해줘"라고 명시적으로 요청.
 - 외부 액션: `git push origin main` 실행 — `c2ed5f9..c7b4465`, 38개 커밋 push 완료(YouTube WebView 연동+수정, 스파이크 에이전트 신설, RTDB/Firestore 스파이크, Spotify Client ID 반영 등 이번 세션 작업 전부 포함). 혼합 모드 구현은 아직 백그라운드에서 진행 중이라 워킹트리에 미커밋 변경이 남아있고, 이번 push에는 포함되지 않음(완료되면 별도 커밋/푸시 예정).
+
+- 결과(implementer, 혼합 모드 구현 완료 — 대규모 라운드, 27개 파일): 세션 생성 라디오 활성화+호스트 플랫폼 선택(2.6c), 데이터 모델(`MixedPlaylistEntry`를 유니온이 아닌 완전 별도 타입/필드로 분리), 휴리스틱 매칭(`trackMatcher.ts`, 제목유사도+아티스트+길이 가중합, 임계값 TODO), 매칭 확인 UI 4종(큐/확인카드/후보목록/실패안내), 혼합 Now Playing(참여자별 플랫폼 라우팅), Free 가드 참여자별 개별 판단으로 전환(R3.17 재발 방지) 전부 완료. 스코프 판단 8개 항목을 근거와 함께 로그에 남김(예: 데모 참여자는 실제 Spotify 계정이 없어 검색 대신 즉시 매칭 실패 처리 — 가짜 데이터로 메우지 않음).
+- 리더 자체 검증(1차): `npx tsc --noEmit`/`npx eslint .`/`npx jest` 독립 재현(구현 에이전트 주장과 일치), Android `assembleDebug --no-daemon` 독립 재현(BUILD SUCCESSFUL, `package.json` 변경 없음 확인 — 신규 네이티브 의존성 없음). 정책 핵심 2가지를 코드로 직접 확인: (1) `mixedMatching.ts`/`sessionService.ts`의 `addMixedTrack` — 매칭 성공/실패, 추가자 본인 여부와 무관하게 항상 `confirmState: 'pending'`으로 시작(조용히 확정되는 경로 없음, 09문서 결정 2 준수), (2) `ParticipantsBottomSheet.tsx`의 `isPlayable`/`shouldShowFreeTag` — 혼합 세션에서 세션 전체 가드 대신 참여자 개별(`platform`+`accountTier`) 판단으로 전환됨.
+- 외부 액션: 커밋 `dbd275c`("Implement mixed (cross-platform) session mode"), push 안 함.
+- 후속 분배: verifier에게 Round 7 검증 위임(백그라운드) — 규모가 커서(27개 파일) 리더 확인 사항 재검증 + 전체 플로우 코드 트레이스 + 기존 Spotify/YouTube 전용 세션 회귀 확인 + 단위 테스트 내용 검토까지 폭넓게 지시.
