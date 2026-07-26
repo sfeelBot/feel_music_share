@@ -27,6 +27,7 @@
 
 1. **완료됨(2026-07-26, 이번 세션 전체)**: YouTube 실제 재생 연동(Round 5→6) → 혼합 세션 모드(Round 7→8) → Spotify Client ID 반영 + Premium 안내 모달(Round 9) → 사용자 여정 지도 제작+Artifact 발행(`https://claude.ai/code/artifact/42f555f5-eb71-4f57-8657-66ee9d858bf8`) → **"코드로 참여하기" + 세션 설정 화면(2.13/2.13a/2.13b) 병렬 구현(격리 worktree) 및 리더 수동 병합 → Round 10 검증 31개 항목 전부 통과**(커밋 `caea14d`). 하네스에 스파이크 역할(`spiker`)·세션 한도 복구 스킬(`session-limit-recovery`) 신설. `docs/roadmap.md`(화면별 현황+진행순서 살아있는 문서) 신규 작성.
 2. **완료(2026-07-26 계속)**: 로드맵 1·2번(초대 코드 표시, 플레이리스트 서비스 칩 연결) 구현(커밋 `bedbc72`) + Round 11 검증 19개 항목 전부 통과. `docs/roadmap.md` 갱신 완료 — 사용자 액션(외부 계정) 대기 항목 외에는 다음 구현 후보가 소진된 상태. 다음 우선순위는 사용자 확인 필요(로드맵 5번 "낮은 우선순위" 항목 중 진행할지, 외부 계정 대기만 할지).
+- 외부 액션: 사용자가 "push" 명시적 요청 → `git push origin main` 실행, `122fcc9..de3d983` 22개 커밋 push 완료(Round 5~11 전체: YouTube WebView, 혼합 모드, 스파이크/세션한도복구 스킬 신설, Spotify Client ID+Premium 모달, 사용자 여정 지도, 코드로 참여하기+세션설정 화면, roadmap.md 신설, 초대코드+칩 연결).
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
