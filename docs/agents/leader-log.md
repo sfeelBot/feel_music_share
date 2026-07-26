@@ -217,3 +217,12 @@
 - 외부 액션: 커밋 `7b0d44c`("Fix YouTube WebView re-attach bug found in Round 5 QA (R5.17)") — 코드 수정 + implementation-log/verification-log/qa 체크리스트 함께 반영. push 안 함. **이번 YouTube WebView 실제 재생 연동 라운드는 이것으로 최종 완료(CLAUDE.md 검증 기준 충족).**
 - leader-log "현재 상황 요약" 절 갱신(커밋 `2b03b04`) — YouTube 라운드 완료, Firebase 미해결 원인 2가지로 구체화.
 - 후속 분배: implementer에게 혼합(Mixed) 세션 모드 실제 구현 위임(백그라운드) — `docs/specs/09-cross-platform-mixed-mode.md`/`04-playlist.md`(혼합 모드 플레이리스트 구조)/`00-ux-flow.md`(2.6c/2.10d/2.11a~d)/`02-key-ui-patterns.md`(5절 매칭 확인 카드) 근거로, 세션 생성 라디오 활성화·데이터 모델(공통 식별자+참여자별 매칭 트랙 이중 계층)·휴리스틱 매칭 유틸(제목 유사도+아티스트+길이, 임계값은 TODO로 남김)·매칭 확인 UI 4종·혼합 모드 Now Playing·서비스 전환 UI 숨김을 지시. Free 배너 등 서비스별 가드가 혼합 세션에 새어 들어가지 않도록(R3.17류 실수 반복 방지) 명시적으로 주의 지시. 작업량이 크니 판단 필요 지점은 로그에 근거와 함께 남기도록 지시.
+
+- 요청: 사용자가 Spotify Client ID(`4b076092ea1b4f8e9d41b7eaec85920a`) 공유, "spotify 계정 연동 했어. 확인해봐"라고 요청.
+- 확인(리더 직접 수행): Client ID 형식(32자리 hex) 확인, PKCE 공개 클라이언트 식별자라 비밀값 아님을 사용자에게 안내(소스 커밋 안전). 리다이렉트 URI 2개 등록 여부는 별도 확인 필요해 사용자에게 질문.
+- 분배: implementer에게 `env.ts`의 `SPOTIFY_CLIENT_ID` 값 반영 위임(백그라운드, 혼합 모드 구현과 다른 파일이라 병행 가능하도록 지시) — 완료, 정적 검증 통과(tsc 에러는 병행 중인 혼합 모드 라운드의 미커밋 변경 때문임을 `git stash`로 교차 확인, 회귀 아님).
+- 리더 판단: 한 줄짜리 값 교체이고 이미 독립적으로 정적 검증됨 — R3.17 때와 동일 기준으로 별도 verifier 라운드 없이 리더 자체 검증(diff 직접 확인)으로 충분하다고 판단, 커밋 `229a2bc`.
+- 외부 액션: 커밋 `229a2bc`("Wire real Spotify Client ID into env config") + `dbc135b`(decisions-needed.md 갱신). push 안 함.
+- 요청: 사용자가 "리다이렉트 url 도 등록했으니 확인해봐"라고 요청.
+- 확인(리더 직접 수행): **Spotify Developer Dashboard 등록 내용은 API로 조회할 공개 엔드포인트가 없어 원격 검증이 구조적으로 불가능함**을 사용자에게 정직하게 설명. 대신 앱 쪽 커스텀 URL 스킴 등록(Android `build.gradle`의 `appAuthRedirectScheme: "feelmusicshare"`, iOS `Info.plist`의 `CFBundleURLSchemes`)이 리다이렉트 URI 스킴과 정확히 일치하는지만 재확인(둘 다 일치). 실제 동작 확인은 실기기 로그인 시도가 유일한 방법임을 안내, 갤럭시폰 USB 연결 실기기 테스트를 재권유.
+- 외부 액션: `decisions-needed.md` Spotify 항목을 "설정 완료로 보이나 실기기 확인 전" 상태로 갱신(커밋 예정).
