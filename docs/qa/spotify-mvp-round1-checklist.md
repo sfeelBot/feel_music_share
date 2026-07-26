@@ -474,3 +474,179 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 | ⛔ 미검증(환경 제약, 실패 아님) | iOS 실빌드/런타임 — 이번 diff가 애초에 `ios/` 및 `Platform.OS` 분기를 건드리지 않아 이번 라운드 지시 범위 밖(round 1~5 결론 그대로 인용) |
 
 **결론: R5.17(WebView ref 재부착 경합 버그)은 이번 수정으로 해소된 것으로 확인되며, 이번 라운드는 "통과"로 판정한다.** 변경 범위는 배경 설명 그대로 `YouTubeNowPlayingView.tsx` 1개 파일(`isWebViewMounted` 파생 변수 추가 + attach effect 의존성 배열 변경)에 정확히 국한됨을 `git diff`로 독립 확인했고, 리더가 제시한 5개 시나리오((a) 최초 마운트, (b) 같은 세션 곡 전환, (c) 플레이리스트 비워짐, (d) 재추가 시 재부착[핵심], (e) 전체 언마운트) 전부를 `youtubePlayerStub.ts`의 `_attachWebView`/`run`/`flushPendingCommands` 내부 구현까지 함께 열람해 독립적으로 재추적한 결과, React의 "effect는 커밋 이후 실행" + "cleanup은 다음 effect보다 먼저 실행" 규칙에 근거해 각 시나리오 모두 WebView 인스턴스와 컨트롤러의 attach 상태가 항상 정합적으로 유지됨을 확인했다. 정적 검증(tsc/eslint/jest) 3종은 구현 에이전트의 주장과 정확히 일치하게 독립 재현됐고, Android 빌드는 증분·클린 완전 재빌드 2가지 방식 모두 독립적으로 `BUILD SUCCESSFUL`을 확인했다(클린 재빌드로 캐시 의존 가능성도 배제). Round 5에서 이미 통과했던 정책 준수·서비스 격리 항목들도 diff 범위 밖임을 재확인해 회귀가 없음을 뒷받침했다. iOS 실기기 검증은 이번에도 구조적 제약(macOS/Xcode 부재)으로 수행하지 못했으나, 이번 diff 자체가 `ios/` 파일이나 `Platform.OS` 분기를 전혀 건드리지 않으므로 이번 라운드의 "통과" 판정 범위 밖이라는 점을 명시한다.
+
+---
+
+## Round 7 검증 (혼합 모드)
+
+> 검증 대상 커밋: `dbd275c` ("Implement mixed (cross-platform) session mode") — Spotify 전용/YouTube 전용에 이은 세 번째 세션 유형(혼합) 실제 구현. 27개 파일, 신규 컴포넌트 6개(`MatchConfidenceBadge`/`MatchConfirmCard`/`MatchCandidateList`/`MatchFailCard`/`MatchingQueueSheet`/`PlatformSelect`) + 신규 유틸 4개(`trackMatcher.ts`/`mixedMatching.ts`/`mixedTrackView.ts`/`playlistSequencing.ts`) + 신규 테스트 3종.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `docs/agents/implementation-log.md`(2026-07-26 혼합 세션 항목 전체, 스코프 판단 8개), `docs/specs/09-cross-platform-mixed-mode.md`(결정 갱신 절, 특히 결정 2), `docs/specs/04-playlist.md`(혼합 모드 플레이리스트 구조), `docs/design/00-ux-flow.md`(2.6c/2.10d/2.11a~d), `docs/design/02-key-ui-patterns.md`(5절)를 정독 → `git show --stat`/`git diff dbd275c^ dbd275c`로 전체 변경분을 라인 단위로 직접 읽고 코드 트레이스(리더의 1차 확인을 신뢰하되 독립 재확인) → 두 정책 항목(매칭 pending 시작, R3.17류 개별 가드) 데이터 모델→서비스→컨텍스트→UI까지 end-to-end 추적 → 전체 플로우(세션 생성→매칭→확인→Now Playing) 코드 트레이스 → 데이터 모델·소비처 일관성 확인 → 기존 Spotify/YouTube 전용 세션 회귀 여부(diff 대조) → 단위 테스트 3종 내용 검토 → `apps/mobile`에서 tsc/eslint/jest 독립 재현 → Android `clean` → `assembleDebug --no-daemon` 완전 재빌드 독립 재현(캐시 배제) + APK 생성 확인.
+> 환경: Windows 11 Pro (10.0.26200), Node v24.15.0, npm 11.12.1, JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 여전히 없음 — iOS는 지시사항대로 코드 리뷰 수준까지만 수행(구조적 제약, round 1~6과 동일).
+
+### 1. 핵심 정책 2건 — 독립 재확인 (신뢰하되 검증)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.1 | "매칭 자동 실행 후 조용히 재생하는 방식은 채택하지 않는다"(09문서 결정 2) — `confirmState`가 항상 `pending`으로 시작하는가, 곡을 추가한 사람 본인도 예외 없는가 | ✅ 통과 | `sessionService.ts`의 `addMixedTrack`(155~202행)을 직접 읽음 — 추가한 사람(`addedBy`) 본인의 매칭도 `matches[participant.participantId] = {status: 'matched', track: adderMatch, confirmState: 'pending', ...}`(171~177행)로 예외 없이 `pending`으로 시작한다. 다른 참여자는 `status: 'searching', confirmState: 'pending'`(179~184행)으로 시작. `mixedMatching.ts`의 `resolveParticipantMatch`도 성공(`matched`)/실패(`failed`) 두 경로 모두 `confirmState: 'pending'`을 반환(24행, 32행) — 매칭 성공 여부와 무관하게 항상 pending. `SessionContext.tsx`의 `confirmMyMatch`/`manualMatchTrack`만이 `confirmState`를 `'confirmed'`/`'manual'`로 바꾸며, 둘 다 참여자의 명시적 액션(확정하기/직접 검색하기)에서만 호출된다 — 자동/타이머/백그라운드 경로로 `confirmState`가 바뀌는 코드는 존재하지 않음(전체 파일 `grep confirmState`로 재확인, 대입 지점이 정확히 이 두 함수뿐임을 확인). 유일한 예외는 `mockSessionSeed.buildDemoMixedPlaylist`(139~191행)의 데모 시드 데이터로, `confirmState: 'confirmed'`로 미리 채워져 있다 — 그러나 이는 앱 최초 진입 시 화면을 채우는 고정 픽스처(기존 Spotify/YouTube 세션의 데모 플레이리스트도 항상 이런 식이었음)이지 사용자의 실제 조작 결과가 아니며, 구현 로그가 이 예외를 명시적으로 문서화하고 있어 은폐된 것이 아니다. |
+| R7.2 | pending 상태가 실제로 재생(Now Playing 표시)에 반영되지 않는지 — 데이터가 pending인데 UI가 이를 무시하고 재생 화면을 보여주는 정책 위반이 없는가 | ✅ 통과 | `state/mixedTrackView.ts`의 `resolveMixedCurrentTrackForMe`(25~57행)를 추적: `match.confirmState === 'pending'`이면 무조건 `{kind: 'awaitingConfirm', ...}`을 반환하고(43~45행), 이는 `kind: 'ready'`가 아니다. `NowPlayingView.tsx`(`MixedNowPlayingBody`, 242행 `view.kind === 'ready' ? (...실제 재생 UI...) : <MixedMatchStatusCard .../>`)와 `YouTubeNowPlayingView.tsx`(181행 `mixedView.kind !== 'ready' ? (...상태 카드...) : (...WebView...)`) 둘 다 `kind !== 'ready'`일 때 앨범아트/WebView 재생 영역 대신 "이 곡의 매칭을 아직 확인하지 않았어요 [확인하러 가기]" 상태 카드를 렌더한다 — 진행바(progress)도 `view.kind === 'ready'`일 때만 렌더돼(NowPlayingView.tsx 262행) pending 상태에서는 진행률 표시조차 나타나지 않는다. `__tests__/mixedTrackView.test.ts`의 "returns awaitingConfirm when matched but not yet confirmed" 케이스로 이 분기가 단위 테스트로도 커버됨을 확인. 데이터 상태(pending)와 UI 상태(비-ready) 사이에 우회 경로가 없음을 확인했다. |
+
+### 2. R3.17류 재발 방지 — Free 계정 가드 개별화 (독립 재확인)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.3 | `ParticipantsBottomSheet.tsx`의 `isPlayable`/`shouldShowFreeTag`가 세션 전체 가드가 아니라 참여자 개별 판단인가 | ✅ 통과 | 46~64행 직접 확인 — `isPlayable`은 `session.service === 'mixed'`일 때 `!(participant.platform === 'spotify' && participant.accountTier === 'free')`로 참여자 개인 기준, `shouldShowFreeTag`도 동일 패턴(60~62행). 비-혼합 세션 분기(spotify/youtube)는 기존 로직과 동치임을 별도 확인(아래 R7.16). |
+| R7.4 | `NowPlayingView.tsx`(혼합 분기)의 Free 배너가 `myPlatform === 'spotify'` 개별 판단인가 | ✅ 통과 | `MixedNowPlayingBody`의 `showFreeBanner = viewerIsFree && myPlatform === 'spotify'`(205~206행) — "나"의 매칭 플랫폼 기준, `session.service === 'spotify'` 같은 세션 전체 가드를 쓰지 않음. `playableCount`도 `!(p.platform === 'spotify' && p.accountTier === 'free')`(208~209행)로 참여자별 판단. |
+| R7.5 | `YouTubeNowPlayingView.tsx`(혼합 분기)도 동일 패턴인가 | ✅ 통과 | `playableCount = isMixed ? session.participants.filter(p => !(p.platform === 'spotify' && p.accountTier === 'free')).length : ...`(139~141행) — `NowPlayingView.tsx`/`ParticipantsBottomSheet.tsx`와 정확히 동일한 조건식. 세 파일 모두 `p.platform === 'spotify' && p.accountTier === 'free'`라는 동일한 개별 판단 리터럴을 쓰고 있어(문자 그대로 일치) 세 곳이 서로 다른 기준으로 미묘하게 어긋날 위험도 낮다고 판단. |
+
+### 3. 전체 플로우 코드 트레이스
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.6 | (a) 혼합 세션 생성 → 호스트 플랫폼 선택(2.6c) → 세션 진입 | ✅ 통과 | `CreateSessionScreen.tsx`: `service==='mixed'`일 때 "세션 만들기" 버튼(`handlePrimaryButtonPress`, 67~74행)이 `finalizeCreate()`를 바로 호출하지 않고 `setStep('platform')`으로 전환 → `PlatformSelect`(2.6c 목업과 동일한 라디오 2개 + 안내 배너) → "확인하고 입장" 눌러야 비로소 `finalizeCreate(hostPlatform)` 호출 → `createSession({..., hostPlatform})` → `RoomScreen`으로 `navigation.replace`. 00-ux-flow.md 2.6 "혼합 선택: 호스트 자신도 참여자이므로 2.6c를 거친 뒤..." 서술과 정확히 일치. |
+| R7.7 | (b) 곡 추가 → 매칭 큐 배지 → `MatchingQueueSheet` → 확정/후보선택/직접검색/스킵 네 갈래 | ⚠ 부분 실패(버그 발견, 아래 4절 참고) | 네 갈래 액션 자체(각 컴포넌트→SessionContext 함수 호출)는 배선이 정확함을 확인했으나, `MatchingQueueSheet`의 큐 "다음 항목으로 이동" 로직(`goToNextInQueue`)에 인덱싱 결함이 있어 여러 건이 쌓였을 때 일부 항목을 건너뛰거나 시트가 조기 종료되는 버그를 코드 트레이스로 확정 재현했다 — 상세는 4절(R7.13) 참고. 정책 위반(자동 확정)은 아니지만 "여러 개면 다음/이전으로 넘기는 큐 형태"(00-ux-flow.md 2.11a)라는 명시적 요구 동작이 깨져 있어 부분 실패로 판정. |
+| R7.8 | (c) Now Playing에서 내 매칭이 pending/failed일 때 상태 카드 + "확인하러 가기"로 큐가 열리는가 | ✅ 통과 | `NowPlayingView.tsx`의 `MixedMatchStatusCard`(324~362행): `view.kind`가 `searching`/`awaitingConfirm`/`failed`/`none`에 따라 메시지 분기, `searching`/`none` 제외하고 "확인하러 가기 →"(awaitingConfirm) 또는 "직접 검색하기 →"(failed) 버튼이 `onOpenMatching`(→ `setMatchingVisible(true)` → `<MatchingQueueSheet visible .../>`)을 호출. `YouTubeNowPlayingView.tsx`(181~204행)도 동일 패턴. 다만 이 화면에서 열리는 큐도 R7.7/R7.13의 스킵 버그 영향을 받는다(별개 진입점일 뿐 같은 컴포넌트). |
+| R7.9 | (d) 참여자 아바타 서비스 아이콘 오버레이 + 동기화 배지 "나: Spotify/YouTube" 표시 | ✅ 통과 | `Avatar.tsx`에 `platform` prop 추가 시 아바타 우하단에 🟢/🎧 오버레이(43~49행), `NowPlayingView.tsx`/`YouTubeNowPlayingView.tsx`가 혼합 세션에서 `platform={p.platform}`을 넘김. `suffix` 문자열에 `· 나: ${myPlatform === 'youtube' ? 'YouTube' : 'Spotify'}`가 `SyncStatusBadge`의 `suffix`로 전달됨(NowPlayingView.tsx 214행, YouTubeNowPlayingView.tsx 146행) — 00-ux-flow.md 2.10d 목업("🟢 동기화됨 ▶ 나: YouTube")과 동일한 문구 패턴. |
+
+### 4. 신규 발견 — 매칭 확인 큐 인덱싱 버그 (코드 정적 추적으로 확정 재현, 실기기 불필요)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.13 | `MatchingQueueSheet.tsx`의 `goToNextInQueue`가 한 건을 처리(확정/직접검색/스킵)한 뒤 다음 대기 항목을 올바르게 보여주는가 | ❌ 실패 | **원인(코드 트레이스)**: `goToNextInQueue`(62~65행)는 `setCursor(prev => prev < myPendingMatchEntryIds.length - 1 ? prev + 1 : prev)`로 커서를 "처리 전" `myPendingMatchEntryIds`(길이 N, 이 배열엔 지금 막 처리하려는 항목이 아직 포함돼 있음 — React 클로저가 이번 렌더 시점 값을 캡처)를 기준으로 +1한다. 그런데 `onConfirm`(126~137행)/`handleManualSelect`(67~71행)/`onSkip`(112~115행) 콜백은 모두 "①`confirmMyMatch`/`manualMatchTrack`/`skipMyMatch` 호출 → ②`goToNextInQueue()` 호출"을 **같은 이벤트 핸들러 안에서 동기적으로 실행**한다 — React는 이벤트 핸들러 안의 `setState` 호출들을 한 번에 배칭하므로, `setCursor`가 계산에 쓰는 `myPendingMatchEntryIds.length`는 아직 "방금 처리한 항목이 빠지지 않은" 이전 렌더의 값이다. 처리 직후 다음 렌더에서 `myPendingMatchEntryIds`(`SessionContext.tsx` 530~543행 `useMemo`)는 방금 처리한 항목이 실제로 제거된 **더 짧은 배열**로 재계산되는데, 커서는 이미 "처리 전 길이" 기준으로 +1 된 상태라 **한 칸 더 앞서가 버린다** — 결과적으로 큐의 다음 항목이 통째로 건너뛰어진다.
+| | 구체적 최소 재현(기본 정원 2명 데모로도 도달 가능) | | 혼합 세션에서 곡을 2개 연달아 추가(둘 다 확정하기 전) → 내 `myPendingMatchEntryIds = [entryA, entryB]`(길이 2) → 매칭 큐를 열면 커서 0, entryA 카드 표시 → "확정하기" 탭 → `confirmMyMatch('A')` + `goToNextInQueue()`가 같은 핸들러에서 실행 → `goToNextInQueue` 계산 시점의 `myPendingMatchEntryIds.length`는 아직 2(A 포함) → `0 < 2-1(=1)` 참 → `setCursor(1)`. 두 state 갱신이 배칭되어 함께 커밋된 뒤 재렌더 → `myPendingMatchEntryIds`가 재계산되어 A가 빠진 `[entryB]`(길이 1)만 남음 → `entryId = myPendingMatchEntryIds[1]` = `undefined`(배열 길이가 1이라 인덱스 1은 범위 밖) → `if (!entry || !myMatch) { onClose(); return null; }`(87~90행) 분기로 떨어져 **시트가 즉시 닫혀버린다** — entryB는 실제로는 여전히 미확인(pending) 상태로 남아 있지만(정책 위반은 아님 — `confirmState`는 그대로 pending), 사용자는 같은 시트 세션에서 entryB를 볼 기회조차 갖지 못한 채 닫힌다. `MatchingQueueSheet`가 `visible` prop이 바뀔 때만 커서를 0으로 리셋하므로(43~48행 `useEffect`), 사용자가 시트를 다시 열어야만 entryB가 보인다. |
+| | 3건 이상일 때의 증상(스킵) | | 대기 항목이 3개(A,B,C) 이상이면 매번 "한 칸 더 앞서가는" 패턴이 반복돼, A를 처리하면 B를 건너뛰고 C가 표시되며, C를 처리하면 (남은 게 B 하나뿐인데) 인덱스가 범위를 벗어나 시트가 조기 종료된다 — 정확한 인덱스 산출은 위 로직을 N=3으로 대입해 재계산 가능(문서 분량상 N=2 케이스로 대표 기술). |
+| | 영향받는 세 액션 | | "확정하기"(`onConfirm`, MatchConfirmCard), "직접 검색하기"로 트랙을 고른 뒤(`handleManualSelect`), "이 곡 없이 넘어가기"(`onSkip`, MatchFailCard) — 셋 다 `goToNextInQueue()`를 호출하는 동일 패턴이라 전부 같은 결함을 공유한다. 반면 "다른 결과 보기"에서 후보를 선택하는 `selectMyMatchCandidate` 경로(120~123행)는 `goToNextInQueue()`를 호출하지 않고 카드로 되돌아가도록 설계돼 있어(00-ux-flow.md 2.11c "선택 즉시 확정하지 않고 다시 확인시킨다") 이 버그의 영향을 받지 않는다 — 설계 의도와 일치하는 유일한 예외임을 확인. |
+| | 정책 위반 여부 | | **정책(09문서 결정 2, "절대 조용히 확정되지 않는다") 자체는 위반되지 않는다** — 건너뛰어진 항목의 `confirmState`는 여전히 `pending`으로 남고(데이터 상태를 임의로 바꾸는 코드가 없음, 위 R7.1 참고), 재생에도 반영되지 않는다(R7.2). 다만 "여러 건을 한 큐에서 순서대로 확인한다"는 00-ux-flow.md 2.11a의 명시적 요구 동작("여러 개면 다음/이전으로 넘기는 큐 형태")이 깨져 있고, 특히 정확히 2건이 쌓인 흔한 경우(기본 정원 2명 데모에서 곡 2개를 연달아 추가하는 자연스러운 시나리오) 시트가 사용자에게 아무 설명 없이 조기 종료되는 것은 눈에 띄는 UX 결함이다. |
+| | 권장 수정 방향(참고, 결정은 구현 에이전트 몫) | | `goToNextInQueue`가 커서를 증가시키지 않고 그대로 유지하도록 바꾸는 편이 더 근본적으로 맞다 — 처리된 항목이 배열에서 빠지면 다음 항목이 자연스럽게 같은 인덱스로 밀려 들어오기 때문에(`useEffect`가 이미 `myPendingMatchEntryIds.length` 변화에 반응해 커서를 클램프하는 로직도 존재, 50~52행), 별도로 +1할 필요가 없다. 또는 "처리한 entryId"를 커서가 아니라 값 자체로 추적(예: 다음에 표시할 entryId를 미리 계산해 `myPendingMatchEntryIds`에서 현재 entryId를 제외한 배열의 첫 항목으로 정하는 방식)하는 편이 인덱스 연산 자체를 없애 더 견고하다. |
+
+이 항목은 실기기 없이도 React state batching 규칙(이벤트 핸들러 내 동기 `setState` 호출은 한 번에 배칭된다)에 근거해 코드 정적 추적만으로 확정적으로 재현 가능한 로직 결함이라 "미검증"이 아니라 "실패"로 판정한다(Round 5의 R5.17과 동일한 검증 방법론).
+
+### 5. 데이터 모델 일관성
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.10 | `types/domain.ts`의 `MixedPlaylistEntry`/`ParticipantMatch` 등 신규 타입이 소비처와 정확히 맞물리는가 | ✅ 통과 | `MixedPlaylistEntry.matches: Record<string, ParticipantMatch>`가 `sessionService.setParticipantMatch`/`addMixedTrack`, `SessionContext.tsx`의 매칭 관련 함수들, `mixedTrackView.ts`, `MatchingQueueSheet.tsx`/`ParticipantsBottomSheet.tsx`(pendingMatchCount 계산) 전부에서 동일한 키(`participantId`) 규약으로 일관되게 소비됨을 확인. `MatchedTrackCandidate`도 `trackMatcher.ts`(`rankCandidates` 반환 타입) → `mixedMatching.ts` → `sessionService.addMixedTrack`(adderMatch 인자) → UI 컴포넌트(`MatchConfirmCard`/`MatchCandidateList`) 전체 경로에서 필드 이름이 어긋나지 않음(`service`/`serviceTrackId`/`title`/`artist`/`albumArtUrl`/`durationMs`/`matchScore`/`confidenceLevel` 8개 필드 전부 대조 완료). |
+| R7.11 | `playlist`/`mixedPlaylist` 분기가 `requestNextTrack`/`requestPrevTrack`/`removeTrack`/`requestMoveTrack`(`state/playlistSequencing.ts`) 전부에서 세션 타입별로 올바르게 라우팅되는가 | ✅ 통과 | `SessionContext.tsx`의 네 함수 모두 `if (prev.service === 'mixed') { ...prev.mixedPlaylist 사용... } ... prev.playlist 사용...` 구조로 명시적으로 분기(148~332행 전체 직접 확인). `playlistSequencing.ts`의 `advanceToNext`/`advanceToPrev`/`nextAfterRemoval`/`reorderWithinQueue`는 제네릭(`T extends SequencedEntry`)이라 `PlaylistEntry`/`MixedPlaylistEntry` 양쪽에 그대로 재사용 가능 — 타입 안전성도 확인(`entryId`/`playedStatus` 필드만 요구). 두 배열이 뒤섞이거나 혼합 세션에서 `session.playlist`(항상 빈 배열)를 잘못 참조하는 경로는 발견되지 않았다. |
+
+### 6. 기존 세션 유형(Spotify 전용/YouTube 전용) 회귀 확인 — diff 대조
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.14 | `NowPlayingView.tsx`/`YouTubeNowPlayingView.tsx`/`PlaylistView.tsx`의 비-혼합(Spotify/YouTube 전용) 코드 경로가 이번 변경으로 손상되지 않았는가 | ✅ 통과(회귀 없음) | `git diff dbd275c^ dbd275c`로 세 파일 전부 직접 대조 — `NowPlayingView.tsx`는 함수 최상단에 `if (isMixed) { return <MixedNowPlayingBody .../>; }` 얼리 리턴 한 블록만 추가되고, 그 아래 기존 Spotify 전용 본문(currentEntry/progressRatio/컨트롤/avatarStack 등)은 원문과 100% 동일(diff에서 `-` 없이 `+`만 추가된 새 함수로 확인). `YouTubeNowPlayingView.tsx`도 `isMixed ? ... : ...` 삼항으로 기존 `currentEntry`/`session.playlist` 참조 경로가 그대로 보존됨을 확인. `PlaylistView.tsx`도 `if (isMixed) { return (...) }` 분기 이후 기존 Spotify/YouTube 전용 렌더 블록(서비스 칩 포함)이 그대로 남아 있음. |
+| R7.15 | `AddTrackModal.tsx`/`Avatar.tsx` 변경이 기존 호출부와 하위호환되는가 | ✅ 통과(회귀 없음) | `AddTrackModal`은 `headerTitle?: string` 옵셔널 prop 1개만 추가(기존 타이틀 로직은 `headerTitle ?? (기존 삼항)`으로 폴백) — 기존 Spotify/YouTube 전용 호출부(`PlaylistView.tsx`의 비-혼합 분기)는 `headerTitle`을 넘기지 않아 동작 변화 없음. `Avatar`도 `platform?: MixedParticipantPlatform` 옵셔널 prop 1개만 추가, 기존 비-혼합 호출부는 `platform`을 넘기지 않아(`NowPlayingView.tsx` 비-혼합 분기, 154행 `<Avatar initial=... crown=... />`에 platform 없음) 서비스 배지 오버레이가 렌더되지 않음 — 시각적 변화 없음. |
+| R7.16 | `ParticipantsBottomSheet.tsx`의 리팩터링(`showFreeTierUi` boolean → `isPlayable`/`shouldShowFreeTag` 함수)이 기존 Spotify/YouTube 세션에서 동일하게 동작하는가 | ✅ 통과(회귀 없음, 동치 확인) | 기존 로직: `showFreeTierUi = session.service === 'spotify'`, `playableCount = participants.filter(accountTier==='premium').length`, 헤더는 `!showFreeTierUi \|\| playableCount===participants.length`일 때만 단순 표기. 새 로직: `isPlayable`이 spotify 세션에서 `accountTier==='premium'`과 동치, youtube 세션에서 항상 `true`(→ `playableCount===participants.length`가 항상 참 → 헤더가 항상 단순 표기, 옛 로직의 `!showFreeTierUi`가 youtube에서 항상 참이었던 것과 동일한 결과). `shouldShowFreeTag`도 spotify에서 `accountTier==='free'`(동치), youtube에서 항상 `false`(동치). 두 조건식을 대수적으로 대조해 세 서비스 유형(spotify/youtube/mixed) 전부에서 옛 동작과 새 동작이 spotify/youtube 케이스에 한해 정확히 일치함을 확인했다 — R3.17에서 고쳤던 가드가 이번 리팩터링으로 다시 깨지지 않았음을 뒷받침. |
+| R7.17 | `RoomScreen.tsx`의 Now Playing 라우팅(`session.service === 'youtube'` → `nowPlayingPlatform === 'youtube'`)이 비-혼합 세션에서 동치인가 | ✅ 통과(회귀 없음, 동치 확인) | `nowPlayingPlatform = session.service === 'mixed' ? myPlatform ?? 'spotify' : session.service` — 비-혼합 세션에서는 `nowPlayingPlatform === session.service`이므로 옛 조건식과 완전히 동일한 결과. |
+| R7.18 | `CreateSessionScreen.tsx`의 혼합 라디오 활성화가 기존 Spotify/YouTube 라디오 선택 로직을 건드리지 않았는가 | ✅ 통과(회귀 없음) | 기존 두 `RadioRow`(Spotify/YouTube)는 `disabled={false}`로 이전 라운드부터 이미 동일했고 이번 diff에서 변경 없음(혼합 `RadioRow` 한 줄만 `disabled` 값이 `true`→`false`로 바뀜). `INFO_BY_SERVICE` 맵도 spotify/youtube 문구는 그대로, mixed 문구만 신규 추가. |
+
+### 7. 단위 테스트 내용 검토
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.19 | `trackMatcher.test.ts` — 실제로 의미 있는 케이스를 검증하는가 | ✅ 통과(내용 충실) | 5개 테스트: 완전 일치(≥95점, high), 에디션 표기(`(Live)`/`- Topic`) 허용 + 7초 길이 오차 허용(≥70점), 완전 무관 곡 저점수(low), **동명이곡 오매칭 방지**(같은 제목·다른 아티스트가 같은 제목·같은 아티스트보다 낮은 점수인지 직접 비교) — 지시사항이 특히 요구한 "동명이곡 오매칭 방지" 케이스가 형식적 통과가 아니라 실제 점수 비교(assert)로 검증됨을 확인. `rankCandidates`가 내림차순 정렬 + 플랫폼 태그를 정확히 붙이는지도 검증. 부실하지 않음. |
+| R7.20 | `playlistSequencing.test.ts` | ✅ 통과(내용 충실) | `advanceToNext`(다음 곡 전환 + playedStatus 갱신), 끝에서 `null` 반환, `advanceToPrev`(대칭 동작), `nextAfterRemoval`(삭제된 곡 뒤 항목 반환 + 끝이면 undefined), `reorderWithinQueue`(현재 재생 중인 곡 경계를 넘어가는 이동은 원본 배열을 그대로 반환해 차단되는지까지 명시적으로 검증 — `blocked = ...; expect(blocked).toBe(list)`로 참조 동일성까지 확인) 5개 모두 실질적인 동작 검증. |
+| R7.21 | `mixedTrackView.test.ts` | ✅ 통과(내용 충실) | `resolveMixedCurrentTrackForMe`의 5개 분기(none/searching/awaitingConfirm/ready/failed)를 모두 개별 케이스로 커버 — 특히 "matched이지만 confirmState가 pending이면 awaitingConfirm이지 ready가 아니다"(R7.1/R7.2가 검증한 정책 핵심)를 단위 테스트 수준에서도 직접 assert하고 있어, 이번 라운드의 가장 중요한 정책 요구사항이 회귀 테스트로 고정됨을 확인. |
+
+### 8. 정적 검증 및 빌드 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R7.22 | `npx tsc --noEmit` (apps/mobile) | ✅ 통과 | 0 errors, 출력 없음. |
+| R7.23 | `npx eslint .` (apps/mobile) | ✅ 통과 | 0 errors, 22 warnings — 전부 `react-native/no-inline-styles`(기존 16개 + 이번 라운드 신규 6개: `AddTrackModal.tsx`/`Avatar.tsx`/`MatchConfidenceBadge.tsx`/`MatchConfirmCard.tsx`/`MatchFailCard.tsx`/`RoomScreen.tsx` 등에서 발생, 전부 기존과 동일한 관용적 조건부 스타일/고정 상수 스타일 패턴이며 신규 유형 경고 없음). 구현 로그의 "0 errors, 22 warnings" 주장과 정확히 일치. |
+| R7.24 | `npx jest` (apps/mobile) | ✅ 통과 | 4 suites / 16 tests 전부 통과(`App.test.tsx`, `trackMatcher.test.ts`, `playlistSequencing.test.ts`, `mixedTrackView.test.ts`) — 구현 로그 주장과 정확히 일치. |
+| R7.25 | `package.json`/`package-lock.json` 변경 없음(신규 네이티브 의존성 없음) | ✅ 통과 | `git diff 7a888f2 dbd275c -- apps/mobile/package.json apps/mobile/package-lock.json` 결과 빈 출력 — 변경 없음 확인. |
+| R7.26 | Android `clean` → `assembleDebug --no-daemon`(캐시 미사용 완전 재빌드) | ✅ 통과 | `clean`: `BUILD SUCCESSFUL in 9s`. 이어서 `assembleDebug --no-daemon`: **`BUILD SUCCESSFUL in 1m 51s`**, 203 actionable tasks(173 executed, 30 up-to-date) — `app-debug.apk`(133,517,424 bytes) 생성 확인. 새 네이티브 의존성이 없다는 R7.25와 일치하게 순수 JS/TS 변경만으로 빌드가 정상 성공함을 캐시 배제 방식으로 재확인. |
+| R7.27 | iOS 코드 리뷰 수준 확인(구조적 제약, macOS 부재) | ✅ 통과(리뷰 수준) | `git diff dbd275c^ dbd275c --stat -- apps/mobile/ios apps/mobile/android` 결과 두 네이티브 디렉터리 모두 빈 출력 — 이번 라운드는 네이티브 프로젝트 파일을 전혀 건드리지 않았다. 신규 컴포넌트/유틸 전체(`grep -rn "Platform.OS"`)에서 iOS/Android 분기 코드도 발견되지 않아 크로스플랫폼 순수 RN 코드로만 구성됨을 확인 — iOS 쪽 구조적 리스크는 낮다고 판단하나 실제 iOS 빌드/런타임 검증은 이번에도 수행하지 못했다(round 1~6과 동일한 환경 제약). |
+
+### 9. 알려진 제약 (실패로 잡지 않음, 지시사항에 이미 문서화됨)
+
+| # | 항목 |
+|---|---|
+| R7.28 | Spotify App Remote SDK 미연동 STUB — 혼합 세션에서도 Spotify 쪽 실제 재생은 안 됨(기존 라운드부터 있던 제약). |
+| R7.29 | YouTube mock 검색 결과의 videoId가 실존하지 않아 실기기에서는 `onError`로 이어질 것으로 예상(기존 YouTube 라운드 로그에 이미 기록됨). |
+| R7.30 | 매칭 신뢰도 가중치/임계값(`trackMatcher.ts`의 `MATCH_WEIGHTS`/`MATCH_CONFIDENCE_THRESHOLDS`)은 실측 전 잠정값 — TODO 주석으로 명시돼 있고, 값 자체의 정확도는 이번 검증 대상이 아니다. |
+| R7.31 | "코드로 참여하기"가 여전히 Alert 스텁 — 참여자 쪽 플랫폼 선택(2.6c) 플로우는 연결되지 않음(호스트만 실제 연결됨), 기존부터 있던 제약. |
+| R7.32(참고, 실패 아님) | `MatchConfirmCard`의 "확정하기" 버튼이 일치율 등급(낮음/중간)과 무관하게 항상 1차 강조(primary) 스타일로 고정 — `02-key-ui-patterns.md` 5.3절은 낮음 등급일 때 "확정하기"를 outline(2차)으로 낮추고 "다른 결과 보기"/"직접 검색하기"를 강조할 것을 제안하지만, 이 문서 자체가 "제안"이라고 명시했고(09문서 결정 2는 "확인 필요 문구 강조"만 요구, 확정 자체를 차단하라고는 하지 않음) `MatchConfidenceBadge`가 "낮음 · 확인 필요" 라벨로 이미 시각적 경고를 하고 있어 정책 위반은 아니다 — 다음 라운드에서 다듬을 여지가 있는 개선 후보로만 기록한다. |
+
+### Round 7 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 25 (R7.1~R7.6, R7.8~R7.12, R7.14~R7.27 중 실패 제외 전부 — 상세는 위 표) |
+| ⚠ 부분 실패(정책 위반 아님, 명시적 요구 동작 결함) | 1 (R7.7, R7.13에서 근거 상세) |
+| ❌ 실패 | 1 (R7.13 — `MatchingQueueSheet`의 큐 인덱싱 버그, 코드 정적 추적으로 확정 재현) |
+| 참고(실패 아님) | R7.32 — 일치율 등급별 버튼 강조 미구현, 스펙상 "제안" 수준이라 정책 위반 아님 |
+| ⛔ 미검증(환경 제약, 실패 아님) | iOS 실빌드/런타임 — 이번 라운드도 네이티브 파일 무변경, 코드 리뷰 수준까지만 수행(round 1~6과 동일한 구조적 제약) |
+
+**결론: 이번 라운드(커밋 `dbd275c`)는 "완료"로 간주하지 않는다 — 구현 에이전트에게 R7.13(`MatchingQueueSheet` 큐 인덱싱 버그) 수정을 요청해 반려 권고한다.**
+
+이번 검증에서 가장 중요하게 다룬 두 정책 항목 — (1) "매칭이 참여자별로 절대 조용히 확정되지 않는다"(09문서 결정 2)와 (2) "R3.17류 세션 전체 가드가 혼합 세션에 새어 들어가지 않는다" — 은 데이터 모델(`confirmState` 대입 지점 전수 조사)부터 UI 렌더 분기(`kind !== 'ready'`일 때 재생 영역 대신 상태 카드)까지 독립적으로 추적한 결과 모두 실제로 지켜지고 있음을 확인했다(R7.1/R7.2, R7.3~R7.5). 데이터 모델 일관성(R7.10/R7.11), 기존 Spotify/YouTube 전용 세션 회귀 없음(R7.14~R7.18, diff 대조 및 조건식 동치 증명으로 확인), 단위 테스트 3종의 실질적 내용(R7.19~R7.21), 정적 검증·Android 클린 빌드(R7.22~R7.27) 모두 구현 로그의 주장과 정확히 일치하게 독립 재현됐다 — 이 부분들은 구현 로그를 신뢰할 수 있는 수준으로 뒷받침한다.
+
+다만 전체 플로우를 끝까지 코드로 따라가는 과정에서(작업 지시 2번 "b" 항목), `MatchingQueueSheet.tsx`의 큐 진행 로직에서 React state batching을 고려하지 않은 인덱스 연산 결함을 발견했다(R7.13) — "확정하기"/"직접 검색하기"/"이 곡 없이 넘어가기" 세 액션 모두 다음 대기 항목으로 넘어갈 때 커서를 한 칸 더 앞서가게 계산해, 대기 항목이 정확히 2건(기본 정원 2명 데모에서 곡을 2개 연달아 추가하는 흔한 시나리오로도 도달 가능)이면 첫 항목 처리 직후 두 번째 항목을 보여주지 못한 채 시트가 조기 종료되고, 3건 이상이면 항목이 통째로 건너뛰어진다. 정책(자동 조용한 확정 금지)은 위반하지 않지만 — 건너뛰어진 항목은 데이터상 여전히 `pending`으로 남아 재확인 가능하다 — 00-ux-flow.md 2.11a가 명시한 "여러 개면 다음/이전으로 넘기는 큐 형태"라는 핵심 기능 동작이 깨져 있어 실패로 판정했다. 나머지 항목(iOS 전체, Spotify/YouTube 재생 스텁, YouTube mock videoId, 매칭 가중치 실측 전 잠정값, 코드 참여 미연결)은 지시사항이 이미 "실패로 잡지 말 것"으로 명시한 기존 제약과 정확히 일치하므로 실패로 카운트하지 않았다.
+
+## Round 8 재검증 (2026-07-26)
+
+> 검증 대상 커밋: `095e3cf` ("Fix R7.13 matching queue premature-close/skip bug") — Round 7의 유일한 실패 항목(R7.13, `MatchingQueueSheet.tsx`의 큐 인덱싱 버그)에 대한 수정. 범위가 좁아(Round 5→6 재검증과 동일한 성격) 전체 체크리스트를 반복하지 않고 R7.13 재현/해소 확인 + 정적 검증 + Android 빌드 + 회귀 확인에 집중한다.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git show 095e3cf`로 diff를 라인 단위 직접 확인 → `MatchingQueueSheet.tsx`/`matchQueueNavigation.ts` 현재 전체 파일을 다시 읽고 `SessionContext.tsx`의 `confirmMyMatch`/`skipMyMatch`/`manualMatchTrack`/`myPendingMatchEntryIds`(useMemo) 코드를 대조해 "처리 → 배열에서 실제로 빠짐 → 다음 렌더에서 `resolveQueueEntryId`가 올바른 다음 entryId를 가리킴"을 end-to-end로 재추적 → `matchQueueNavigation.test.ts` 7건 내용 검토 → `apps/mobile`에서 tsc/eslint/jest 독립 재현 → Android `assembleDebug --no-daemon` 독립 재현 → `git diff c8b89f8 095e3cf --stat`로 변경 범위가 주장대로 국소적인지 확인.
+> 환경: Windows 11 Pro (10.0.26200), JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 여전히 없음 — 이번 라운드도 diff가 네이티브 파일을 건드리지 않아(아래 R8.7) iOS 실빌드는 구조적 제약으로 미검증.
+
+### 1. diff 및 변경 범위
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R8.1 | `git show 095e3cf` diff가 구현 로그가 주장한 범위(`MatchingQueueSheet.tsx` 수정, `matchQueueNavigation.ts`/테스트 신규, `implementation-log.md`)와 정확히 일치하는가 | ✅ 통과 | `git show 095e3cf`로 4개 파일 diff를 직접 확인 — `apps/mobile/src/components/MatchingQueueSheet.tsx`(29줄, 수정), `apps/mobile/src/state/matchQueueNavigation.ts`(45줄, 신규), `apps/mobile/__tests__/matchQueueNavigation.test.ts`(59줄, 신규), `docs/agents/implementation-log.md`(35줄, 추가). `git diff c8b89f8 095e3cf --stat`(부모 커밋 c54ee43까지 포함한 범위)로도 `CLAUDE.md` 1줄(무관한 리더 규칙 추가, 095e3cf 자체가 아니라 사이에 낀 c54ee43) 외에 동일 4개 파일만 변경됨을 재확인 — 지시사항이 우려한 "다른 화면/혼합 모드 코드 변경"은 전혀 없음. |
+| R8.2 | 숫자 `cursor` state와 관련 `useEffect` 2개가 실제로 전부 제거됐는가 | ✅ 통과 | `MatchingQueueSheet.tsx` 현재 전체(1~156행) 재확인 — `useState(0)` cursor 선언, `visible` 변경 시 `setCursor(0)` 리셋 `useEffect`, `myPendingMatchEntryIds.length` 변화에 반응해 커서를 클램프하던 `useEffect` 모두 사라짐. 남은 `useEffect`는 `visible`일 때 `setMode('card')`로 되돌리는 것 하나뿐(모드 전환용, cursor와 무관). `grep -rn "cursor" apps/mobile/src apps/mobile/__tests__`로 재확인한 결과 실제 코드에 `cursor` 변수는 하나도 남지 않았고, 남은 3건은 전부 주석(옛 버그 설명)뿐임을 확인. |
+
+### 2. R7.13 재현/해소 — 시나리오별 end-to-end 재추적
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R8.3 | (a) 대기 항목 정확히 2건 — 첫 항목 처리 후 시트가 조기 종료되지 않고 두 번째 항목이 실제로 보이는가 | ✅ 통과 | `MatchingQueueSheet.tsx` 58행 `const entryId = resolveQueueEntryId(myPendingMatchEntryIds);`가 매 렌더마다 그 시점의 `myPendingMatchEntryIds`(별도 state 없이 `SessionContext.tsx` 530~543행 `useMemo`가 매번 재계산)에서 직접 계산된다 — cursor라는 중간 state가 없으므로 "처리 전 길이를 참조하는 산술"이 구조적으로 존재하지 않는다. `myPendingMatchEntryIds = ['A','B']`(길이 2) 상태에서 카드에 A 표시 → "확정하기" 탭 → `confirmMyMatch('A')` 호출(436~452행, `confirmState: 'confirmed'`로 setSession) → 다음 렌더에서 `useMemo`가 재계산되어 A는 `confirmState==='pending'` 필터를 통과하지 못해 빠지고 `['B']`(길이 1)만 남음 → `resolveQueueEntryId(['B'])` = `'B'`(`pendingIds.find(id => !skippedIds.has(id))`, skippedIds는 기본 빈 Set이라 항상 첫 항목) → `entry`/`myMatch` 둘 다 정의됨 → 82행 `if (!entry \|\| !myMatch)` 가드 미발동 → B 카드가 정상 렌더됨. `matchQueueNavigation.test.ts`의 "shows the second entry after the first is processed..." 테스트가 이 배열 전이(`['a','b']` → `['b']`)를 정확히 시뮬레이션해 통과(직접 재실행 확인, 아래 R8.6). Round 7이 재현했던 "정확히 2건일 때 조기 종료" 버그는 재현되지 않는다. |
+| R8.4 | (b) 대기 항목 3건 이상 — 항목이 건너뛰어지지 않고 순서대로 다 보이는가 | ✅ 통과 | 동일한 방식으로 `['A','B','C']` → A 처리 → `useMemo` 재계산으로 `['B','C']` → `resolveQueueEntryId` = `'B'`(건너뛰지 않음) → B 처리 → `['C']` → `'C'` → C 처리 → `[]` → `undefined`. 각 단계가 항상 "그 시점의 실제 배열"만 참조하고 이전 렌더의 길이를 기억해두는 state가 전혀 없으므로, Round 7이 지적한 "매번 한 칸 더 앞서가는" 누적 오차가 발생할 수 있는 지점 자체가 없다. `matchQueueNavigation.test.ts`의 "walks through all entries in order without skipping any when N=3" 테스트로 `'a'→'b'→'c'→undefined` 순서가 정확히 나옴을 확인(아래 R8.6). |
+| R8.5 | (c) 확정/스킵/수동교체 3가지 처리 경로 전부 동일하게 동작하는가 | ✅ 통과 | 세 콜백(`onConfirm`, 128~131행 / `onSkip`, 109~112행 / `handleManualSelect`, 62~66행) 전부 "처리 함수 호출 → `setMode('card')`"만 하고 `entryId`/`cursor` 관련 state는 전혀 건드리지 않는다 — 다음에 보여줄 항목은 셋 다 동일하게 다음 렌더에서 `resolveQueueEntryId(myPendingMatchEntryIds)`가 계산하므로 세 경로가 서로 다른 로직을 타지 않는다(이전엔 셋 다 개별적으로 `goToNextInQueue()`를 호출했던 것과 대조적으로, 이제는 각자 자기 처리 함수만 호출하고 "다음 항목 계산"이라는 책임 자체가 컴포넌트 렌더 로직으로 완전히 옮겨감). `skipMyMatch`(512~528행, `skipped: true`로 setSession)는 `myPendingMatchEntryIds` 필터의 `status === 'failed' && !match.skipped` 조건에서 제외되어 동일하게 배열에서 빠짐, `manualMatchTrack`(482~508행, `confirmState: 'manual'`)도 `confirmState === 'pending'` 조건을 통과 못해 동일하게 빠짐 — 세 처리 경로 모두 "처리 결과가 `myPendingMatchEntryIds`에서 실제로 제거됨"이라는 동일한 메커니즘을 공유함을 확인. |
+| R8.6 | 큐가 완전히 비면(`!entry \|\| !myMatch`) 정상적으로 자동 닫히는가(회귀 없음) | ✅ 통과 | 82~85행 `if (!entry \|\| !myMatch) { onClose(); return null; }`는 이번 diff에서 전혀 수정되지 않은 코드(diff에 해당 라인 변경 없음, `git show` 재확인) — `resolveQueueEntryId([])`가 `undefined`를 반환하면(빈 배열 가드가 함수 최상단에 명시적으로 존재, `matchQueueNavigation.ts` 36~38행) `entryId`가 `undefined`가 되고 `entry`도 자연히 `undefined`가 되어 동일한 가드로 떨어진다 — Round 7 이전부터 있던 자동 종료 로직 자체는 이번 변경의 영향을 받지 않았음을 코드 대조로 확인. |
+
+### 3. `skippedIds` 미사용 확인 (실패 아님, 사실관계만 확인)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R8.7 | `resolveQueueEntryId`의 `skippedIds` 파라미터가 실제로는 UI에서 쓰이지 않는다는 구현 로그의 주장이 사실인가 | ✅ 사실 확인(정책 위반 아님) | `MatchingQueueSheet.tsx` 58행 `resolveQueueEntryId(myPendingMatchEntryIds)` — 두 번째 인자를 넘기지 않아 항상 기본값(`new Set()`)이 쓰인다. 컴포넌트 전체(1~156행)를 다시 읽고 "다음"이라는 문자열과 `Set` 타입 사용처를 grep했지만 `skippedIds`를 채우는 state나 버튼은 존재하지 않는다 — 헤더의 `(N/M)` 카운터는 표시 전용이고 미처리 항목을 넘겨보는 별도 버튼도 없다. 지시사항이 명시한 대로 이는 향후 확장(스펙에 아직 없는 "다음" 버튼)을 대비해 순수 함수 시그니처에만 미리 반영해둔 것이며, 사용되지 않는 매개변수가 있다고 해서 실패로 잡지 않는다 — TypeScript 기본 인자(`= new Set()`)라 미사용이어도 tsc/eslint 에러가 되지 않음(실제 R8.9/R8.10에서 0 errors로 확인). |
+| R8.8(참고, 실패 아님) | 헤더 카운터(`(N/M)`)가 `skippedIds`를 쓰지 않는 현재 구조에서 항상 "(1/N)"으로만 표시되는 부작용이 있는가 | 참고 사항으로 기록 | `entryId`가 항상 `resolveQueueEntryId`의 `firstUnseen`(= skippedIds가 비어 있으므로 항상 `pendingIds[0]`)이기 때문에, `myPendingMatchEntryIds.indexOf(entryId as string)`은 수학적으로 항상 `0`이 되어 헤더는 항상 "(1/남은 개수)"로만 표시된다(예: 3건 중 첫 항목 처리 후 "1/2"로, "2/3"이 아님). 데이터 정확성이나 정책에는 영향이 없고(남은 개수 자체는 정확), Round 7의 R7.13이 지적한 실패 항목도 아니며 지시사항이 요구한 검증 범위(재현/해소 확인)에도 해당하지 않아 실패로 카운트하지 않는다 — 다만 "지금 보고 있는 게 원래 몇 번째 항목이었는지"를 사용자에게 보여주고 싶다면 `indexOf` 계산 자체가 항상 0이라 다음 라운드에서 다듬을 여지가 있는 사소한 UX 참고사항으로만 남긴다. |
+
+### 4. `matchQueueNavigation.test.ts` 7건 내용 검토
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R8.9 | 7개 테스트가 위 시나리오들을 의미 있게 검증하는가 | ✅ 통과(내용 충실) | (1) 빈 배열 → `undefined`(자동 종료 조건과 대응), (2) 넘겨본 것 없을 때 첫 항목 표시, (3) **N=2 최소 재현**(`['a','b']`→`'a'`, 처리 후 `['b']`→`'b'`, R8.3과 동일 시나리오), (4) **N=3 순서 보존**(`'a'→'b'→'c'→undefined`, R8.4와 동일 시나리오), (5) `skippedIds`로 아직 처리 안 한 항목을 건너뛰어 보는 시맨틱(`['a','b','c']`+`skipped={'a'}`→`'b'`), (6) 전부 넘겨봤을 때 첫 항목으로 wrap-around, (7) "처리돼서 빠짐"과 "그냥 넘겨봄"이 동시에 섞인 경우(`pending=['a','c']`, `skipped={'a'}`→`'c'`) — 형식적 스모크 테스트가 아니라 지시사항이 요구한 (a)/(b) 시나리오를 각각 전용 테스트로 직접 커버하고 있으며, 주석도 각 테스트가 어떤 실제 시나리오를 시뮬레이션하는지 명확히 설명함. |
+
+### 5. 정적 검증 및 빌드 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R8.10 | `npx tsc --noEmit` (apps/mobile) | ✅ 통과 | 0 errors, 출력 없음. |
+| R8.11 | `npx eslint .` (apps/mobile) | ✅ 통과 | **0 errors, 22 warnings** — 전부 Round 7과 동일한 파일/동일한 `react-native/no-inline-styles` 경고(개수·목록 라인 단위로 대조, 이번 변경으로 신규 경고 없음). 구현 로그 주장과 정확히 일치. |
+| R8.12 | `npx jest` (apps/mobile) | ✅ 통과 | **5 suites / 23 tests 전부 통과**(`matchQueueNavigation.test.ts` 7건 신규 포함, 기존 `App.test.tsx`/`mixedTrackView.test.ts`/`playlistSequencing.test.ts`/`trackMatcher.test.ts` 4개 스위트 16건 그대로 회귀 없음). 구현 로그 주장(5 suites/23 tests)과 정확히 일치. |
+| R8.13 | Android `assembleDebug --no-daemon` | ✅ 통과 | `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`로 `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon` → **BUILD SUCCESSFUL in 44s**, 203 actionable tasks(23 executed, 180 up-to-date — 순수 JS/TS 변경이라 대부분 UP-TO-DATE, 새 네이티브 의존성 없음). |
+| R8.14 | iOS 코드 리뷰 수준(구조적 제약) | ✅ 통과(리뷰 수준) | diff가 `apps/mobile/ios`/`apps/mobile/android` 네이티브 디렉터리를 전혀 건드리지 않음(R8.1) — 순수 JS/TS 컴포넌트·상태 로직 변경만이라 iOS 쪽 구조적 리스크는 낮다고 판단하나, 실제 iOS 빌드/런타임 검증은 이번에도 macOS 부재로 수행하지 못했다(Round 1~7과 동일한 구조적 제약, 신규 아님). |
+
+### 6. 회귀 확인 — Round 7의 다른 통과 항목에 영향 없는가
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R8.15 | 정책 준수(R7.1/R7.2, "매칭이 절대 조용히 확정되지 않는다") 회귀 여부 | ✅ 통과(회귀 없음) | 이번 diff는 `confirmState`를 대입하는 코드(`confirmMyMatch`/`manualMatchTrack`/`skipMyMatch`, `SessionContext.tsx`)를 전혀 건드리지 않았다 — `git show 095e3cf`에 `SessionContext.tsx` 변경 자체가 없음(diff 4개 파일 목록에 포함되지 않음, R8.1). 매칭 확정은 여전히 사용자의 명시적 탭(확정하기/직접 검색하기)에서만 발생하며, 큐 네비게이션 로직 교체는 "다음에 무엇을 보여줄지"만 바꿨을 뿐 "언제 confirmState가 바뀌는지"는 전혀 건드리지 않았다. |
+| R8.16 | 서비스 격리(R7.3~R7.5, 참여자 개별 Free 계정 가드) 회귀 여부 | ✅ 통과(회귀 없음) | 이번 diff에 `ParticipantsBottomSheet.tsx`/`NowPlayingView.tsx`/`YouTubeNowPlayingView.tsx`가 전혀 포함되지 않음(R8.1의 4개 파일 목록과 무관) — 해당 가드 로직은 이번 변경의 영향 범위 밖. |
+| R8.17 | `selectMyMatchCandidate`(2.11c, 후보 선택 시 카드로 되돌아가는 예외 경로, R7.7이 확인한 "goToNextInQueue를 호출하지 않는 유일한 예외") 동작 유지 여부 | ✅ 통과(회귀 없음) | 117~120행 `onSelect={candidate => { selectMyMatchCandidate(entryId as string, candidate); setMode('card'); }}` — 이전에도 `goToNextInQueue()`를 호출하지 않고 `setMode('card')`만 했던 유일한 경로였고, 이번 diff에서도 이 블록은 변경되지 않았다(diff에 해당 라인 없음). `selectMyMatchCandidate`가 `confirmState`를 바꾸지 않으므로(후보만 교체, `matches/[participant]` 확정 여부는 그대로 pending) `myPendingMatchEntryIds`에서 빠지지 않아 여전히 같은 entryId가 카드로 되돌아옴 — 00-ux-flow.md 2.11c 설계 의도와 일치, 이번 수정으로 영향받지 않음을 재확인. |
+
+### Round 8 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 17 (R8.1~R8.6, R8.7, R8.9~R8.17) |
+| 참고(실패 아님) | R8.8 — 헤더 카운터가 항상 "(1/남은 개수)"로만 표시되는 부작용, 데이터 정확성·정책과 무관한 사소한 UX 참고사항 |
+| ⛔ 미검증(환경 제약, 실패 아님) | iOS 실빌드/런타임 — 이번 라운드도 네이티브 파일 무변경, 코드 리뷰 수준까지만 수행(Round 1~7과 동일한 구조적 제약) |
+
+**결론: 통과.** R7.13(대기 항목 정확히 2건일 때 조기 종료, 3건 이상일 때 항목 건너뜀)의 근본 원인이었던 숫자 `cursor` state와 그에 의존한 "처리 전 길이" 산술이 diff에서 실제로 완전히 제거됐고, 대체된 `resolveQueueEntryId`가 매 렌더 그 시점의 실제 `myPendingMatchEntryIds`만 참조하는 구조이므로 React state batching 여부와 무관하게 항상 올바른 다음 항목을 가리킨다는 것을 코드 트레이스(R8.3~R8.6)와 단위 테스트 내용 검토(R8.9)로 확인했다. 정적 검증(R8.10~R8.12)과 Android 빌드(R8.13)는 구현 로그의 주장과 정확히 일치하게 독립 재현됐고, 변경 범위가 주장대로 4개 파일에 국한돼(R8.1) Round 7의 다른 통과 항목(정책 준수, 서비스 격리, 2.11c 예외 경로)에 회귀가 없음도 확인했다(R8.15~R8.17).
+
+**혼합 모드 라운드 전체에 대한 판단**: Round 7의 25개 통과 항목(정책 2건, 서비스 격리 3건, 전체 플로우 트레이스 대부분, 데이터 모델 일관성, 기존 세션 회귀 없음, 단위 테스트 3종, 정적 검증/빌드)은 이미 통과였고, 유일한 실패였던 R7.13이 이번 Round 8에서 해소됐다 — 따라서 **혼합 모드(Round 7 + Round 8) 전체를 "완료"로 결론지어도 된다.** 남은 항목은 모두 실패가 아니라 이미 문서화된 환경적 제약(iOS 실빌드, Spotify/YouTube 재생 스텁, YouTube mock videoId, 매칭 가중치 잠정값, 코드 참여 미연결)이거나 사소한 UX 참고사항(R7.32, R8.8)뿐이다.
