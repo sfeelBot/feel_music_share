@@ -16,16 +16,20 @@ import {brand} from '../theme/tokens';
  * 커스텀 세그먼트 컨트롤로 전환한다(react-navigation의 탭 네비게이터 대신 목업과 동일한
  * tab-switcher 컴포넌트를 그대로 구현 — 별도 탭 네비게이션 패키지를 추가하지 않기 위함).
  *
- * Now Playing 탭은 `session.service`에 따라 레이아웃이 완전히 다른 두 컴포넌트로 갈린다
- * (2.10a Spotify vs 2.10c YouTube) — 혼합(Mixed, 2.10d)은 이번 라운드 범위 밖이라 다루지 않는다.
- * 플레이리스트 탭은 두 서비스가 구조를 공유하므로 `PlaylistView` 하나를 그대로 재사용한다.
+ * Now Playing 탭은 어느 레이아웃(2.10a Spotify vs 2.10c YouTube)을 쓸지로 갈린다. Spotify/YouTube
+ * 전용 세션은 `session.service`로 바로 판정하고, 혼합 세션(2.10d, 2026-07-26 구현)은 "나"의 개인
+ * 참여 플랫폼(myPlatform, 2.6c에서 선택)으로 판정한다 — 09문서 "결정 3"대로 혼합 세션은 세션
+ * 전체가 아니라 참여자 개인 단위로 플랫폼이 갈리기 때문이다. 두 컴포넌트(NowPlayingView/
+ * YouTubeNowPlayingView) 자체가 내부적으로 session.service==='mixed'를 인지해 mixedPlaylist
+ * 기반으로 동작한다. 플레이리스트 탭은 세 세션 유형이 구조를 공유하므로 `PlaylistView` 하나를
+ * 그대로 재사용한다(내부에서 mixed 분기).
  */
 type Props = NativeStackScreenProps<RootStackParamList, 'Room'>;
 type Tab = 'nowPlaying' | 'playlist';
 
 export default function RoomScreen(_props: Props) {
   const theme = useTheme();
-  const {session, isHost, appointAdmin, revokeAdmin} = useSession();
+  const {session, isHost, appointAdmin, revokeAdmin, myPlatform, currentParticipantId} = useSession();
   const [tab, setTab] = useState<Tab>('nowPlaying');
   const [participantsVisible, setParticipantsVisible] = useState(false);
 
@@ -36,6 +40,8 @@ export default function RoomScreen(_props: Props) {
       </SafeAreaView>
     );
   }
+
+  const nowPlayingPlatform = session.service === 'mixed' ? myPlatform ?? 'spotify' : session.service;
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: theme.bg}]} edges={['top']}>
@@ -54,7 +60,7 @@ export default function RoomScreen(_props: Props) {
       </View>
 
       {tab === 'nowPlaying' ? (
-        session.service === 'youtube' ? (
+        nowPlayingPlatform === 'youtube' ? (
           <YouTubeNowPlayingView onOpenParticipants={() => setParticipantsVisible(true)} />
         ) : (
           <NowPlayingView onOpenParticipants={() => setParticipantsVisible(true)} />
@@ -69,6 +75,7 @@ export default function RoomScreen(_props: Props) {
         session={session}
         participants={session.participants}
         viewerIsHost={isHost}
+        viewerParticipantId={currentParticipantId}
         onAppointAdmin={appointAdmin}
         onRevokeAdmin={revokeAdmin}
       />

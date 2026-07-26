@@ -19,9 +19,21 @@ interface AddTrackModalProps {
   service: MusicService;
   accessToken: string | null;
   onSelectTrack: (track: Track) => void;
+  /**
+   * 헤더 타이틀 오버라이드 — 혼합 세션의 "직접 검색하기"(00-ux-flow.md 2.11/2.11d 재사용)처럼
+   * 같은 검색 UI를 다른 문맥(곡 추가가 아니라 매칭 수동 교체)에서 재사용할 때 쓴다.
+   */
+  headerTitle?: string;
 }
 
-export default function AddTrackModal({visible, onClose, service, accessToken, onSelectTrack}: AddTrackModalProps) {
+export default function AddTrackModal({
+  visible,
+  onClose,
+  service,
+  accessToken,
+  onSelectTrack,
+  headerTitle,
+}: AddTrackModalProps) {
   const theme = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SpotifySearchTrack[]>([]);
@@ -54,7 +66,9 @@ export default function AddTrackModal({visible, onClose, service, accessToken, o
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.container, {backgroundColor: theme.bg}]}>
         <View style={styles.header}>
-          <Text style={[styles.title, {color: theme.text}]}>{service === 'youtube' ? '영상 추가' : '곡 추가'}</Text>
+          <Text style={[styles.title, {color: theme.text}]}>
+            {headerTitle ?? (service === 'youtube' ? '영상 추가' : '곡 추가')}
+          </Text>
           <TouchableOpacity onPress={onClose} accessibilityLabel="닫기">
             <Text style={[styles.closeText, {color: theme.textSecondary}]}>닫기</Text>
           </TouchableOpacity>

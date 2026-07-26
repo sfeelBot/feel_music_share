@@ -1,6 +1,11 @@
 import React, {createContext, useCallback, useContext, useMemo, useRef, useState} from 'react';
 import * as sessionService from '../services/session/sessionService';
+import {resolveParticipantMatch} from './mixedMatching';
+import {advanceToNext, advanceToPrev, nextAfterRemoval, reorderWithinQueue} from './playlistSequencing';
+import {generateId} from '../utils/id';
 import type {
+  MatchedTrackCandidate,
+  MixedParticipantPlatform,
   MusicService,
   ParticipantInfo,
   PlaylistEntry,
@@ -40,6 +45,8 @@ interface SessionContextValue {
     sessionName: string;
     service: MusicService;
     capacity: number;
+    /** 혼합 세션(service==='mixed')일 때만 의미 있음 — 호스트가 2.6c에서 선택한 참여 플랫폼. */
+    hostPlatform?: MixedParticipantPlatform;
     host: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
   }) => SessionState;
   leaveSession: () => void;
@@ -47,15 +54,50 @@ interface SessionContextValue {
   requestPause: () => void;
   requestNextTrack: () => void;
   requestPrevTrack: () => void;
+  /** Spotify/YouTube 전용 세션 전용. 혼합 세션에서는 addMixedTrack을 대신 쓴다. */
   addTrack: (track: Track) => void;
+  /** Spotify/YouTube 전용, 혼합 세션 모두에서 동작한다(내부적으로 session.service로 분기). */
   removeTrack: (entryId: string) => void;
   /**
    * 대기열("다음 곡들") 안에서 곡을 한 칸 위/아래로 옮긴다 (US-303, 00-ux-flow.md 2.10b).
    * 이미 재생 완료된 곡·현재 재생 중인 곡은 이동 대상이 될 수 없다(정책 유지) — 아래 구현 참고.
+   * Spotify/YouTube 전용, 혼합 세션 모두에서 동작한다.
    */
   requestMoveTrack: (entryId: string, direction: 'up' | 'down') => void;
   appointAdmin: (participantId: string) => void;
   revokeAdmin: (participantId: string) => void;
+
+  // ---- 혼합(Mixed) 세션 전용 (04-playlist.md "혼합 모드 플레이리스트 구조", 2026-07-26 신규) ----
+  /** 지금 로그인한 참여자("나")가 이 혼합 세션에서 선택한 플랫폼. 혼합 세션이 아니면 null. */
+  myPlatform: MixedParticipantPlatform | null;
+  /**
+   * 내가 내 플랫폼에서 검색해 고른 트랙을 플랫폼 중립 곡 항목으로 추가한다(00-ux-flow.md 2.11
+   * "혼합 모드에서의 확장"). 내 매칭은 그 자리에서 곧바로 채워지고, 다른 참여자들의 매칭은
+   * 비동기로 개별 진행된다.
+   */
+  addMixedTrack: (selected: {
+    serviceTrackId: string;
+    title: string;
+    artist: string;
+    albumArtUrl?: string;
+    durationMs: number;
+  }) => void;
+  /** 매칭 확인 카드의 "확정하기" — 지금 표시 중인 매칭 결과를 그대로 채택 (2.11b). */
+  confirmMyMatch: (entryId: string) => void;
+  /** "다른 결과 보기"에서 대체 후보를 골랐을 때 — 즉시 확정하지 않고 다시 확인시킨다 (2.11c). */
+  selectMyMatchCandidate: (entryId: string, candidate: MatchedTrackCandidate) => void;
+  /** "직접 검색하기"로 내가 원하는 트랙을 스스로 지정 — 이 선택은 바로 최종 확정된다 (2.11/2.11d). */
+  manualMatchTrack: (entryId: string, selected: {
+    serviceTrackId: string;
+    title: string;
+    artist: string;
+    albumArtUrl?: string;
+    durationMs: number;
+  }) => void;
+  /** 매칭 실패 안내의 "이 곡 없이 넘어가기" — 이 곡 재생 구간 동안 나만 대기 상태로 넘어간다 (2.11d). */
+  skipMyMatch: (entryId: string) => void;
+  /** 내가 아직 확인/처리하지 않은 매칭 항목의 entryId 목록(2.11a "확인할 매칭 N개" 배지, 큐 순서). */
+  myPendingMatchEntryIds: string[];
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -107,25 +149,28 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     triggerTuning();
     setSession(prev => {
       if (!prev) {return prev;}
-      const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);
-      const next = prev.playlist[currentIndex + 1];
-      if (!next) {
-        return prev;
+      if (prev.service === 'mixed') {
+        const {list, nextEntryId} = advanceToNext(prev.mixedPlaylist, prev.playback.currentEntryId);
+        if (!nextEntryId) {return prev;}
+        return {
+          ...prev,
+          mixedPlaylist: list,
+          playback: {
+            currentEntryId: nextEntryId,
+            positionMs: 0,
+            isPlaying: true,
+            serverTimestamp: Date.now(),
+            updatedByParticipantId: currentParticipantId ?? prev.hostParticipantId,
+          },
+        };
       }
-      const playlist = prev.playlist.map(entry => {
-        if (entry.entryId === prev.playback.currentEntryId) {
-          return {...entry, playedStatus: 'played' as const};
-        }
-        if (entry.entryId === next.entryId) {
-          return {...entry, playedStatus: 'playing' as const};
-        }
-        return entry;
-      });
+      const {list, nextEntryId} = advanceToNext(prev.playlist, prev.playback.currentEntryId);
+      if (!nextEntryId) {return prev;}
       return {
         ...prev,
-        playlist,
+        playlist: list,
         playback: {
-          currentEntryId: next.entryId,
+          currentEntryId: nextEntryId,
           positionMs: 0,
           isPlaying: true,
           serverTimestamp: Date.now(),
@@ -139,25 +184,28 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     triggerTuning();
     setSession(prev => {
       if (!prev) {return prev;}
-      const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);
-      const previous = currentIndex > 0 ? prev.playlist[currentIndex - 1] : undefined;
-      if (!previous) {
-        return prev;
+      if (prev.service === 'mixed') {
+        const {list, prevEntryId} = advanceToPrev(prev.mixedPlaylist, prev.playback.currentEntryId);
+        if (!prevEntryId) {return prev;}
+        return {
+          ...prev,
+          mixedPlaylist: list,
+          playback: {
+            currentEntryId: prevEntryId,
+            positionMs: 0,
+            isPlaying: true,
+            serverTimestamp: Date.now(),
+            updatedByParticipantId: currentParticipantId ?? prev.hostParticipantId,
+          },
+        };
       }
-      const playlist = prev.playlist.map(entry => {
-        if (entry.entryId === prev.playback.currentEntryId) {
-          return {...entry, playedStatus: 'pending' as const};
-        }
-        if (entry.entryId === previous.entryId) {
-          return {...entry, playedStatus: 'playing' as const};
-        }
-        return entry;
-      });
+      const {list, prevEntryId} = advanceToPrev(prev.playlist, prev.playback.currentEntryId);
+      if (!prevEntryId) {return prev;}
       return {
         ...prev,
-        playlist,
+        playlist: list,
         playback: {
-          currentEntryId: previous.entryId,
+          currentEntryId: prevEntryId,
           positionMs: 0,
           isPlaying: true,
           serverTimestamp: Date.now(),
@@ -184,6 +232,39 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     (entryId: string) => {
       setSession(prev => {
         if (!prev) {return prev;}
+
+        if (prev.service === 'mixed') {
+          const wasCurrent = prev.playback.currentEntryId === entryId;
+          const removedIndex = prev.mixedPlaylist.findIndex(e => e.entryId === entryId);
+          const mixedPlaylistAfterRemoval = sessionService.removeMixedTrack(prev.sessionId, entryId);
+          if (!wasCurrent) {
+            return {...prev, mixedPlaylist: mixedPlaylistAfterRemoval};
+          }
+          const next = nextAfterRemoval(prev.mixedPlaylist, removedIndex);
+          if (!next) {
+            return {
+              ...prev,
+              mixedPlaylist: mixedPlaylistAfterRemoval,
+              playback: {...prev.playback, currentEntryId: null, isPlaying: false, positionMs: 0},
+            };
+          }
+          triggerTuning();
+          const mixedPlaylist = mixedPlaylistAfterRemoval.map(entry =>
+            entry.entryId === next.entryId ? {...entry, playedStatus: 'playing' as const} : entry,
+          );
+          return {
+            ...prev,
+            mixedPlaylist,
+            playback: {
+              currentEntryId: next.entryId,
+              positionMs: 0,
+              isPlaying: true,
+              serverTimestamp: Date.now(),
+              updatedByParticipantId: currentParticipantId ?? prev.hostParticipantId,
+            },
+          };
+        }
+
         const wasCurrent = prev.playback.currentEntryId === entryId;
         const removedIndex = prev.playlist.findIndex(e => e.entryId === entryId);
         const playlistAfterRemoval = sessionService.removeTrack(prev.sessionId, entryId);
@@ -193,7 +274,7 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
         }
 
         // 04-playlist.md 기능 목록 2번: 현재 재생 중인 곡이 삭제되면 남은 큐의 다음 곡으로 자동 전환한다.
-        const next = removedIndex >= 0 ? prev.playlist[removedIndex + 1] : undefined;
+        const next = nextAfterRemoval(prev.playlist, removedIndex);
         if (!next) {
           // 다음 곡이 없으면 "재생할 곡 없음" 상태를 유지한다(정상 동작).
           return {
@@ -237,21 +318,15 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
   const requestMoveTrack = useCallback((entryId: string, direction: 'up' | 'down') => {
     setSession(prev => {
       if (!prev) {return prev;}
-      const currentIndex = prev.playlist.findIndex(e => e.entryId === prev.playback.currentEntryId);
-      const idx = prev.playlist.findIndex(e => e.entryId === entryId);
-      if (idx < 0 || idx <= currentIndex) {
-        // 대상을 찾지 못했거나(이미 삭제됨) 재생 완료/현재 재생 중인 곡이면 이동시키지 않는다.
-        return prev;
+      if (prev.service === 'mixed') {
+        const reordered = reorderWithinQueue(prev.mixedPlaylist, prev.playback.currentEntryId, entryId, direction);
+        if (reordered === prev.mixedPlaylist) {return prev;}
+        const mixedPlaylist = sessionService.reorderMixedPlaylist(prev.sessionId, reordered.map(e => e.entryId));
+        return {...prev, mixedPlaylist};
       }
-      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (targetIdx <= currentIndex || targetIdx >= prev.playlist.length) {
-        // 위로 이동 시 현재 재생 중인 곡 자리로 넘어가거나, 아래로 이동 시 배열 끝을 넘어가면 무시.
-        return prev;
-      }
-      const reordered = [...prev.playlist];
-      [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
-      const orderedEntryIds = reordered.map(e => e.entryId);
-      const playlist = sessionService.reorderPlaylist(prev.sessionId, orderedEntryIds);
+      const reordered = reorderWithinQueue(prev.playlist, prev.playback.currentEntryId, entryId, direction);
+      if (reordered === prev.playlist) {return prev;}
+      const playlist = sessionService.reorderPlaylist(prev.sessionId, reordered.map(e => e.entryId));
       return {...prev, playlist};
     });
   }, []);
@@ -271,6 +346,201 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       return {...prev, participants};
     });
   }, []);
+
+  // ---- 혼합(Mixed) 세션 전용 (04-playlist.md, 09-cross-platform-mixed-mode.md "결정 2") ----
+
+  const myPlatform = useMemo<MixedParticipantPlatform | null>(() => {
+    if (!session || session.service !== 'mixed' || !currentParticipantId) {
+      return null;
+    }
+    const me = session.participants.find(p => p.participantId === currentParticipantId);
+    return me?.platform ?? null;
+  }, [session, currentParticipantId]);
+
+  const addMixedTrack = useCallback<SessionContextValue['addMixedTrack']>(
+    selected => {
+      if (!session || !currentParticipantId) {return;}
+      const me = session.participants.find(p => p.participantId === currentParticipantId);
+      if (!me || !me.platform) {return;}
+
+      const common = {
+        title: selected.title,
+        artist: selected.artist,
+        durationMs: selected.durationMs,
+        thumbnailUrl: selected.albumArtUrl,
+      };
+      const adderMatch: MatchedTrackCandidate = {
+        service: me.platform,
+        serviceTrackId: selected.serviceTrackId,
+        title: selected.title,
+        artist: selected.artist,
+        albumArtUrl: selected.albumArtUrl,
+        durationMs: selected.durationMs,
+        matchScore: 100,
+        confidenceLevel: 'high',
+      };
+      const entryId = generateId('mixed_entry');
+
+      setSession(prev => {
+        if (!prev) {return prev;}
+        const mixedPlaylist = sessionService.addMixedTrack(prev.sessionId, entryId, common, me, adderMatch);
+        const playback =
+          prev.playback.currentEntryId === null
+            ? {
+                currentEntryId: entryId,
+                positionMs: 0,
+                isPlaying: true,
+                serverTimestamp: Date.now(),
+                updatedByParticipantId: currentParticipantId,
+              }
+            : prev.playback;
+        return {...prev, mixedPlaylist, playback};
+      });
+
+      // 04-playlist.md "혼합 모드 플레이리스트 구조": 곡을 추가한 사람뿐 아니라 세션에 참여 중인
+      // 모든 참여자의 클라이언트가 각자 자신의 플랫폼에서 매칭을 시도한다. 각 참여자의 검색은
+      // 서로 독립적으로 진행되고(09문서 결정 2-3), 끝나는 대로 하나씩 반영한다.
+      session.participants
+        .filter(p => p.participantId !== me.participantId)
+        .forEach(participant => {
+          resolveParticipantMatch(common, participant)
+            .then(match => {
+              setSession(prev => {
+                if (!prev) {return prev;}
+                const mixedPlaylist = sessionService.setParticipantMatch(
+                  prev.sessionId,
+                  entryId,
+                  participant.participantId,
+                  match,
+                );
+                return {...prev, mixedPlaylist};
+              });
+            })
+            .catch(() => {
+              setSession(prev => {
+                if (!prev) {return prev;}
+                const mixedPlaylist = sessionService.setParticipantMatch(prev.sessionId, entryId, participant.participantId, {
+                  status: 'failed',
+                  confirmState: 'pending',
+                  candidates: [],
+                  skipped: false,
+                });
+                return {...prev, mixedPlaylist};
+              });
+            });
+        });
+    },
+    [session, currentParticipantId],
+  );
+
+  const confirmMyMatch = useCallback(
+    (entryId: string) => {
+      if (!currentParticipantId) {return;}
+      setSession(prev => {
+        if (!prev) {return prev;}
+        const entry = prev.mixedPlaylist.find(e => e.entryId === entryId);
+        const current = entry?.matches[currentParticipantId];
+        if (!current || current.status !== 'matched') {return prev;}
+        const mixedPlaylist = sessionService.setParticipantMatch(prev.sessionId, entryId, currentParticipantId, {
+          ...current,
+          confirmState: 'confirmed',
+        });
+        return {...prev, mixedPlaylist};
+      });
+    },
+    [currentParticipantId],
+  );
+
+  const selectMyMatchCandidate = useCallback(
+    (entryId: string, candidate: MatchedTrackCandidate) => {
+      if (!currentParticipantId) {return;}
+      setSession(prev => {
+        if (!prev) {return prev;}
+        const entry = prev.mixedPlaylist.find(e => e.entryId === entryId);
+        const current = entry?.matches[currentParticipantId];
+        if (!current) {return prev;}
+        // 후보를 고르면 "선택 즉시 확정"하지 않고 다시 확인시킨다(00-ux-flow.md 2.11c) — 이전 track과
+        // 남은 후보들을 다시 후보 목록으로 합쳐 넣어 되돌아갈 수 있게 한다.
+        const remainingCandidates = [...current.candidates.filter(c => c.serviceTrackId !== candidate.serviceTrackId)];
+        if (current.track && current.track.serviceTrackId !== candidate.serviceTrackId) {
+          remainingCandidates.push(current.track);
+        }
+        remainingCandidates.sort((a, b) => b.matchScore - a.matchScore);
+        const mixedPlaylist = sessionService.setParticipantMatch(prev.sessionId, entryId, currentParticipantId, {
+          status: 'matched',
+          track: candidate,
+          confirmState: 'pending',
+          candidates: remainingCandidates,
+          skipped: false,
+        });
+        return {...prev, mixedPlaylist};
+      });
+    },
+    [currentParticipantId],
+  );
+
+  const manualMatchTrack = useCallback<SessionContextValue['manualMatchTrack']>(
+    (entryId, selected) => {
+      if (!session || !currentParticipantId) {return;}
+      const me = session.participants.find(p => p.participantId === currentParticipantId);
+      if (!me || !me.platform) {return;}
+      setSession(prev => {
+        if (!prev) {return prev;}
+        const track: MatchedTrackCandidate = {
+          service: me.platform as MixedParticipantPlatform,
+          serviceTrackId: selected.serviceTrackId,
+          title: selected.title,
+          artist: selected.artist,
+          albumArtUrl: selected.albumArtUrl,
+          durationMs: selected.durationMs,
+          matchScore: 100,
+          confidenceLevel: 'high',
+        };
+        const mixedPlaylist = sessionService.setParticipantMatch(prev.sessionId, entryId, currentParticipantId, {
+          status: 'matched',
+          track,
+          confirmState: 'manual',
+          candidates: [],
+          skipped: false,
+        });
+        return {...prev, mixedPlaylist};
+      });
+    },
+    [session, currentParticipantId],
+  );
+
+  const skipMyMatch = useCallback(
+    (entryId: string) => {
+      if (!currentParticipantId) {return;}
+      setSession(prev => {
+        if (!prev) {return prev;}
+        const entry = prev.mixedPlaylist.find(e => e.entryId === entryId);
+        const current = entry?.matches[currentParticipantId];
+        if (!current) {return prev;}
+        const mixedPlaylist = sessionService.setParticipantMatch(prev.sessionId, entryId, currentParticipantId, {
+          ...current,
+          skipped: true,
+        });
+        return {...prev, mixedPlaylist};
+      });
+    },
+    [currentParticipantId],
+  );
+
+  const myPendingMatchEntryIds = useMemo(() => {
+    if (!session || session.service !== 'mixed' || !currentParticipantId) {
+      return [];
+    }
+    return session.mixedPlaylist
+      .filter(entry => {
+        const match = entry.matches[currentParticipantId];
+        if (!match) {return false;}
+        if (match.status === 'matched' && match.confirmState === 'pending') {return true;}
+        if (match.status === 'failed' && !match.skipped) {return true;}
+        return false;
+      })
+      .map(entry => entry.entryId);
+  }, [session, currentParticipantId]);
 
   // 02-key-ui-patterns.md 2.3절: "세션 전체 중 가장 안 좋은 상태를 대표로 보여준다".
   // TODO(Firebase): 실제 드리프트 측정치로 교체 — 지금은 참여자별 목업 delaySeconds 기반.
@@ -307,6 +577,13 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestMoveTrack,
       appointAdmin,
       revokeAdmin,
+      myPlatform,
+      addMixedTrack,
+      confirmMyMatch,
+      selectMyMatchCandidate,
+      manualMatchTrack,
+      skipMyMatch,
+      myPendingMatchEntryIds,
     }),
     [
       session,
@@ -324,6 +601,13 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
       requestMoveTrack,
       appointAdmin,
       revokeAdmin,
+      myPlatform,
+      addMixedTrack,
+      confirmMyMatch,
+      selectMyMatchCandidate,
+      manualMatchTrack,
+      skipMyMatch,
+      myPendingMatchEntryIds,
     ],
   );
 

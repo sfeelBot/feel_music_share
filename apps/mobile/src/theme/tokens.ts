@@ -26,6 +26,9 @@ export interface ColorTokens {
   mutedRedBg: string;
   roleGoldBg: string;
   roleSlateBg: string;
+  matchHighBg: string;
+  matchMediumBg: string;
+  matchLowBg: string;
 }
 
 // 참여자별 컬러 링 (선곡자 배지, 01-style-guide.md 4절 / 03 mockup --color-picker-*)
@@ -49,6 +52,13 @@ export const syncColors = {
 export const roleColors = {
   gold: '#D9A441', // 방장
   slate: '#7C6F9E', // 관리자
+};
+
+// 매칭 신뢰도 등급 색 (02-key-ui-patterns.md 5.3절 / 03 mockup --color-match-*)
+export const matchColors = {
+  high: '#3FA66B',
+  medium: '#E2A33B',
+  low: '#C1502E',
 };
 
 export const brand = {
@@ -75,6 +85,9 @@ export const lightColors: ColorTokens = {
   mutedRedBg: 'rgba(228, 87, 61, 0.14)',
   roleGoldBg: 'rgba(217, 164, 65, 0.16)',
   roleSlateBg: 'rgba(124, 111, 158, 0.14)',
+  matchHighBg: 'rgba(63, 166, 107, 0.14)',
+  matchMediumBg: 'rgba(226, 163, 59, 0.16)',
+  matchLowBg: 'rgba(193, 80, 46, 0.14)',
 };
 
 export const darkColors: ColorTokens = {
@@ -95,6 +108,9 @@ export const darkColors: ColorTokens = {
   mutedRedBg: 'rgba(228, 87, 61, 0.22)',
   roleGoldBg: 'rgba(217, 164, 65, 0.24)',
   roleSlateBg: 'rgba(124, 111, 158, 0.26)',
+  matchHighBg: 'rgba(63, 166, 107, 0.22)',
+  matchMediumBg: 'rgba(226, 163, 59, 0.22)',
+  matchLowBg: 'rgba(193, 80, 46, 0.22)',
 };
 
 // 01-style-guide.md 3절 타이포 위계 (시스템 폰트 사용 — iOS SF Pro / Android Roboto 계열 기본값 그대로 사용)
