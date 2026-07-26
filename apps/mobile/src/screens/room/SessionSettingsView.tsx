@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Alert, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {PrimaryButton, SecondaryButton} from '../../components/Buttons';
 import {useTheme} from '../../theme/ThemeContext';
@@ -30,6 +30,17 @@ import type {ParticipantRole, SessionState} from '../../types/domain';
  * ⏳ 이모지(CSS `spin` 애니메이션)만 RN 관용구인 `ActivityIndicator`로 대체했다(정적 HTML 목업의
  * CSS 키프레임 애니메이션을 그대로 옮기기보다 RN 표준 스피너를 쓰는 것이 유지보수·접근성 양쪽에서
  * 낫다고 판단, 텍스트 카피는 100% 동일하게 유지).
+ *
+ * (2026-07-26 추가) 초대 코드 표시(00-ux-flow.md 2.7절, US-201) — `session.inviteCode`를 노출할 UI가
+ * 그동안 앱 어디에도 없었다(방장이 "코드로 참여하기" 상대에게 코드를 알려줄 방법이 없는 갭).
+ * 2.7 목업은 세션 생성 직후 QR코드까지 포함한 전용 화면을 그리지만, 이번 라운드에서는 정원 읽기
+ * 전용 표시(`CapacityRow`) 바로 위에 `InviteCodeRow`만 추가했다 — (1) QR 코드는 생성 라이브러리
+ * 신규 설치가 필요해 "가능하면 새 네이티브 의존성을 피한다"는 이전 라운드 관례에 어긋나고, (2)
+ * 세션 설정은 언제든 열 수 있어 "생성 직후 1회성 노출"이 없어도 기능적 갭이 남지 않는다고 판단했다
+ * (근거는 implementation-log.md에도 남김). 복사는 RN 코어의 `Clipboard`가 deprecated라 대신 코어의
+ * `Share.share()`(신규 의존성 불필요)로 공유 시트를 띄운다 — OS 공유 시트 자체에 "복사" 옵션이
+ * 포함되는 경우가 많아(카카오톡/메시지 공유 포함) 2.7 목업의 "링크 공유하기"+"코드 복사" 두 버튼을
+ * 하나로 합쳐도 실질적 기능 갭이 없다고 판단했다.
  */
 interface SessionSettingsViewProps {
   visible: boolean;
@@ -84,6 +95,7 @@ export default function SessionSettingsView({
           role={viewerRole}
           onResignAdmin={() => confirmResign(onResignAdmin)}
         />
+        <InviteCodeRow inviteCode={session.inviteCode} sessionName={session.sessionName} />
         <CapacityRow capacity={session.capacity} />
         <MixedPlatformRow myPlatform={myPlatform} />
       </SettingsShell>
@@ -115,6 +127,7 @@ export default function SessionSettingsView({
   return (
     <SettingsShell visible={visible} onClose={onClose}>
       <RoleSection role={viewerRole} onResignAdmin={() => confirmResign(onResignAdmin)} />
+      <InviteCodeRow inviteCode={session.inviteCode} sessionName={session.sessionName} />
       <CapacityRow capacity={session.capacity} />
       <ServiceSwitchRow activeService={activeService} canSwitch={canSwitch} onPressSwitch={openSwitchDialog} />
 
@@ -175,6 +188,42 @@ function RoleSection({role, onResignAdmin}: {role: ParticipantRole; onResignAdmi
           <Text style={[styles.linkText, {color: brand.primary}]}>관리자 사임하기 →</Text>
         </TouchableOpacity>
       )}
+    </View>
+  );
+}
+
+/**
+ * 초대 코드 표시 (00-ux-flow.md 2.7절, US-201) — 방장/참여자 누구나 확인 가능(코드 자체는 비밀 정보가
+ * 아니라 세션 정원 내 참여를 위한 공유 값이므로 역할 제한을 두지 않았다). "공유하기"는 OS 공유
+ * 시트(`Share.share`)를 띄운다 — 실패(사용자 취소 포함)해도 조용히 무시한다(취소는 에러가 아님).
+ */
+function InviteCodeRow({inviteCode, sessionName}: {inviteCode: string; sessionName: string}) {
+  const theme = useTheme();
+
+  const shareInviteCode = async () => {
+    try {
+      await Share.share({
+        message: `${sessionName} 세션에 초대할게요! Samewave 앱에서 초대 코드 "${inviteCode}"로 참여해보세요.`,
+      });
+    } catch {
+      // 사용자가 공유를 취소한 경우 등 — 별도 에러 처리 없이 조용히 무시한다.
+    }
+  };
+
+  return (
+    <View style={[styles.card, {backgroundColor: theme.cardBg}]}>
+      <Text style={[styles.rowLabel, {color: theme.text}]}>초대 코드</Text>
+      <Text style={[styles.inviteCodeText, {color: brand.primary}]}>{inviteCode}</Text>
+      <Text style={[styles.helperText, {color: theme.textSecondary}]}>
+        이 코드를 상대에게 알려주면 "코드로 참여하기"로 이 세션에 들어올 수 있어요.
+      </Text>
+      <TouchableOpacity
+        onPress={shareInviteCode}
+        accessibilityRole="button"
+        accessibilityLabel="초대 코드 공유하기"
+        style={[styles.switchButton, {borderColor: brand.primary}]}>
+        <Text style={[styles.switchButtonText, {color: brand.primary}]}>초대 코드 공유하기 ▸</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -314,6 +363,7 @@ const styles = StyleSheet.create({
   section: {gap: 8},
   card: {borderRadius: 12, padding: 14, gap: 8},
   rowLabel: {fontSize: 15, fontWeight: '700'},
+  inviteCodeText: {fontSize: 26, fontWeight: '800', letterSpacing: 4},
   linkText: {fontSize: 13, fontWeight: '700'},
   helperText: {fontSize: 12, lineHeight: 17},
   switchButton: {alignSelf: 'flex-start', borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8},

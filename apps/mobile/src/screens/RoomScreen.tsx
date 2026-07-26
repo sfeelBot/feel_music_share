@@ -113,7 +113,7 @@ export default function RoomScreen(_props: Props) {
           <NowPlayingView onOpenParticipants={() => setParticipantsVisible(true)} />
         )
       ) : (
-        <PlaylistView />
+        <PlaylistView onOpenSettings={() => setSettingsVisible(true)} />
       )}
 
       <ParticipantsBottomSheet

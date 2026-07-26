@@ -9,10 +9,10 @@ import type {MixedParticipantPlatform} from '../types/domain';
  * "이 세션 전체가 어떤 서비스로 재생될지"가 아니라 "나 개인이 어떤 서비스로 참여할지"를 정하는
  * 선택이라는 점을 문구로 명시한다(09문서 "결정 3").
  *
- * (2026-07-26 스코프 판단) 이번 라운드에서는 세션 생성 화면(CreateSessionScreen)의 호스트 플로우
- * 에만 실제로 연결했다 — "코드로 참여하기"(HomeScreen.tsx)가 아직 Alert 스텁이라 참여자 쪽 진입
- * 경로 자체가 이 앱에 없기 때문(리더 지시 범위 밖, 기존 라운드부터 있던 제약). 컴포넌트 자체는
- * props만으로 완결되어 있어 참여자 플로우가 생기면 그대로 재사용할 수 있다.
+ * 호스트(CreateSessionScreen)·참여자(HomeScreen의 "코드로 참여하기", 혼합 세션 참여 시) 양쪽 플로우
+ * 모두에 실제로 연결되어 있다(커밋 `caea14d`; 2026-07-26 정정 — 이전 주석은 "코드로 참여하기가 아직
+ * Alert 스텁이라 참여자 쪽엔 연결되지 않았다"고 남아 있었지만, 이미 그 스텁은 실제 동작으로
+ * 교체됐다, Round 10 QA 지적 반영).
  */
 interface PlatformSelectProps {
   value: MixedParticipantPlatform;

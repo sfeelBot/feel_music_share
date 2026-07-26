@@ -25,8 +25,23 @@ import type {MixedPlaylistEntry, PlaylistEntry} from '../../types/domain';
  * (04-playlist.md "혼합 모드 플레이리스트 구조"), 상단 서비스 칩 자리를 매칭 확인 배지(2.11a)가
  * 대신하고(00-ux-flow.md 2.10b 갱신 내용), 각 트랙 행은 "내 매칭" 상태(찾는 중/확인 필요/확정됨)를
  * 함께 보여준다.
+ *
+ * (2026-07-26 추가) 서비스 칩 → 세션 설정 단축 진입점(00-ux-flow.md 457행 "칩을 탭하면 세션 설정의
+ * 서비스 전환 화면(2.13a)으로 바로 이동하는 단축 진입점으로 겸용한다"). `onOpenSettings`를 호출하는
+ * 쪽(RoomScreen.tsx)이 이미 갖고 있는 세션 설정 오픈 로직을 그대로 재사용한다 — 이 화면이 직접
+ * `SessionSettingsView`를 렌더링하지 않는 기존 구조를 유지하기 위함.
+ * 혼합 세션에서는 이 onPress를 연결하지 않았다 — 혼합 세션은 위에서 설명한 대로 서비스 칩 자리 자체가
+ * 매칭 확인 배지로 대체돼 있어(전환 개념이 없으므로 "서비스 전환 단축 진입점"이라는 원래 목적 자체가
+ * 성립하지 않음, 09문서 "결정 3"), 탭할 칩이 물리적으로 존재하지 않는다. 세션 설정의 "내가 참여 중인
+ * 플랫폼" 읽기 전용 표시(SessionSettingsView.tsx MixedPlatformRow)는 참여자 목록(⋮ → 세션 설정)에서
+ * 이미 동일하게 확인 가능하므로 기능적 갭도 없다고 판단했다(근거는 implementation-log.md에도 남김).
  */
-export default function PlaylistView() {
+interface PlaylistViewProps {
+  /** 서비스 칩(Spotify/YouTube 전용 세션에서만 노출) 탭 시 세션 설정 화면을 열기 위한 콜백. */
+  onOpenSettings: () => void;
+}
+
+export default function PlaylistView({onOpenSettings}: PlaylistViewProps) {
   const theme = useTheme();
   const {profile, tokens} = useAuth();
   const {
@@ -185,7 +200,11 @@ export default function PlaylistView() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.serviceChip} accessibilityRole="button">
+      <TouchableOpacity
+        style={styles.serviceChip}
+        onPress={onOpenSettings}
+        accessibilityRole="button"
+        accessibilityLabel={`${serviceChip.label} — 세션 설정 열기`}>
         <Text style={[styles.serviceChipText, {color: serviceChip.color}]}>{serviceChip.label}</Text>
       </TouchableOpacity>
 

@@ -81,9 +81,11 @@ export function getSession(sessionId: string): SessionState | undefined {
 }
 
 /**
- * 초대 코드로 세션을 조회한다(참여 여부와 무관하게 읽기 전용) — "코드로 참여하기"(HomeScreen.tsx)의
- * 사전 조회에도, joinSessionByCode 내부에도 함께 쓰인다. 초대 코드는 항상 대문자로 발급되므로
- * (utils/id.ts generateInviteCode) 사용자가 소문자로 입력해도 매칭되도록 정규화한다.
+ * 초대 코드로 세션을 조회한다(참여 여부와 무관하게 읽기 전용) — 현재는 아래 `joinSessionByCode`
+ * 내부에서만 호출된다(HomeScreen.tsx는 이 함수를 직접 호출하지 않고 joinSessionByCode를 통해서만
+ * 코드를 조회한다; 2026-07-26 정정 — 이전 주석은 "HomeScreen.tsx의 사전 조회에도 쓰인다"고 과장
+ * 서술했었다, Round 10 QA 지적 반영). 초대 코드는 항상 대문자로 발급되므로(utils/id.ts
+ * generateInviteCode) 사용자가 소문자로 입력해도 매칭되도록 정규화한다.
  *
  * TODO(Firebase 연동): `sessions/{sessionId}` 컬렉션을 inviteCode로 조회하려면 별도 인덱스(또는
  * `inviteCodes/{code} -> sessionId` 매핑 문서)가 필요하다 — 지금은 in-memory Map 전체를 순회한다

@@ -397,3 +397,33 @@
 - 비고(검증 시 주의):
   - 실기기/에뮬레이터 시나리오: (1) 방장 시점 — Spotify 세션에서 세션 설정 진입 → "전환하기" 탭 → 확인 다이얼로그(재생 중단/보존 안내 문구 확인) → "전환하기" 확정 → 전환 중 오버레이(약 1.4초) → 세션 메인으로 자동 복귀 + 상단 토스트 확인 → 플레이리스트 탭에서 서비스가 YouTube로 바뀌었는지, "다시 전환하기"로 Spotify로 되돌아가는지. (2) 관리자 시점 — 세션 설정에 "관리자 사임하기" 링크가 보이는지, 탭 시 `Alert` 확인 → 사임 후 "내 역할"이 "일반 참여자"로 바뀌고 전환 버튼이 즉시 비활성화되는지(방장이 다시 임명하면 원상복구되는지도 함께). (3) 일반사용자 시점 — 전환 버튼이 비활성(회색)이고 안내 문구가 보이는지, 탭해도 다이얼로그가 뜨지 않는지. (4) 혼합 세션 — 세션 설정에 서비스 전환 항목 자체가 없고 "내가 참여 중인 플랫폼" 읽기 전용 카드만 보이는지, `ParticipantsBottomSheet`에는 더 이상 이 텍스트가 없는지.
   - 커밋은 하지 않았다 — 리더 검토 후 처리. worktree 브랜치: `worktree-agent-a9d7e2ffe97d0f204`(경로: `E:\music share\.claude\worktrees\agent-a9d7e2ffe97d0f204`). 이 브랜치는 착수 전 `main`(`b78621d`)을 이미 병합해 최신 상태다.
+
+## 2026-07-26 (2)
+- 작업: `docs/roadmap.md` "다음 순서" 1번(초대 코드 표시, 2.7 갭 해소)·2번(플레이리스트 서비스 칩 → 세션 설정 연결, 2.10b 갭 해소) 구현 + Round 10 지적 문서 주석 오류 2건 정정.
+- 상태: 완료(검증 대기)
+
+### 1. 초대 코드 표시 (2.7 갭 해소)
+- `grep -rn "inviteCode" apps/mobile/src/screens apps/mobile/src/components`로 재확인한 결과 지시대로 표시 UI가 전혀 없었음을 확인 후 착수.
+- `apps/mobile/src/screens/room/SessionSettingsView.tsx`에 `InviteCodeRow` 컴포넌트를 신규 추가 — "내 역할" 섹션 바로 아래, `CapacityRow`(정원 읽기 전용 표시) 바로 위에 배치했다(정원처럼 "세션의 고정 정보를 확인하는 자리"라는 성격이 비슷하다고 판단). 혼합/Spotify·YouTube 두 렌더 분기(`shouldShowServiceSwitch` true/false) 모두에 동일하게 배치해 세션 유형과 무관하게 항상 노출되게 했다.
+- 복사/공유는 **`Share.share()`만 사용**했다(지시대로 신규 `@react-native-clipboard/clipboard` 설치를 하지 않는 쪽으로 판단). 근거: (1) RN 코어 `Clipboard`는 이미 deprecated, (2) OS 공유 시트(카카오톡/메시지 등)에는 대개 "복사" 옵션도 함께 노출되는 경우가 많아 2.7 목업의 "링크 공유하기"+"코드 복사" 두 버튼을 하나(`Share.share`)로 합쳐도 실질적 기능 갭이 크지 않다고 판단, (3) 새 네이티브 의존성을 추가하면 Android 빌드 재검증 부담이 커진다는 이전 라운드 관례를 유지. 공유 메시지에 세션명 + 초대 코드를 포함시켰다.
+- **세션 생성 직후 전용 노출(2.7 목업의 QR코드 포함 화면)은 생략했다** — 근거: (1) QR 코드 생성은 새 라이브러리 설치가 필요해 "가능하면 새 네이티브/JS 의존성을 피한다"는 원칙에 어긋나고, (2) 세션 설정은 방장이 언제든 열 수 있는 화면이라 "생성 직후 1회성 노출"이 없어도 기능적 갭(코드를 확인할 방법이 아예 없는 상태)은 완전히 해소된다. 이 판단 근거는 `SessionSettingsView.tsx` 파일 상단 주석에도 남겨뒀다. 필요하다면 후속 라운드에서 세션 생성 완료 시 토스트/모달로 짧게 노출하는 것을 제안한다(`docs/roadmap.md` "낮은 우선순위" 절로 이관 고려 가능 — 리더 판단 필요).
+
+### 2. 플레이리스트 서비스 칩 → 세션 설정 연결 (2.10b 갭 해소)
+- `apps/mobile/src/screens/room/PlaylistView.tsx`에 `onOpenSettings: () => void` prop을 추가하고, Spotify/YouTube 전용 세션 분기의 서비스 칩(`🟢 Spotify 플레이리스트 ▸` 등) `onPress`에 연결했다.
+- `apps/mobile/src/screens/RoomScreen.tsx`에서 `<PlaylistView onOpenSettings={() => setSettingsVisible(true)} />`로 배선 — 이미 있던 `settingsVisible` state와 `SessionSettingsView` 렌더 로직을 그대로 재사용했다(신규 상태/컴포넌트 없음).
+- **혼합 세션에서는 칩에 onPress를 연결하지 않았다.** 판단 근거: `PlaylistView.tsx`의 혼합 세션 분기는 애초에 "서비스 칩" 자체가 없다 — 기존 코드(파일 상단 주석, 2026-07-26 확장 절)가 이미 "혼합 세션은 상단 서비스 칩 자리를 매칭 확인 배지(2.11a)가 대신한다"고 명시해뒀고, 실제로 렌더링되는 것도 `matchBadge`(탭하면 `MatchingQueueSheet`를 여는 별도 기능)뿐 서비스 칩이 아니다. 09문서 "결정 3"대로 혼합 세션엔 세션 전체 차원의 서비스 전환 개념 자체가 없어 "서비스 전환 화면 단축 진입점"이라는 칩의 원래 존재 이유가 성립하지 않는다. 지시문이 제안한 "탭하면 세션 설정을 열어 읽기 전용 표시를 보여주는" 대안 동작은, 이미 존재하는 경로(⋮ → 참여자 목록 → "세션 설정" 링크 → `MixedPlatformRow` 읽기 전용 카드)로 충분히 도달 가능하므로 별도로 새 탭 대상을 추가하지 않았다. 즉 갭이 아니라 "애초에 탭할 칩이 물리적으로 없는" 상태로 판단 — 근거는 `PlaylistView.tsx` 파일 상단 주석에도 남겨뒀다.
+
+### 3. Round 10 문서 주석 오류 2건 정정
+1. `apps/mobile/src/services/session/sessionService.ts`의 `getSessionByInviteCode` JSDoc — "HomeScreen.tsx의 사전 조회에도... 함께 쓰인다"는 과장 서술을 제거하고, `grep -rn "getSessionByInviteCode"`로 실제 호출부를 재확인해(같은 파일의 `joinSessionByCode` 내부 1곳뿐) 그 사실만 남기도록 정정.
+2. `apps/mobile/src/components/PlatformSelect.tsx`의 "코드로 참여하기는 Alert 스텁이라 참여자 쪽엔 연결 안 됨" 낡은 주석 — `HomeScreen.tsx`에서 실제로 `<PlatformSelect value={joiningPlatform} onChange={setJoiningPlatform} />`로 연결돼 있음을 재확인 후, 호스트/참여자 양쪽 다 연결돼 있다는 정확한 서술로 교체.
+
+### 4. 검증
+- `npx tsc --noEmit`: **0 errors**.
+- `npx eslint .`: **0 errors, 23 warnings** — 지시된 baseline(0 errors/23 warnings)과 정확히 동일, 신규 경고 없음.
+- `npx jest`: **7 suites / 39 tests 전부 통과** — 지시된 baseline(7 suites/39 tests)과 정확히 동일, 회귀 없음.
+- Android: `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon`(지시된 환경변수 그대로) → **BUILD SUCCESSFUL**(203 actionable tasks: 27 executed, 176 up-to-date). 이전 라운드가 겪었던 Windows `MAX_PATH` 관련 ninja 실패는 이번엔 재현되지 않았다(worktree가 아닌 `E:\music share` 기본 경로에서 실행했기 때문으로 추정).
+- 신규 네이티브/JS 의존성 없음(`Share`는 `react-native` 코어 API) — `package.json` 변경 없음.
+- iOS는 기존 라운드들과 동일하게 macOS 부재로 미검증(구조적 제약, 신규 아님).
+- `docs/roadmap.md`도 함께 갱신했다: 2.7 행을 ❌→✅로, 2.10b 행을 🔶→✅로, "다음 순서" 1·2번 체크박스를 모두 체크, 3번(Round 10) 절의 "1번 작업 때 함께 정리 예정" 문구를 정리 완료로 갱신, "완료된 것" 요약 문단도 초대 코드 표시/서비스 칩 연결을 반영해 업데이트했다. 최종 검토는 리더 몫.
+- 변경 파일: 수정 — `apps/mobile/src/screens/room/SessionSettingsView.tsx`, `apps/mobile/src/screens/room/PlaylistView.tsx`, `apps/mobile/src/screens/RoomScreen.tsx`, `apps/mobile/src/services/session/sessionService.ts`, `apps/mobile/src/components/PlatformSelect.tsx`, `docs/roadmap.md`.
+- 비고(검증 시 주의): (1) 세션 설정 화면 진입(⋮ → 참여자 목록 → 세션 설정, 또는 플레이리스트 탭 서비스 칩) 후 "초대 코드" 카드가 정원 카드 위에 보이는지, 코드가 6자리 대문자로 표시되는지, "초대 코드 공유하기" 탭 시 OS 공유 시트가 뜨는지(에뮬레이터에서는 공유 대상 앱이 없어 시트만 뜨고 취소해도 앱이 죽지 않는지 확인 필요). (2) Spotify/YouTube 전용 세션의 플레이리스트 탭에서 서비스 칩을 탭하면 세션 설정 화면이 바로 열리는지. (3) 혼합 세션의 플레이리스트 탭에서는 매칭 배지가 여전히 매칭 큐 시트를 여는 원래 동작 그대로인지(세션 설정으로 잘못 연결되지 않았는지) 확인. (4) 커밋은 하지 않았다 — 리더 검토 후 처리.
