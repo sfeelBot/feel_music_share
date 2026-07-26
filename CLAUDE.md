@@ -34,6 +34,7 @@
 
 - 각 단계 전환 시 리더가 이전 단계 산출물을 확인하고 다음 에이전트에게 컨텍스트를 전달한다.
 - **구현 완료 후 검증 필수**: 구현 에이전트가 작업을 마쳤다고 보고해도, 검증 에이전트가 iOS/Android 두 플랫폼 모두에서 체크리스트를 통과하기 전까지 "완료"로 간주하지 않는다.
+- **스파이크(선행검증)는 필요할 때만 끼워 넣는다**: 기획/구현 단계에서 기술 선택지(예: 백엔드 서비스 종류, 라이브러리 후보) 사이에 실측/조사 근거가 필요하면, 결정을 미룬 채 진행하는 대신 스파이크 에이전트를 호출해 장단점·데이터를 정리시킨 뒤 사용자 결정을 받는다. 스파이크는 검증(Verification)과 달리 구현 이전에 수행하며, 스스로 결정을 내리지 않는다.
 
 ### 로그 규칙 (리더 + 서브에이전트)
 
@@ -43,6 +44,7 @@
 |---|---|---|---|
 | 리더 (Leader) | (메인 세션, 정의 파일 없음) | `docs/agents/leader-log.md` | — (오케스트레이션 기록) |
 | 기획 (Planning) | `.claude/agents/planner.md` | `docs/agents/planning-log.md` | `docs/specs/` |
+| 스파이크 (Spike, 선행검증) | `.claude/agents/spiker.md` | `docs/agents/spike-log.md` | `docs/spikes/` |
 | 디자인 (Design) | `.claude/agents/designer.md` | `docs/agents/design-log.md` | `docs/design/` |
 | 구현 (Implementation) | `.claude/agents/implementer.md` | `docs/agents/implementation-log.md` | (코드) |
 | 검증 (Verification) | `.claude/agents/verifier.md` | `docs/agents/verification-log.md` | `docs/qa/` |

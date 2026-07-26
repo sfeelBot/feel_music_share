@@ -182,3 +182,23 @@
 - 검증(리더 직접 재현): diff 리뷰 완료(정책 준수 — DOM 조작/광고 스킵 없음, 표준 IFrame Player API만 사용, 커스텀 컨트롤이 플레이어 바깥에 위치 확인). `npx tsc --noEmit`(0 errors)·`npx eslint .`(0 errors, 16 warnings — 전부 기존 관용적 패턴)·`npx jest`(1/1 통과) 독립 재현 일치. Android `./gradlew.bat assembleDebug --no-daemon` 독립 재현 → **BUILD SUCCESSFUL**, `react-native-webview` 네이티브 모듈이 별도 수동 설정 없이 autolinking으로 정상 빌드됨(이번 라운드 최대 리스크 지점 — 문제 없음 확인).
 - 외부 액션: 커밋 `125e91e`(`.claude/settings.json` 권한 목록, 별도 커밋) + 커밋(YouTube WebView 연동, 이 로그와 같은 커밋) 생성(push 안 함).
 - 후속 분배: CLAUDE.md 규칙(구현 완료 후 검증 필수)에 따라 verifier에게 이번 라운드 검증 위임 예정 — 광고 감지 휴리스틱은 실기기 없이는 정확도 확인 불가함을 알고 진행, 코드 리뷰 수준 + Android 빌드 재검증 + 정책 준수(8-2/8-3절) 대조에 집중하도록 지시.
+
+## 2026-07-26 (새 세션 — 진행상황 파악 후 이어감)
+
+- 요청: 사용자가 "claude.md파일과 agent들의 log md파일들을 보고 진행하고 있던 것들을 파악하고 해야하는 업무를 하도록 해"라고 요청.
+- 확인(리더 직접 수행): `git fetch`(원격 새 커밋 없음, 로컬이 origin보다 30커밋 앞섬 — push 안 한 누적분), CLAUDE.md 리더 규칙, `docs/agents/*-log.md`, `docs/decisions-needed.md`를 읽고 상태 파악. 직전 세션이 "verifier에게 검증 위임 예정"이라고만 적어두고 실제로는 위임하지 않은 채(계획만 기록) 끝난 것을 발견 — YouTube WebView 연동(커밋 `7a888f2`)이 CLAUDE.md 규칙상 아직 "완료" 아님.
+- 사용자에게 상황 요약 후 진행 확인 받음(CLAUDE.md 리더 규칙 1번 준수).
+- 분배: verifier에게 YouTube WebView+IFrame Player 연동(Round 5) 검증 위임(백그라운드 실행 중) — 정책 준수(8-2/8-3절) 대조, Android 빌드 재검증, 인접 컴포넌트 서비스 격리 가드 누락 여부(R3.17류 패턴) 확인 지시.
+
+- 요청: 사용자가 안드로이드 폰 USB 연결 시 실기기 검증 가능 여부 질문.
+- 결과(리더 직접 답변, 서브에이전트 위임 없음): USB 디버깅 활성화 시 `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능, 이미 세팅된 SDK/JDK(`E:\Android\Sdk`, `D:\Android Studio\jbr`)로 추가 구축 불필요함을 안내. iOS는 USB 연결과 무관하게 여전히 불가능(Xcode 부재).
+
+- 요청: 사용자가 Firebase `google-services.json`을 저장소 루트에 넣어뒀다고 확인 요청.
+- 확인(리더 직접 수행): 파일을 찾아 내용 검토한 결과 **치명적 오타 발견** — `android_client_info.package_name`이 `"come.mobile"`로 등록되어 있음(실제 앱 `applicationId`는 `com.mobile`, `apps/mobile/android/app/build.gradle` 94행 확인). 이대로 연동하면 Google Services Gradle 플러그인이 매칭 실패로 빌드가 깨짐. 파일 위치도 `apps/mobile/android/app/google-services.json`이 아니라 저장소 루트라 어차피 재배치 필요.
+- 사용자에게 Firebase 콘솔에서 `com.mobile`로 재등록 후 파일 재공유 요청. Realtime Database vs Firestore 결정도 아직 안 됐음을 함께 안내.
+- 외부 액션: 없음(재등록 대기 중이므로 연동 작업은 보류).
+
+- 요청: 사용자가 RTDB vs Firestore 결정을 "개발 에이전트"에게 인계해 장단점·실측 결과를 근거로 판단 자료를 만들도록 요청. 동시에 "선행검증용 에이전트"가 프로젝트에 실제로 없는지 확인하고, 없으면 추가해달라고 요청.
+- 확인(리더 직접 수행): `.claude/agents/`에 planner/designer/implementer/verifier/deployer 5개만 존재, CLAUDE.md 표에도 선행검증(스파이크) 역할이 없음을 확인 — 실제로 부재했음.
+- 결과(리더 직접 처리): 신규 서브에이전트 역할 "스파이크(Spike)" 추가 — `.claude/agents/spiker.md`(정의, 기존 5개와 동일 포맷: 역할/산출물/로그 규칙/하지 않는 것 — verifier와의 차이(사후 검증 vs 사전 검증)를 명시), `docs/agents/spike-log.md`(로그 템플릿 신규), `CLAUDE.md` 하네스 표에 스파이크 행 추가 + 워크플로우 절에 "스파이크는 필요할 때만 끼워 넣는다" 원칙 문장 추가.
+- 후속 분배: 신설 `spiker` 에이전트를 호출하려 했으나 이번 세션에는 새 에이전트 타입이 즉시 인식되지 않아(에이전트 목록이 세션 시작 시 로드됨 — `allow-git-cd` 스킬 때와 동일 패턴) `general-purpose`에게 `spiker.md` 정의를 역할로 채택해 대신 수행하도록 지시, RTDB vs Firestore 비교 스파이크 위임(백그라운드 실행 중) — 문서/사례 조사 우선, 이 환경에서 실측(REST API round-trip) 가능 여부도 판단해 시도하되 안 되면 정직하게 "실측 불가"로 기록하도록 지시. 산출물은 `docs/spikes/firebase-rtdb-vs-firestore.md`.
