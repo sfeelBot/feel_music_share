@@ -38,6 +38,10 @@
 - 요청: 사용자가 "허용 기다리지않고 할수있는 업무들은 미리 다 해둬" — 확인 없이도 진행 가능한 작업은 선제적으로 계속 처리하라는 지시.
 - 판단: `docs/roadmap.md` 잔여 항목 재검토 — iOS 배포는 두 차례 명시적 보류라 제외. RTDB vs Firestore 실측은 DB 활성화 전까지 완전히 불가라 제외. 나머지 둘은 재해석 시 지금도 진행 가능하다고 판단: (1) 매칭 신뢰도 스파이크 — 실제 API 실측(로그인 필요)은 불가하지만, `trackMatcher.ts` 알고리즘을 합성 테스트 케이스(동명이곡/리마스터/피처링 표기 등)로 검증하는 오프라인 벤치마크는 가능(정직하게 "실측 아님"으로 라벨링 지시). (2) 서비스별 플레이리스트 독립 보존 — "Firebase와 함께 처리 제안"은 있었지만 실제로는 인메모리 데이터 모델 변경만으로 지금 구현 가능한 순수 코드 작업.
 - 분배: 병렬 위임(백그라운드, 파일 겹침 없음 — spiker는 `apps/mobile/` 미접근) — (1) spiker: 매칭 신뢰도 오프라인 벤치마크(`docs/spikes/matching-confidence-benchmark.md`). (2) implementer: `SessionState.playlist` 단일 필드를 서비스별 분리 구조로 변경(코어 데이터 모델 리팩터링, 파급 효과 크므로 판단 근거를 상세히 남기도록 지시, 회귀 특히 주의).
+
+- 요청: 사용자가 실기기 Spotify 로그인 화면 스크린샷 공유 — "The user is not registered for this application. Please check your settings on https://developer.spotify.com/dashboard." 오류.
+- 진단(리더 직접 수행): 코드 문제 아님 — Client ID/리다이렉트 URI가 전부 정상 동작해 실제 Spotify OAuth 화면까지 도달한 것으로 확인(오히려 긍정적 신호). Spotify 앱이 Development Mode(등록 사용자만 로그인 가능, 최대 25명)라 로그인 시도한 계정이 허용 목록에 없어서 발생하는 표준 오류. 해결책(Dashboard → Settings → User Management → 계정 추가) 안내.
+- 외부 액션: `docs/decisions-needed.md` 항목 1번을 이 진단 내용으로 갱신(커밋 예정).
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
