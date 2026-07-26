@@ -173,3 +173,26 @@
     2. `mockSessionSeed.ts`의 데모 시드 플레이리스트는 서비스와 무관하게 항상 `spotify:track:demoN` 형식이라(기존부터 있던 제약, 이번 라운드에서 고치지 않음 — 범위 밖), YouTube 세션이어도 데모 진입 시 `extractYoutubeVideoId`가 그 문자열 전체를 videoId로 취급해 실제 존재하지 않는 영상 ID를 요청하게 된다. `AddTrackModal`로 직접 곡을 추가하면(`youtubeMockSearch.ts`가 `youtube:video:mockN` 형식을 쓰므로) 프리픽스 파싱 자체는 의도대로 동작하지만, 그 `mockN`도 실제 YouTube videoId가 아니라서 실기기에서는 결국 `onError` 콜백으로 이어질 것으로 예상됨(YouTube Data API 실연동 전까지는 근본적으로 해결 불가 — CLAUDE.md 지시대로 이번 라운드 범위 밖).
     3. WebView 안에서 자동재생(`autoplay`/`mediaPlaybackRequiresUserAction={false}`)이 실제 Android/iOS 기기에서 사용자 제스처 없이 정상 동작하는지는 미검증.
   - `docs/specs/`, `docs/design/`은 읽기만 하고 수정하지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.
+
+## 2026-07-26 (버그 수정: R5.17 WebView 재부착 경합)
+- 작업: `docs/qa/spotify-mvp-round1-checklist.md` "Round 5 검증"에서 지적된 R5.17(WebView ref 재부착 경합 버그) 수정. `YouTubeNowPlayingView.tsx`의 WebView attach `useEffect`가 빈 의존성 배열(`[]`)이라 컴포넌트 최초 마운트 시 1회만 실행되는 것이 원인 — `currentVideoId`가 `null`이 되어 `<WebView>`가 언마운트됐다가 이후 새 곡 추가로 다시 마운트돼도 이 effect가 재실행되지 않아 `youtubePlayerController` 내부 webView 참조가 영구히 `null`로 남고, 이후 모든 재생 명령(`playVideo/pauseVideo/loadVideoById/cueVideoById`)이 `pendingCommands` 큐에 쌓인 채 flush되지 않는 문제였다.
+  - 수정: `currentVideoId`로부터 파생한 `isWebViewMounted = Boolean(currentVideoId)`(안정적인 boolean, WebView가 실제로 JSX에 렌더링되는지 여부와 정확히 일치)를 새 변수로 선언하고, attach effect의 의존성 배열을 `[]`에서 `[isWebViewMounted]`로 변경. `currentVideoId` 값 자체(같은 세션 안에서 곡이 바뀔 때마다 매번 달라짐)에 직접 의존하지 않은 이유: WebView 인스턴스는 그대로인데 매 곡 전환마다 불필요한 detach/재attach가 일어나는 것을 피하기 위함(리더 지시사항의 권고를 그대로 채택). 참고로 `Boolean(currentVideoId)`를 의존성 배열에 인라인으로 직접 쓰면 `react-hooks/exhaustive-deps`가 "complex expression, extract it to a separate variable"로 에러를 내므로(정적 분석 불가) 반드시 별도 변수로 추출해야 했다 — 처음 인라인으로 시도했다가 `npx eslint .`에서 에러 1건을 발견해 변수 추출로 수정.
+  - 재마운트 시 재부착이 보장되는 근거(코드 추적, 시나리오별):
+    | 시나리오 | `isWebViewMounted` 이전 값 → 이후 값 | effect 재실행 여부 | WebView 실제 상태와의 정합성 |
+    |---|---|---|---|
+    | 최초 마운트(곡 있음) | (없음) → `true` | 실행(mount) — `_attachWebView(webViewRef.current)` | WebView가 이미 렌더링된 이후 effect가 실행되므로(effect는 커밋 이후 실행되는 React 규칙) `webViewRef.current`가 non-null — 정상 attach |
+    | 플레이리스트 전부 삭제(곡 없음) | `true` → `false` | 재실행 — 이전 effect의 cleanup(`_attachWebView(null)`)이 먼저 실행된 뒤, 새 effect 실행(`_attachWebView(webViewRef.current)`이나 이 시점엔 `<WebView>`가 이미 언마운트돼 `webViewRef.current`가 `null`) | detach 정상, 이후 재부착 시도도 `null`로 정합적(어차피 렌더링 안 됨) |
+    | 새 곡 추가로 다시 채워짐(R5.17 재현 경로) | `false` → `true` | 재실행 — cleanup(`_attachWebView(null)`, 이미 null이라 no-op) → 새 effect 실행 시점에는 React가 커밋 단계를 마쳐 `<WebView>`가 이미 마운트된 뒤이므로 `webViewRef.current`가 새 WebView 인스턴스를 가리킴 — **여기가 버그의 핵심 수정 지점**: 기존엔 이 전환에서 effect가 전혀 재실행되지 않아 `null`로 영구 고정됐으나, 이제는 정확히 재실행되어 재부착됨 |
+    | 같은 세션 안에서 곡만 전환(WebView 유지) | `true` → `true`(값 불변) | 재실행 안 함 | 불필요한 재부착 없음(의도한 최적화, 리더 지시사항의 트레이드오프 판단 그대로 채택) |
+    | 컴포넌트 전체 언마운트(Now Playing 탭 이탈 등, 곡 있는 상태) | `true` → (없음) | cleanup만 실행(`_attachWebView(null)`) | 정상 detach, 메모리/참조 누수 없음 |
+  - React의 `useEffect` cleanup 규칙(의존성이 바뀔 때마다 새 effect 실행 전에 이전 cleanup이 먼저 실행됨)에 따라 detach가 항상 재attach보다 선행되므로 이중 attach나 stale 참조가 남을 여지가 없다.
+- 상태: 완료(검증 대기)
+- 변경 파일: `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`(attach effect 의존성 수정 + `isWebViewMounted` 변수 추가 + 주석 보강). 다른 파일은 건드리지 않음(지시사항대로 이번 버그 1건에만 집중).
+- 비고(검증 시 주의):
+  - `npx tsc --noEmit`: **0 errors**(round 5와 동일).
+  - `npx eslint .`: **0 errors, 16 warnings** — round 5와 정확히 동일한 개수/종류(전부 기존 관용적 `react-native/no-inline-styles`). 처음 `Boolean(currentVideoId)`를 의존성 배열에 인라인으로 넣었을 때는 `react-hooks/exhaustive-deps` 에러가 1건 발생했었으나(위에서 설명한 대로 변수 추출로 해소), 최종 버전에서는 에러 0건.
+  - `npx jest`: **1/1 통과**(`__tests__/App.test.tsx`), round 5와 동일.
+  - Android 빌드: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`로 `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon` 실행 → **BUILD SUCCESSFUL in 23s**(대부분 UP-TO-DATE, 이번 변경은 JS 전용이라 네이티브 재컴파일 없음 — 예상대로 회귀 없음). `clean` 완전 재빌드는 이번 라운드에서 별도로 재실행하지 않았다(round 5에서 이미 클린 빌드로 확인됐고, 이번 변경이 순수 JS라 네이티브 레이어에 영향을 줄 수 없다고 판단 — 검증 에이전트가 필요하다고 판단하면 재확인 요청 가능).
+  - iOS는 이번에도 macOS 부재로 빌드 검증 미수행(구조적 제약, round 1부터 동일).
+  - 이 버그는 실기기 없이 코드 추적만으로 재현/수정 근거를 확보했다 — 위 표의 5개 시나리오가 검증 에이전트가 재현 시나리오를 재추적할 때 참고할 수 있도록 상세히 남겨둔다. 실기기에서의 최종 확인(플레이리스트를 비웠다가 새 곡을 추가하고 실제로 영상이 재생되는지)은 여전히 별도 필요(round 5 R5.18~R5.21과 동일 범주 제약).
+  - `docs/specs/`, `docs/design/`은 이번에도 읽기/수정 없음. 커밋은 하지 않았다 — 리더 검토 후 커밋.

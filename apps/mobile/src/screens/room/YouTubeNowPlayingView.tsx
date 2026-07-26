@@ -48,6 +48,9 @@ export default function YouTubeNowPlayingView({onOpenParticipants}: YouTubeNowPl
   const currentEntryId = session?.playback.currentEntryId;
   const currentEntry = session?.playlist.find(e => e.entryId === currentEntryId);
   const currentVideoId = currentEntry ? extractYoutubeVideoId(currentEntry.track.serviceTrackId) : null;
+  // `<WebView>`는 126행에서 이 값이 참일 때만 조건부 렌더링된다 — 아래 attach effect의 의존성으로
+  // 써서 WebView의 마운트/언마운트 시점(값이 false<->true로 바뀌는 시점)마다만 재실행되게 한다.
+  const isWebViewMounted = Boolean(currentVideoId);
   // 이미 WebView가 로드해둔(또는 로드 중인) 곡을 추적한다 — 최초 렌더의 영상은 아래 `initialHtml`
   // 자체가 이미 굽고 있으므로, 이 값과 다를 때만 `loadVideoById/cueVideoById`를 호출해야 중복
   // 로드를 피할 수 있다.
@@ -68,10 +71,16 @@ export default function YouTubeNowPlayingView({onOpenParticipants}: YouTubeNowPl
     return youtubePlayerController.onAdStateChanged(setIsAdPlaying);
   }, []);
 
+  // 플레이리스트가 비어 `currentVideoId`가 null이 되면 WebView가 언마운트됐다가, 이후 새 곡이
+  // 생기면 다시 마운트된다(126행). `isWebViewMounted`(WebView가 렌더링되는지 여부)를 의존성으로
+  // 써서 그 마운트/언마운트 시점마다 재실행되게 한다 — 그래야 재부착(attach)이 실제 WebView
+  // 인스턴스와 항상 동기화된다(2026-07-26 QA R5.17). `currentVideoId` 값 자체(같은 세션에서
+  // 곡이 바뀔 때마다 매번 달라짐)에 의존하면 WebView 인스턴스는 그대로인데도 매 곡 전환마다
+  // 불필요하게 재부착이 일어나므로 boolean으로 안정화한다.
   useEffect(() => {
     youtubePlayerController._attachWebView(webViewRef.current);
     return () => youtubePlayerController._attachWebView(null);
-  }, []);
+  }, [isWebViewMounted]);
 
   // 곡 전환 배선: `requestNextTrack`/`requestPrevTrack`/자동 다음 곡(곡 삭제 시) 등 어떤 경로로
   // `session.playback.currentEntryId`가 바뀌든, 이 effect 하나가 실제 IFrame Player에 새 영상을

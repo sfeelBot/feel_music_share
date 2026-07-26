@@ -69,6 +69,18 @@
 - 검증 대상: YouTube 세션 실제 영상 재생 연동 — WebView + IFrame Player API(커밋 `7a888f2` "Implement real YouTube playback via WebView + IFrame Player API"). `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 5 검증 (2026-07-26)" 절 추가(append).
 - 플랫폼: 둘 다 (Android는 `clean` → `assembleDebug --no-daemon` 완전 재빌드 독립 재현 성공, react-native-webview 네이티브 모듈 컴파일/autolinking 정상 확인. iOS는 이번 커밋이 `ios/` 파일을 전혀 건드리지 않았고 코드 리뷰상 Platform 분기·iOS 전용 API도 없어 회귀 리스크는 낮으나, macOS/Xcode 부재로 실빌드·런타임은 여전히 구조적으로 미검증 — round 1~4와 동일한 제약)
 - 결과: 부분 통과 (정책 준수·정적 검증·회귀 확인은 전부 통과, 신규 코드에서 실기기 없이도 코드 트레이스만으로 확정 재현 가능한 로직 버그 1건 발견 — 구현 라운드로 반려 권고)
+
+## 2026-07-26 (Round 6, R5.17 재검증)
+- 검증 대상: Round 5에서 발견한 R5.17(YouTube WebView ref 재부착 경합 버그) 수정 재검증 — `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx` 1개 파일(`isWebViewMounted` 파생 변수 추가 + attach effect 의존성 `[]`→`[isWebViewMounted]`), 미커밋 작업 트리 변경분(`docs/agents/implementation-log.md`의 "2026-07-26 (버그 수정: R5.17 WebView 재부착 경합)" 항목 대상). `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 6 재검증 (2026-07-26)" 절 추가(append).
+- 플랫폼: 둘 다 (Android는 `assembleDebug --no-daemon` 증분 1회 + `clean` → `assembleDebug --no-daemon` 완전 재빌드 1회, 총 2회 독립 재현 성공. iOS는 이번 diff가 `ios/` 파일·`Platform.OS` 분기를 전혀 건드리지 않아 이번 라운드 지시 범위 밖 — macOS/Xcode 부재로 실빌드는 이번에도 구조적으로 미검증, round 1~5 결론 그대로 인용)
+- 결과: 통과
+- 상세:
+  - 변경 범위를 `git status`/`git diff`로 독립 재확인 — 배경 설명대로 코드 변경은 `YouTubeNowPlayingView.tsx` 1개 파일(10 insertions, 1 deletion)뿐임을 확인, 다른 파일은 diff에 등장하지 않음.
+  - 리더가 정리한 5개 시나리오(최초 마운트 / 같은 세션 곡 전환 / 플레이리스트 비워짐 / 재추가 시 재부착[핵심] / 전체 언마운트) 전부를 `youtubePlayerStub.ts`의 `_attachWebView`/`run`/`flushPendingCommands`까지 함께 열람해 독립적으로 재추적 — React의 "effect는 커밋 이후 실행" + "cleanup은 다음 effect 실행보다 먼저" 규칙에 근거해 각 시나리오에서 WebView 인스턴스와 컨트롤러 attach 상태가 항상 정합적임을 확인. 특히 (d) 재추가 시나리오(R5.17의 핵심 재현 지점)에서 이제 effect가 재실행되어 새 WebView 인스턴스가 정상 attach됨을 확인, `_attachWebView(null)`이 `ready`/`pendingCommands`까지 리셋하는 방어 로직도 함께 확인.
+  - 정적 검증 독립 재실행: `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 16 warnings — round 3~5와 정확히 동일), `npx jest`(1/1 pass) — 구현 에이전트의 "0 errors/16 warnings/1 pass" 주장과 정확히 일치.
+  - Android `assembleDebug --no-daemon` 증분 빌드(`BUILD SUCCESSFUL in 10s`, 대부분 UP-TO-DATE) + `clean` → `assembleDebug --no-daemon` 완전 재빌드(`BUILD SUCCESSFUL in 1m 52s`, APK 133,490,480 bytes 생성) 2회 모두 독립 재현 성공 — 캐시 의존 가능성도 클린 재빌드로 배제.
+  - 회귀 확인: Round 5에서 통과했던 정책 준수(DOM 비조작·표준 API·컨트롤 비오버레이·광고 중 seek 억제·200px 최소 크기)와 서비스 격리 가드(`ParticipantsBottomSheet`의 `session.service === 'spotify'` 등) 관련 파일이 이번 diff에 전혀 등장하지 않음을 재확인 — 회귀 없음.
+  - 전체 항목: 통과 15(R6.1~R6.15) / 실패 0 / 미검증 iOS 실빌드(이번 diff의 지시 범위 밖, 구조적 제약 그대로 인용). R5.17은 코드 레벨에서 확실히 해소된 것으로 판정하며, 이번 라운드는 "완료"로 간주할 수 있다.
 - 상세:
   - 정적 검증 독립 재실행: `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 16 warnings — round 3/4와 완전히 동일), `npx jest`(1/1 pass, `__mocks__/react-native-webview.js` manual mock 정상 작동) — 구현 로그 주장과 일치.
   - Android: `./gradlew.bat clean --no-daemon`(1m 19s, `react_codegen_RNCWebViewSpec-*` clean 태스크 확인) 후 `./gradlew.bat assembleDebug --no-daemon`(캐시 미사용 완전 재빌드, 3m 57s, 203 tasks 중 173 executed) 모두 `BUILD SUCCESSFUL` — `react-native-webview` 컴파일/autolinking을 캐시 없이 독립 재현. APK 내부 `assets/index.android.bundle`(1,064,104 bytes) 존재도 재확인해 2026-07-25 라운드에서 고친 "Unable to load script" 회귀가 없음을 확인.

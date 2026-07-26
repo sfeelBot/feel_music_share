@@ -405,3 +405,72 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 | ⛔ 미검증(환경 제약/실기기 필요, 실패 아님) | 4 (R5.18 iOS 실빌드·런타임, R5.19 광고 감지 정확도, R5.20 데모 videoId 실존 여부, R5.21 자동재생 실기기 동작 — R5.19~R5.21은 구현 에이전트가 이미 스스로 명시한 항목과 동일, 이번 라운드 필수 검증 범위 아님) |
 
 **결론: 이번 라운드(커밋 `7a888f2`)는 "완료"로 간주하지 않는다 — 구현 에이전트에게 R5.17(WebView ref 재부착 버그) 수정을 요청해 반려 권고한다.** 정책 준수(DOM 조작 없음, 표준 API만 사용, 컨트롤 비오버레이, 광고 중 seek 억제, 200px 최소 크기, 실재생 트리거) 항목은 코드 리뷰로 전부 통과 확인했고, 정적 검증 3종과 Android 클린 빌드도 캐시 없이 독립 재현에 성공했으며, 기존에 고쳐졌던 서비스 격리 가드(R3.17)나 Spotify 쪽 화면도 이번 커밋으로 인한 회귀가 없음을 확인했다 — 이 부분은 구현 로그의 주장을 신뢰할 수 있는 수준으로 뒷받침한다. 다만 새로 검토한 WebView 부착 로직(`_attachWebView`를 부르는 `useEffect(..., [])`)에서 "플레이리스트를 비웠다가 같은 탭에서 다시 채우고 다음 곡을 누르는" 정상적인 사용 흐름 하나가 재생 명령을 영구히 무반응 상태로 빠뜨리는 결함을 발견했다(R5.17, 실기기 없이 코드 트레이스만으로 확정 재현 가능). 도달 조건이 좁긴 하나 US-301/302가 허용하는 정상 플로우 조합이라 엣지 케이스로 넘기지 않고 실패로 판정했다. 나머지 미검증 항목(iOS 전체, 광고 감지 정확도, 데모 videoId 실존성, 자동재생 실기기 동작)은 이번 라운드 지시사항이 이미 "실기기 검증은 이번 라운드 필수 아님"으로 명시한 범위와 정확히 일치하므로 실패로 카운트하지 않았다.
+
+---
+
+## Round 6 재검증 (2026-07-26)
+
+> 검증 대상: 작업 트리 변경분(미커밋, `docs/agents/implementation-log.md`의 "2026-07-26 (버그 수정: R5.17 WebView 재부착 경합)" 항목) — `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx` 1개 파일만 수정.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git status`/`git diff`로 변경 범위를 독립적으로 직접 확인(리더의 1차 diff 판단에 기대지 않고 재확인) + `youtubePlayerStub.ts`(`_attachWebView`/`run`/`flushPendingCommands`)와 `RoomScreen.tsx`(탭 조건부 렌더링)까지 함께 열람해 시나리오별 코드 트레이스 + `apps/mobile`에서 tsc/eslint/jest 독립 재현 + Android `assembleDebug`(증분) 1회 + `clean` → `assembleDebug --no-daemon`(캐시 미사용 완전 재빌드) 1회, 총 2회 독립 재현 + 회귀 확인(diff 외 파일 무변경 재확인).
+> 범위: 지시사항대로 R5.17 재현/해소 확인 + 정적 검증 + Android 빌드 + 회귀 확인에 집중. Round 1~5처럼 전체 체크리스트를 반복하지 않음.
+> 환경: Windows 11 Pro (10.0.26200), Node v24.15.0, npm 11.12.1, JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 여전히 없음 — iOS 실빌드는 이번에도 구조적으로 불가능(이번 diff는 애초에 `ios/` 파일을 건드리지 않아 이번 라운드 지시 범위에도 포함되지 않음).
+
+### 1. 변경 범위 독립 확인
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R6.1 | 실제로 수정된 파일이 `YouTubeNowPlayingView.tsx` 1개뿐인가 | ✅ 통과 | `git status --short apps/mobile`로 확인한 결과 코드 변경분은 `M apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx` 한 줄뿐(그 외 `docs/agents/implementation-log.md` 문서 변경, 관련 없는 미추적 `google-services.json` 1개만 존재 — 코드 범위 밖). `git diff --stat HEAD -- apps/mobile/src apps/mobile/android apps/mobile/ios`도 동일 파일 1개, `1 file changed, 10 insertions(+), 1 deletion(-)`만 보고해 배경에 서술된 "이 한 파일만 수정" 주장과 정확히 일치한다. |
+| R6.2 | diff 내용이 배경 설명(`isWebViewMounted` 신규 변수 + attach effect 의존성 `[]`→`[isWebViewMounted]`)과 정확히 일치하는가 | ✅ 통과 | `git diff`로 직접 확인: `const isWebViewMounted = Boolean(currentVideoId);` 신규 추가(주석 포함, 47~50행 부근), attach effect(`youtubePlayerController._attachWebView(webViewRef.current)` / cleanup `_attachWebView(null)`)의 마지막 줄이 `}, []);` → `}, [isWebViewMounted]);`로 정확히 변경됨. 그 외 로직(곡 전환 effect, `handleTogglePlay`, JSX 렌더링 등)은 diff에 전혀 등장하지 않아 순수하게 이 한 지점만 건드렸음을 확인. |
+
+### 2. 시나리오별 코드 트레이스 (독립 재추적)
+
+`youtubePlayerStub.ts`의 `_attachWebView`(ref 설정 + null일 때 `ready=false`/`pendingCommands=[]`/`setAdPlaying(false)` 리셋)와 `run`/`flushPendingCommands`(webViewRef && ready일 때만 즉시 실행, 아니면 큐잉)까지 함께 열람해 리더가 이미 검토한 5개 시나리오를 독립적으로 재추적했다.
+
+| # | 시나리오 | 결과 | 상세 |
+|---|---|---|---|
+| R6.3 | (a) 최초 마운트(곡 있음) | ✅ 해소 확인 | `isWebViewMounted`가 `true`로 최초 계산되고 effect가 첫 실행(mount)된다. React 규칙상 passive effect는 커밋(DOM 반영) 이후 실행되므로, effect 본문이 도는 시점엔 이미 `<WebView>`가 렌더링돼 `webViewRef.current`가 실제 인스턴스를 가리킨다 — `_attachWebView(webViewRef.current)`가 non-null로 정상 attach된다. |
+| R6.4 | (b) 같은 세션 안에서 곡 전환(WebView 인스턴스 유지) | ✅ 해소 확인 | 곡이 바뀌어도 `currentVideoId`는 계속 truthy이므로 `isWebViewMounted`는 `true → true`로 값이 불변 — attach effect는 재실행되지 않는다(React는 `Object.is` 비교로 의존성 값이 같으면 effect를 스킵한다). 곡 전환 자체는 별도의 "곡 전환 배선" effect(`[currentEntry, currentVideoId, session?.playback.isPlaying]` 의존)가 담당해 `loadVideoById`/`cueVideoById`만 호출한다 — WebView 재부착 없이 정확히 필요한 것만 실행됨을 확인. |
+| R6.5 | (c) 플레이리스트가 비어 `currentVideoId`가 `null`이 됨 | ✅ 해소 확인 | `isWebViewMounted`가 `true → false`로 바뀌어 effect가 재실행된다 — 새 effect 본문 실행 전에 **이전 effect의 cleanup이 먼저 실행**되어(React 공식 규칙) `_attachWebView(null)`이 호출된다. 이 시점 `_attachWebView`의 null 분기가 `ready=false`/`pendingCommands=[]`/`setAdPlaying(false)`로 컨트롤러 내부 상태까지 함께 리셋하는 것도 확인 — 다음 재마운트 시 stale한 `ready`/큐가 남아있지 않도록 방어돼 있다. 이후 새 effect 본문(`_attachWebView(webViewRef.current)`)이 실행되는데, 이 시점엔 `<WebView>`가 이미 언마운트돼 `webViewRef.current`가 `null`이므로 사실상 no-op — 상태와 정합적이다. |
+| R6.6 | (d) 다시 곡이 추가됨(핵심 수정 지점) | ✅ 해소 확인 | `isWebViewMounted`가 `false → true`로 바뀌어 effect가 다시 재실행된다 — **이 재실행이 R5.17에서 누락됐던 지점**(구버전은 `[]`라 여기서 재실행 자체가 안 됐음). 새 effect 실행 시점엔 커밋이 끝나 `<WebView>`가 이미 새로 마운트된 뒤이므로 `webViewRef.current`가 새 인스턴스를 가리켜 정상 attach된다. 곡 전환 배선 effect도 동시에 `loadVideoById`를 호출하는데, 이 시점엔 아직 `ready=false`(방금 리셋됨 + 새 WebView가 아직 IFrame 로드 전)이므로 `run()`이 명령을 `pendingCommands`에 큐잉하고, 이후 WebView가 `'ready'` 브릿지 메시지를 보내면 `flushPendingCommands()`가 그때는 `webViewRef`가 (attach effect가 먼저 선언된 순서상 이미 세팅된) 새 인스턴스를 가리키므로 큐를 정상 flush한다 — R5.17에서 지적됐던 "큐가 영구히 비지 않는" 증상이 재현되지 않는다. |
+| R6.7 | (e) 컴포넌트 전체 언마운트 | ✅ 해소 확인 | `RoomScreen.tsx`(56~64행)를 직접 열람해 확인 — `tab === 'nowPlaying' ? (... <YouTubeNowPlayingView/> ...) : <PlaylistView/>` 삼항 조건부 렌더링이라 플레이리스트 탭으로 전환하면 `YouTubeNowPlayingView` 컴포넌트 자체가 트리에서 완전히 제거(unmount)된다. 이 경우 attach effect의 cleanup(`_attachWebView(null)`)과 광고 상태 리스너 effect의 cleanup(`onAdStateChanged`가 반환한 unsubscribe)이 모두 정상 실행되어 참조/리스너 누수가 없음을 확인. |
+
+**시나리오 결론**: 리더가 사전에 정리한 5개 시나리오 전부를 독립적으로 재추적한 결과, React의 effect 커밋 후 실행 보장 및 cleanup-먼저-실행 규칙에 근거해 R5.17이 실제로 해소됨을 확인했다. 특히 (d) 시나리오(재마운트 시 재부착)가 이번 수정의 핵심이며, `youtubePlayerStub.ts`의 `_attachWebView(null)`이 `ready`/`pendingCommands`까지 함께 리셋하는 방어 로직과 맞물려 stale 큐가 남을 여지도 없다.
+
+### 3. 정적 검증 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R6.8 | `npx tsc --noEmit` (apps/mobile) | ✅ 통과 | 0 errors, 출력 없음. |
+| R6.9 | `npx eslint .` (apps/mobile) | ✅ 통과 | 0 errors, 16 warnings — round 3~5와 정확히 동일한 개수/파일/종류(`YouTubeNowPlayingView.tsx` 168행의 `opacity: hasPrevTrack ? 1 : 0.4` 1건 포함, 신규 경고 없음). 구현 로그의 "0 errors, 16 warnings(round 5와 동일)" 주장과 일치. |
+| R6.10 | `npx jest` (apps/mobile) | ✅ 통과 | `__tests__/App.test.tsx` 1/1 통과. |
+
+세 항목 모두 구현 에이전트의 주장("0 errors/16 warnings/1 pass")과 독립적으로 재현되어 정확히 일치한다.
+
+### 4. Android 빌드 재현 (독립, 2회)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R6.11 | `./gradlew.bat assembleDebug --no-daemon`(지시사항 그대로, 증분) | ✅ 통과 | `BUILD SUCCESSFUL in 10s`, 203 actionable tasks(23 executed, 180 up-to-date) — `:app:createBundleDebugJsAndAssets`/`:app:assembleDebug` 모두 UP-TO-DATE. 이는 캐시가 stale하다는 뜻이 아니라, 구현 에이전트가 이미 이 파일을 수정한 뒤 자신의 환경에서 빌드를 성공시켰고 그 산출물이 그대로 재사용 가능한 상태임을 gradle의 입력 해시 비교가 확인해준 것 — 작업 트리 상태와 빌드 산출물이 정합적임을 뒷받침한다. |
+| R6.12 | `clean` → `assembleDebug --no-daemon`(캐시 미사용 완전 재빌드, 더 엄격한 독립 재현) | ✅ 통과 | `clean`: `BUILD SUCCESSFUL in 9s`. 이어서 `assembleDebug`: `BUILD SUCCESSFUL in 1m 52s`, 203 actionable tasks(173 executed, 30 up-to-date) — `:app:packageDebug`/`:app:assembleDebug` 등 실제 실행(UP-TO-DATE 아님) 확인. `app/build/outputs/apk/debug/app-debug.apk`(133,490,480 bytes) 생성 확인. 구현 에이전트가 보고한 "assembleDebug 증분 23s" 주장을 캐시에 의존하지 않는 방식으로 독립 재현해 더 강하게 뒷받침했다. |
+
+**Android 결론**: 이번 변경은 순수 JS/TS 레이어(네이티브 프로젝트 파일 무변경, R6.1에서 확인)라 네이티브 빌드 자체에 영향을 줄 수 없다는 구현 로그의 판단과 일치하며, 증분/클린 두 방식 모두 독립적으로 `BUILD SUCCESSFUL`을 확인했다.
+
+### 5. 회귀 확인 (Round 5 통과 항목 대상)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R6.13 | 정책 준수(DOM 비조작, 표준 API만 사용, 컨트롤 비오버레이, 광고 중 seek 억제, 200px 최소 크기) — R5.7~R5.13 | ✅ 회귀 없음 | 이번 diff는 `youtubePlayerHtml.ts`/`youtubePlayerStub.ts`를 전혀 건드리지 않았고(R6.1에서 변경 파일 1개만 확인), `YouTubeNowPlayingView.tsx`의 JSX 렌더링 구조(`playerContainer`/`controls`의 형제 배치, `position: absolute` 미사용)와 `handleTogglePlay`도 diff에 등장하지 않아 그대로 유지됨을 직접 재확인했다. |
+| R6.14 | 서비스 격리(`ParticipantsBottomSheet`의 `session.service === 'spotify'` 가드, `NowPlayingView`/`PlaylistView`/`AddTrackModal`/`RoomScreen`의 서비스 분기) — R5.14~R5.16 | ✅ 회귀 없음 | `git status --short apps/mobile`에 위 파일들이 전혀 등장하지 않아(R6.1) 물리적으로 변경되지 않았음을 재확인. |
+| R6.15 | Spotify 세션 화면(재생 컨트롤 STUB 패턴)이 이번 수정으로 영향받지 않는가 | ✅ 회귀 없음 | `NowPlayingView.tsx`도 diff에 등장하지 않음 — 완전히 별개 컴포넌트라 영향 경로 자체가 없다. |
+
+### Round 6 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 15 (R6.1~R6.15) |
+| ❌ 실패 | 0 |
+| ⛔ 미검증(환경 제약, 실패 아님) | iOS 실빌드/런타임 — 이번 diff가 애초에 `ios/` 및 `Platform.OS` 분기를 건드리지 않아 이번 라운드 지시 범위 밖(round 1~5 결론 그대로 인용) |
+
+**결론: R5.17(WebView ref 재부착 경합 버그)은 이번 수정으로 해소된 것으로 확인되며, 이번 라운드는 "통과"로 판정한다.** 변경 범위는 배경 설명 그대로 `YouTubeNowPlayingView.tsx` 1개 파일(`isWebViewMounted` 파생 변수 추가 + attach effect 의존성 배열 변경)에 정확히 국한됨을 `git diff`로 독립 확인했고, 리더가 제시한 5개 시나리오((a) 최초 마운트, (b) 같은 세션 곡 전환, (c) 플레이리스트 비워짐, (d) 재추가 시 재부착[핵심], (e) 전체 언마운트) 전부를 `youtubePlayerStub.ts`의 `_attachWebView`/`run`/`flushPendingCommands` 내부 구현까지 함께 열람해 독립적으로 재추적한 결과, React의 "effect는 커밋 이후 실행" + "cleanup은 다음 effect보다 먼저 실행" 규칙에 근거해 각 시나리오 모두 WebView 인스턴스와 컨트롤러의 attach 상태가 항상 정합적으로 유지됨을 확인했다. 정적 검증(tsc/eslint/jest) 3종은 구현 에이전트의 주장과 정확히 일치하게 독립 재현됐고, Android 빌드는 증분·클린 완전 재빌드 2가지 방식 모두 독립적으로 `BUILD SUCCESSFUL`을 확인했다(클린 재빌드로 캐시 의존 가능성도 배제). Round 5에서 이미 통과했던 정책 준수·서비스 격리 항목들도 diff 범위 밖임을 재확인해 회귀가 없음을 뒷받침했다. iOS 실기기 검증은 이번에도 구조적 제약(macOS/Xcode 부재)으로 수행하지 못했으나, 이번 diff 자체가 `ios/` 파일이나 `Platform.OS` 분기를 전혀 건드리지 않으므로 이번 라운드의 "통과" 판정 범위 밖이라는 점을 명시한다.
