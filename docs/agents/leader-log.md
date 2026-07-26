@@ -16,19 +16,18 @@
 
 ### 예상 리스크 및 해결할 문제
 
-1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. **다만 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 훨씬 빠르고 정확한 실기기 검증이 가능해짐** — 사용자에게 연결 권장 완료(2026-07-26), 연결 여부 확인 대기. iOS는 macOS/Xcode 부재로 빌드 자체가 구조적으로 불가능 — 기기를 연결해도 해소되지 않는 제약(사용자에게 설명 완료).
-2. **외부 계정 3종 미완료**: Spotify Developer 앱, Firebase(프로젝트는 생성됨·Android 앱 등록+google-services.json+RTDB/Firestore 선택 대기), YouTube Data API v3 — 셋 다 없어 실제 로그인·백엔드·YouTube 검색이 전부 스텁/목업 상태(`docs/decisions-needed.md` 참고).
-3. **YouTube 실기기 스파이크 미실행**: 실제 WebView/IFrame Player 연동 전이라 광고 노출·명령 지연을 아직 실측하지 못함 — 제품 카피 정확성에 영향(구현 이후 순서로 예정).
-4. **iOS 배포 방향 미정(보류)**: TestFlight/Ad Hoc 중 선택 필요, Apple Developer Program($99/년) 가입이 전제 — 사용자가 두 차례 "추후 논의"로 보류.
-5. **적응형 아이콘(Android 8.0+) 없음**: 프로젝트에 `mipmap-anydpi-v26` 리소스 자체가 없어 legacy 아이콘(mipmap ic_launcher.png) 교체만으로 이번 스코프는 완료됨(implementer 확인) — 추후 적응형 아이콘을 새로 추가할지는 별도 결정 사항으로 남음.
+1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능(안내 완료, 연결 여부 대기). iOS는 macOS/Xcode 부재로 여전히 구조적으로 불가능.
+2. **Firebase 연동 미완료 — 원인 2가지 확인됨**: ① 사용자가 공유한 `google-services.json`(저장소 루트, 아직 미커밋)의 패키지명이 `come.mobile`로 오타(정확히는 `com.mobile`) — Firebase 콘솔에서 재등록 필요. ② RTDB/Firestore 둘 다 콘솔에서 아직 활성화 안 됨(2026-07-26 스파이크로 REST API 확인). `docs/decisions-needed.md` 참고.
+3. **Spotify Developer 앱 / YouTube Data API v3도 미완료** — 로그인·YouTube 검색이 스텁/목업 상태.
+4. **iOS 배포 방향 미정(보류)**: 사용자가 두 차례 "추후 논의"로 보류.
+5. **적응형 아이콘(Android 8.0+) 없음**: legacy 아이콘 교체만으로 이번 스코프 완료, 추후 별도 결정 사항.
 
 ### 현재 진행중인 task
 
-1. **사용자가 새 세션에서 이어가기로 함(2026-07-26)** — 아래는 새 세션이 이어받아야 할 정확한 상태.
-2. **완료됨**: verifier Round 4(SameWave 이름/아이콘, 커밋 `00a9d9c`) 통과. 혼합 모드 잔여 화면 4개(매칭 진행중/대체후보/매칭실패/전환중 오버레이) `03-screen-mockups.html`에 추가 완료(커밋 `02708ea`) — 이전 세션 중단으로 CSS만 있던 상태였다가 `SendMessage`로 재개해 마무리됨. `.claude/skills/allow-git-cd/` 스킬 추가 완료(새 세션에서는 `/allow-git-cd`로 정상 인식될 것).
-3. **미완료·주의 필요**: implementer의 "YouTube 실제 재생 연동"(react-native-webview + IFrame Player, `youtubePlayerStub.ts` 교체)이 세션 중단 시점에 **파일 변경이 전혀 없는 상태**였고, `SendMessage`로 재개 지시까지는 했으나 **완료 확인을 못 한 채 세션이 넘어간다** — 새 세션에서 가장 먼저 `git status`/`docs/agents/implementation-log.md`로 이 작업이 실제로 진행됐는지 확인 필요. 만약 백그라운드 에이전트가 이전 세션 종료와 함께 끊겼다면 처음부터 다시 지시해야 할 수 있음(원래 지시 내용은 이 로그의 "2026-07-26" 날짜 항목에 기록되어 있음).
-4. **다음 순서 예정**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — YouTube 라운드 완료 후 순차 진행(SessionContext 등 공유 파일 충돌 방지).
-5. **대기 중**: 사용자로부터 Firebase `google-services.json`, Spotify Developer 앱, YouTube Data API 설정 공유 대기(`docs/decisions-needed.md`, `docs/firebase-integration-guide.md`). 갤럭시폰 USB 연결 여부도 대기(실기기 로그 확인용, 필수는 아님).
+1. **완료됨(2026-07-26)**: YouTube 실제 재생 연동(WebView+IFrame Player) — verifier Round 5에서 발견한 버그(R5.17, WebView 재부착 경합)까지 implementer가 수정하고 Round 6 재검증 통과(커밋 `7b0d44c`). 하네스에 "스파이크(선행검증)" 서브에이전트 역할 신설(`.claude/agents/spiker.md`, 커밋 `a1a15b6`) — 이번 세션엔 새 에이전트 타입이 즉시 인식 안 돼 `general-purpose`가 대행, 다음 세션부터 정식 인식될 것. RTDB vs Firestore 비교 스파이크 완료(`docs/spikes/firebase-rtdb-vs-firestore.md`) — 실측은 불가(둘 다 미활성화), 문서 조사 기반 권고만 제공.
+2. **다음 순서**: 혼합 모드 실제 구현(세션 생성 라디오 활성화, 매칭 로직, Now Playing) — YouTube 라운드가 완전히 끝났으니 착수 가능.
+3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 콘솔에서 활성화, Spotify Developer 앱, YouTube Data API 설정 공유. 갤럭시폰 USB 연결 여부도 대기(필수 아님).
+4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
@@ -211,3 +210,8 @@
 - 결과(spiker 대행 — RTDB vs Firestore 스파이크 완료): 실측은 불가로 판명(Firestore `SERVICE_DISABLED`, RTDB 인스턴스 없음 — 프로젝트는 존재하나 두 서비스 모두 콘솔에서 아직 활성화 안 됨을 대조 요청으로 검증). 문서/사례 조사로 대체 — 공식 문서 기준 RTDB ≤10ms/Firestore ≤30ms, 2026년 최신 커뮤니티 자료도 "고빈도 소량 갱신+다수 구독은 RTDB, 복합 쿼리/대규모 확장은 Firestore" 통념 유지 확인. 참고용 권고(결정 아님): 재생 상태=RTDB/플레이리스트=Firestore 하이브리드, 또는 단순화 우선 시 RTDB 단일 구성.
 - 산출물: `docs/spikes/firebase-rtdb-vs-firestore.md`(신규), `docs/agents/spike-log.md` 갱신.
 - 사용자 확인: "Firebase 연동 부분 해결됐나" 질문에 리더가 미해결 상태(패키지명 오타 + DB 미활성화 2가지 원인) 정확히 답변, `decisions-needed.md` Firebase 항목을 최신 상태로 갱신(삭제하지 않음 — 실제 결정/완료 아님).
+
+- 결과(implementer, R5.17 수정 완료): `YouTubeNowPlayingView.tsx`에 `isWebViewMounted` 파생 변수 추가 + attach effect 의존성을 `[]` → `[isWebViewMounted]`로 변경(WebView 마운트/언마운트 시점에만 재실행, 같은 세션 곡 전환 시 불필요한 재부착 없음). 리더가 diff 직접 리뷰해 React effect 순서 보장에 근거해 논리적으로 타당함을 1차 확인.
+- 후속 분배: verifier에게 Round 6 재검증 위임(백그라운드, 좁은 범위로 R5.17 재현/해소 확인 + 정적 검증 + Android 빌드 + 회귀 확인에 집중 지시).
+- 결과(verifier Round 6 완료): **통과.** 시나리오 5개(최초 마운트/곡 전환/플레이리스트 비워짐/재추가 시 재부착[핵심]/전체 언마운트) 전부 코드 트레이스로 재확인, 정적 검증 3종 + Android `assembleDebug` 증분·`clean` 재빌드 둘 다 독립 재현 성공, 회귀 없음.
+- 외부 액션: 커밋 `7b0d44c`("Fix YouTube WebView re-attach bug found in Round 5 QA (R5.17)") — 코드 수정 + implementation-log/verification-log/qa 체크리스트 함께 반영. push 안 함. **이번 YouTube WebView 실제 재생 연동 라운드는 이것으로 최종 완료(CLAUDE.md 검증 기준 충족).**
