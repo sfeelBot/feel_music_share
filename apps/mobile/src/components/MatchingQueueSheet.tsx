@@ -5,6 +5,7 @@ import MatchCandidateList from './MatchCandidateList';
 import MatchConfirmCard from './MatchConfirmCard';
 import MatchFailCard from './MatchFailCard';
 import {useAuth} from '../services/auth/AuthContext';
+import {resolveQueueEntryId} from '../state/matchQueueNavigation';
 import {useSession} from '../state/SessionContext';
 import {useTheme} from '../theme/ThemeContext';
 import type {Track} from '../types/domain';
@@ -38,36 +39,30 @@ export default function MatchingQueueSheet({visible, onClose}: MatchingQueueShee
     skipMyMatch,
   } = useSession();
   const [mode, setMode] = useState<Mode>('card');
-  const [cursor, setCursor] = useState(0);
 
   useEffect(() => {
     if (visible) {
-      setCursor(0);
       setMode('card');
     }
   }, [visible]);
-
-  useEffect(() => {
-    setCursor(prev => Math.min(prev, Math.max(0, myPendingMatchEntryIds.length - 1)));
-  }, [myPendingMatchEntryIds.length]);
 
   if (!visible || !session || session.service !== 'mixed' || !currentParticipantId || !myPlatform) {
     return null;
   }
 
-  const entryId = myPendingMatchEntryIds[cursor];
+  // 인덱스(cursor) 대신 entryId 기준으로 "지금 보여줄 항목"을 계산한다 — R7.13 수정,
+  // 근거는 `state/matchQueueNavigation.ts` 주석 참고. 처리(확정/스킵/수동교체)된 항목은
+  // `myPendingMatchEntryIds` 자체에서 다음 렌더에 자연히 빠지므로, 별도로 "다음 인덱스"를
+  // 계산할 필요 없이 항상 대기열의 첫 항목을 보여주면 된다 — stale length를 참조하는 산술이
+  // 아예 존재하지 않아 React state batching 여부와 무관하게 항상 올바르다.
+  const entryId = resolveQueueEntryId(myPendingMatchEntryIds);
   const entry = entryId ? session.mixedPlaylist.find(e => e.entryId === entryId) : undefined;
   const myMatch = entry ? entry.matches[currentParticipantId] : undefined;
-
-  const goToNextInQueue = () => {
-    setMode('card');
-    setCursor(prev => (prev < myPendingMatchEntryIds.length - 1 ? prev + 1 : prev));
-  };
 
   const handleManualSelect = (track: Track) => {
     if (!entryId) {return;}
     manualMatchTrack(entryId, track);
-    goToNextInQueue();
+    setMode('card');
   };
 
   if (mode === 'search') {
@@ -99,7 +94,9 @@ export default function MatchingQueueSheet({visible, onClose}: MatchingQueueShee
           </TouchableOpacity>
           <Text style={[styles.headerTitle, {color: theme.text}]}>
             {mode === 'candidates' ? '다른 결과 보기' : '곡 매칭 확인'}
-            {myPendingMatchEntryIds.length > 1 ? ` (${cursor + 1}/${myPendingMatchEntryIds.length})` : ''}
+            {myPendingMatchEntryIds.length > 1
+              ? ` (${myPendingMatchEntryIds.indexOf(entryId as string) + 1}/${myPendingMatchEntryIds.length})`
+              : ''}
           </Text>
           <View style={styles.close} />
         </View>
@@ -111,7 +108,7 @@ export default function MatchingQueueSheet({visible, onClose}: MatchingQueueShee
             onManualSearch={() => setMode('search')}
             onSkip={() => {
               skipMyMatch(entryId as string);
-              goToNextInQueue();
+              setMode('card');
             }}
           />
         ) : mode === 'candidates' ? (
@@ -130,7 +127,7 @@ export default function MatchingQueueSheet({visible, onClose}: MatchingQueueShee
             hasCandidates={myMatch.candidates.length > 0}
             onConfirm={() => {
               confirmMyMatch(entryId as string);
-              goToNextInQueue();
+              setMode('card');
             }}
             onShowCandidates={() => setMode('candidates')}
             onManualSearch={() => setMode('search')}

@@ -255,3 +255,38 @@
   - 검증: `apps/mobile`에서 `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 22 warnings — 전부 기존에 있던 `react-native/no-inline-styles` 경고, 이 파일에서 새로 발생한 경고 없음), `npx jest`(4 suites/16 tests 전부 통과, 회귀 없음) 확인. Android: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`로 `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon` → **BUILD SUCCESSFUL in 24s**. iOS는 이전 라운드들과 동일하게 macOS 부재로 빌드 미검증(구조적 제약, 신규 아님).
   - 실기기 Spotify OAuth 로그인 자체(콜백 포함)는 지시에 따라 시도하지 않았다 — 이 버튼의 배선(링크 탭 → 모달 오픈 → "로그인 계속하기" 탭 → 모달 닫힘 + `login()` 호출 → `status === 'signed_in'`이 되면 `navigation.replace('Home')`)까지만 코드 추적으로 확인했다. 검증 에이전트는 실기기/에뮬레이터에서 다음을 확인해달라: (1) 링크 탭 시 모달이 실제로 뜨는지, (2) "로그인 계속하기" 탭 시 모달이 닫히고 기존 Spotify OAuth 플로우(시스템 브라우저)가 정상 시작되는지, (3) "Spotify Premium 알아보기" 탭 시 외부 브라우저로 spotify.com/premium이 열리는지, (4) "닫기" 탭 시 모달만 닫히고 원래 로그인 버튼 화면으로 안전하게 복귀하는지, (5) 다크모드에서 모달 배경/텍스트 대비가 정상인지(`theme.bgElevated`/`theme.text`/`theme.textSecondary` 재사용이라 회귀 낮음으로 예상하나 미육안검증).
   - `docs/design/`, `docs/specs/`는 읽기만 하고 수정하지 않았다. 지시대로 다른 화면/혼합 모드 관련 코드는 손대지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.
+
+## 2026-07-26 (버그 수정: R7.13 매칭 큐 인덱싱 경합)
+
+- 작업: `docs/qa/spotify-mvp-round1-checklist.md` "Round 7 검증" R7.13(`MatchingQueueSheet.tsx`의 `goToNextInQueue` 인덱싱 버그) 수정. 검증 에이전트가 코드 정적 추적(React state batching 규칙 기반, Round 5 R5.17과 동일 방법론)으로 확정 재현한 버그로, 원인은 `goToNextInQueue`가 `myPendingMatchEntryIds.length`(처리하려는 항목이 아직 포함된 "처리 전" 렌더의 값)를 기준으로 `cursor + 1`을 계산하는데, 처리 함수 호출(`confirmMyMatch`/`skipMyMatch`/`manualMatchTrack`)과 `setCursor` 호출이 같은 이벤트 핸들러에서 동기 실행되어 React가 배칭하면서 다음 렌더의 "처리 후(더 짧아진)" 배열과 어긋나 커서가 한 칸 더 앞서가 버리는 경합이었다 — 대기 항목이 정확히 2건이면 시트가 조기 종료, 3건 이상이면 항목이 통째로 건너뛰어짐.
+
+### 수정 방향 및 근거(왜 인덱스 산술을 없애는 쪽을 택했는가)
+
+리더 지시사항이 제안한 대로 **숫자 인덱스(cursor) 대신 entryId 기준으로 "다음에 보여줄 항목"을 결정**하는 방식을 채택했다. 다만 실제로 구현하면서 다음을 추가로 확인·판단했다:
+
+1. **cursor state 자체를 완전히 제거**: 처음엔 "cursor를 증가시키지 않고 유지"(R7.13 검증 로그가 제시한 대안)만으로도 충분한지 검토했으나, 그 방법도 여전히 "처리된 항목이 항상 cursor가 가리키던 바로 그 위치에 있었다"는 암묵적 불변식에 의존하는 인덱스 산술이라 판단했다. 대신 `state/matchQueueNavigation.ts`(신규, 순수 함수)의 `resolveQueueEntryId(pendingIds, skippedIds?)`가 매 렌더마다 `myPendingMatchEntryIds`(SessionContext가 항상 최신으로 재계산하는 실제 대기 목록)에서 직접 "다음에 보여줄 entryId"를 계산하도록 했다 — cursor라는 별도 state를 아예 없애 "state가 참조하는 배열 길이가 언제 갱신되는지"라는 시점 의존성 자체를 제거했다. `MatchingQueueSheet.tsx`는 이제 `const entryId = resolveQueueEntryId(myPendingMatchEntryIds);` 한 줄로 대체됐다 — 처리된 항목은 `myPendingMatchEntryIds`에서 다음 렌더에 자연히 빠지므로, "다음 인덱스가 몇인가"를 계산할 필요 자체가 없다(항상 대기열의 첫 항목을 보여주면 됨).
+2. **"처리돼서 빠짐" vs "그냥 넘겨봄"의 구조적 분리(지시사항이 지적한 두 번째 문제)**: 이 컴포넌트의 커서 증가가 (1) 처리 후 다음으로 넘어가는 경우(배열 자체가 줄어듦)와 (2) "다음" 버튼으로 미처리 항목을 그냥 건너뛰어 보는 경우(배열은 그대로, `implementation-log.md` "매칭 큐 네비게이션 단순화" 항목이 언급한 기능)를 인덱스 산술 하나로 뭉뚱그리고 있었다는 지시사항의 지적은 코드 확인 결과 정확했다. 다만 **현재 UI에는 실제로 (2)를 트리거하는 버튼이 없다** — `MatchingQueueSheet.tsx` 전체를 다시 읽고 `cursor`/`다음` 텍스트를 grep한 결과, "다음" 버튼은 존재하지 않고 헤더의 `(N/M)` 카운터는 표시 전용이며, `cursor`를 증가시키는 경로는 오직 처리 액션 세 곳(`onConfirm`/`onSkip`/`handleManualSelect`)뿐이었다. 즉 (2)는 "cursor state가 있으니 이론적으로 가능한 동작"으로 이전 구현 로그에 기술됐을 뿐, 실제로 배선된 기능이 아니었다. 그래서 `resolveQueueEntryId`는 `skippedIds`를 옵션 파라미터로 받아 (2) 시맨틱을 구조적으로 지원하도록 설계했지만(향후 "다음" 버튼이 추가되면 컴포넌트가 그 Set만 채워 넣으면 되도록), **컴포넌트 자체에는 이 Set을 채우는 실제 UI를 새로 추가하지 않았다** — 존재하지 않는 버튼을 위해 컴포넌트에 항상 빈 상태로 남는 state를 미리 심어두는 것은 불필요한 복잡도(사용되지 않는 state)를 더한다고 판단했기 때문이다(스코프 임의 확장 금지 원칙과도 부합). 대신 이 시맨틱은 `__tests__/matchQueueNavigation.test.ts`에서 순수 함수 수준으로 직접 검증해, 설계가 실제로 두 의미를 구분해서 다룰 수 있음을 근거로 남겼다.
+3. **헤더 카운터(`(N/M)`) 표시는 유지**: `myPendingMatchEntryIds.indexOf(entryId as string) + 1`로 매 렌더 즉시 파생시켰다(별도 state 없이 렌더 시점에 계산되므로 stale 값이 될 수 없음).
+
+### 검증 — 시나리오별 근거(지시사항이 요구한 3가지 + `matchQueueNavigation.test.ts`로 자동화)
+
+| 시나리오 | 추적 근거 |
+|---|---|
+| 대기 항목 정확히 2건일 때 첫 항목 처리 후 두 번째 항목이 실제로 보이는가 | `resolveQueueEntryId(['a','b'])` → `'a'`(카드 표시) → "확정하기" 탭 → `confirmMyMatch('a')` 호출로 `entry.matches[me].confirmState`가 `'confirmed'`로 바뀜 → 다음 렌더에서 `SessionContext`의 `myPendingMatchEntryIds` `useMemo`가 재계산되어 `['b']`(길이 1, `'a'`가 실제로 빠짐)가 됨 → `resolveQueueEntryId(['b'])` → `'b'` → `entry`/`myMatch` 둘 다 유효(undefined 아님) → 82행 `if (!entry \|\| !myMatch)` 가드가 발동하지 않고 두 번째 카드가 정상 렌더됨. `__tests__/matchQueueNavigation.test.ts`의 "shows the second entry after the first is processed..." 테스트로 이 배열 전이를 직접 시뮬레이션해 통과 확인. |
+| 3건 이상일 때 항목이 건너뛰어지지 않는가 | 위와 동일한 방식으로 `['a','b','c']` → 'a' 처리 → `['b','c']` → 'b' 처리 → `['c']` → 'c' 처리 → `[]` → `undefined`(큐 자동 종료) 순서를 `resolveQueueEntryId`가 매 단계 정확히 `'a'→'b'→'c'→undefined`로 반환함을 "walks through all entries in order without skipping any when N=3" 테스트로 확인 — 이전 버그처럼 중간 항목이 건너뛰어지는 경우가 구조적으로 발생할 수 없다(각 단계가 항상 그 시점의 실제 `pendingIds`만 참조하고, 이전 렌더의 length를 기억해두는 state가 전혀 없기 때문). |
+| "다음" 버튼으로 건너뛴 뒤 다시 그 항목으로 돌아올 수 있는가 | 위 2번 판단 근거에서 밝혔듯 현재 UI에는 이 기능을 트리거하는 버튼이 실제로 없어 실제 화면에서 재현할 수는 없었다 — 대신 설계 수준에서 `resolveQueueEntryId(pending, skippedIds)`가 이 시맨틱을 올바르게 지원함을 순수 함수 테스트로 검증했다: `['a','b','c']`+`skipped={'a'}` → `'b'`(스킵한 a를 건너뜀), 전부(`{'a','b','c'}`) 스킵하면 `pendingIds[0]`인 `'a'`로 되돌아감("이전" 버튼 없이도 건너뛴 항목을 잃지 않음, "wraps back to the first pending entry..." 테스트), 마지막으로 "처리돼서 빠짐"과 "그냥 넘겨봄"이 동시에 섞인 경우(`pending=['a','c']`, `b`는 실제 처리되어 배열에서 빠짐, `a`는 스킵만 됨, `skipped={'a'}`)에도 정확히 `'c'`를 반환함을 "correctly distinguishes..." 테스트로 확인 — R7.13류 경합이 이 시맨틱 확장에서도 재발하지 않을 구조임을 뒷받침한다. |
+
+### 검증 — 정적 검사/빌드
+
+- `apps/mobile`에서 `npx tsc --noEmit`: **0 errors**.
+- `npx eslint .`: **0 errors, 22 warnings** — Round 7과 정확히 동일한 개수/종류(전부 기존 `react-native/no-inline-styles`), 이번 변경으로 신규 발생한 경고 없음.
+- `npx jest`: **5 suites / 23 tests 전부 통과**(신규 `matchQueueNavigation.test.ts` 7건 포함, 기존 4개 스위트 16건 그대로 회귀 없음).
+- Android: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`로 `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon` → **BUILD SUCCESSFUL in 23s**(203 actionable tasks, 27 executed/176 up-to-date — 순수 JS/TS 변경이라 대부분 UP-TO-DATE, 새 네이티브 의존성 없음). iOS는 이전 라운드들과 동일하게 macOS 부재로 빌드 미검증(구조적 제약).
+- 이번 수정으로 `goToNextInQueue` 함수와 `cursor`/`setCursor` state, 관련 두 `useEffect`(초기화·클램프)가 전부 제거됐다 — `git diff --stat`으로 `MatchingQueueSheet.tsx` 변경이 29줄(추가/삭제 합산) 규모로 국소적임을 확인. `resolveQueueEntryId`를 사용하지 않는 `selectMyMatchCandidate` 경로(후보 선택 시 카드로 되돌아가는 동작, 2.11c)는 이번에도 건드리지 않았다 — R7.7이 확인한 대로 원래부터 `goToNextInQueue`를 호출하지 않는 유일한 예외였고 이번 버그의 영향을 받지 않았기 때문.
+
+- 상태: 완료(검증 대기)
+- 변경 파일: 수정 — `apps/mobile/src/components/MatchingQueueSheet.tsx`. 신규 — `apps/mobile/src/state/matchQueueNavigation.ts`(순수 함수), `apps/mobile/__tests__/matchQueueNavigation.test.ts`(단위 테스트 7건). 지시대로 다른 파일은 건드리지 않았다.
+- 비고(검증 시 주의):
+  - 실기기 검증 필요: (1) 혼합 세션에서 곡 2개를 연달아 추가 → 매칭 큐를 열고 첫 항목 "확정하기" → 두 번째 항목이 실제로 이어서 표시되는지(시트가 조기 종료되지 않는지), (2) 곡 3개 이상을 추가해 동일하게 순서대로 전부 노출되는지, (3) "이 곡 없이 넘어가기"(`MatchFailCard`)와 "직접 검색하기"로 수동 매칭한 뒤에도 동일하게 다음 항목이 정상 노출되는지 — 이번 로그의 표는 코드/단위 테스트 기반 근거이며, 실기기에서의 최종 시각적 확인은 별도로 필요하다(Round 5 R5.17 수정 로그와 동일한 검증 범주).
+  - "다음(미처리 항목 넘겨보기)" 버튼은 이번 수정에서도 추가하지 않았다 — 현재 UI/스펙(00-ux-flow.md 2.11a)에 명시적으로 요구되지 않은 신규 기능이라 스코프 확장으로 보고 손대지 않았다. `resolveQueueEntryId`의 `skippedIds` 파라미터는 향후 이 버튼이 추가될 때 재사용할 수 있도록 설계·테스트만 미리 갖춰둔 것이다.
+  - `docs/qa/`, `docs/specs/`, `docs/design/`는 읽기만 하고 수정하지 않았다. 커밋은 하지 않았다 — 리더 검토 후 커밋.
