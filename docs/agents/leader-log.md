@@ -234,3 +234,7 @@
 - 리더 자체 검증(1차): `npx tsc --noEmit`/`npx eslint .`/`npx jest` 독립 재현(구현 에이전트 주장과 일치), Android `assembleDebug --no-daemon` 독립 재현(BUILD SUCCESSFUL, `package.json` 변경 없음 확인 — 신규 네이티브 의존성 없음). 정책 핵심 2가지를 코드로 직접 확인: (1) `mixedMatching.ts`/`sessionService.ts`의 `addMixedTrack` — 매칭 성공/실패, 추가자 본인 여부와 무관하게 항상 `confirmState: 'pending'`으로 시작(조용히 확정되는 경로 없음, 09문서 결정 2 준수), (2) `ParticipantsBottomSheet.tsx`의 `isPlayable`/`shouldShowFreeTag` — 혼합 세션에서 세션 전체 가드 대신 참여자 개별(`platform`+`accountTier`) 판단으로 전환됨.
 - 외부 액션: 커밋 `dbd275c`("Implement mixed (cross-platform) session mode"), push 안 함.
 - 후속 분배: verifier에게 Round 7 검증 위임(백그라운드) — 규모가 커서(27개 파일) 리더 확인 사항 재검증 + 전체 플로우 코드 트레이스 + 기존 Spotify/YouTube 전용 세션 회귀 확인 + 단위 테스트 내용 검토까지 폭넓게 지시.
+
+- 요청: 사용자가 실기기에서 "spotify 프리미엄이 없다고 클릭 시 다음 화면으로 넘어가지 않고 있어" 버그 리포트.
+- 확인(리더 직접 수행): `SpotifyConnectScreen.tsx` 51행의 "Premium이 없으신가요? →" `TouchableOpacity`에 `onPress` 핸들러 자체가 없음을 확인(죽은 버튼). `docs/design/00-ux-flow.md` 2.3/2.4절 원래 디자인(2.4 "Premium 아님 안내" 화면으로 이동)을 확인했으나, 그 화면 자체가 `navigation/types.ts`에도 없어 애초에 구현된 적이 없었음. 이후 정책이 바뀐 것도 함께 확인 — `docs/specs/04-playlist.md` "Free 계정 처리" 절이 2026-07-24에 "세션 참여 자체는 항상 허용"(해석 A)으로 확정되어, 원래 디자인의 "차단" 취지는 이제 맞지 않음. `AuthContext.tsx`도 이미 `isPremium` 여부와 무관하게 로그인만 되면 `signed_in`으로 전환하는 구조라 정책과 우연히 일치하는 상태임을 확인.
+- 분배: implementer에게 위임(백그라운드) — 죽은 버튼을 "차단"이 아니라 "안내 후 계속 진행 가능"하게 고치도록 지시(가벼운 모달/Alert vs 정식 화면 신규 두 방향 중 판단은 위임, 근거를 로그에 남기도록 지시). 회원 로그인을 막는 코드는 추가하지 말라고 명시.
