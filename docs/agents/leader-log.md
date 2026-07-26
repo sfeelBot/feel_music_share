@@ -225,4 +225,7 @@
 - 외부 액션: 커밋 `229a2bc`("Wire real Spotify Client ID into env config") + `dbc135b`(decisions-needed.md 갱신). push 안 함.
 - 요청: 사용자가 "리다이렉트 url 도 등록했으니 확인해봐"라고 요청.
 - 확인(리더 직접 수행): **Spotify Developer Dashboard 등록 내용은 API로 조회할 공개 엔드포인트가 없어 원격 검증이 구조적으로 불가능함**을 사용자에게 정직하게 설명. 대신 앱 쪽 커스텀 URL 스킴 등록(Android `build.gradle`의 `appAuthRedirectScheme: "feelmusicshare"`, iOS `Info.plist`의 `CFBundleURLSchemes`)이 리다이렉트 URI 스킴과 정확히 일치하는지만 재확인(둘 다 일치). 실제 동작 확인은 실기기 로그인 시도가 유일한 방법임을 안내, 갤럭시폰 USB 연결 실기기 테스트를 재권유.
-- 외부 액션: `decisions-needed.md` Spotify 항목을 "설정 완료로 보이나 실기기 확인 전" 상태로 갱신(커밋 예정).
+- 외부 액션: `decisions-needed.md` Spotify 항목을 "설정 완료로 보이나 실기기 확인 전" 상태로 갱신(커밋 `c7b4465`).
+
+- 요청: 사용자가 "현재까지 진행상황 push 해줘"라고 명시적으로 요청.
+- 외부 액션: `git push origin main` 실행 — `c2ed5f9..c7b4465`, 38개 커밋 push 완료(YouTube WebView 연동+수정, 스파이크 에이전트 신설, RTDB/Firestore 스파이크, Spotify Client ID 반영 등 이번 세션 작업 전부 포함). 혼합 모드 구현은 아직 백그라운드에서 진행 중이라 워킹트리에 미커밋 변경이 남아있고, 이번 push에는 포함되지 않음(완료되면 별도 커밋/푸시 예정).
