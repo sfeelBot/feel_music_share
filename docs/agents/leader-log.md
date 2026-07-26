@@ -215,3 +215,5 @@
 - 후속 분배: verifier에게 Round 6 재검증 위임(백그라운드, 좁은 범위로 R5.17 재현/해소 확인 + 정적 검증 + Android 빌드 + 회귀 확인에 집중 지시).
 - 결과(verifier Round 6 완료): **통과.** 시나리오 5개(최초 마운트/곡 전환/플레이리스트 비워짐/재추가 시 재부착[핵심]/전체 언마운트) 전부 코드 트레이스로 재확인, 정적 검증 3종 + Android `assembleDebug` 증분·`clean` 재빌드 둘 다 독립 재현 성공, 회귀 없음.
 - 외부 액션: 커밋 `7b0d44c`("Fix YouTube WebView re-attach bug found in Round 5 QA (R5.17)") — 코드 수정 + implementation-log/verification-log/qa 체크리스트 함께 반영. push 안 함. **이번 YouTube WebView 실제 재생 연동 라운드는 이것으로 최종 완료(CLAUDE.md 검증 기준 충족).**
+- leader-log "현재 상황 요약" 절 갱신(커밋 `2b03b04`) — YouTube 라운드 완료, Firebase 미해결 원인 2가지로 구체화.
+- 후속 분배: implementer에게 혼합(Mixed) 세션 모드 실제 구현 위임(백그라운드) — `docs/specs/09-cross-platform-mixed-mode.md`/`04-playlist.md`(혼합 모드 플레이리스트 구조)/`00-ux-flow.md`(2.6c/2.10d/2.11a~d)/`02-key-ui-patterns.md`(5절 매칭 확인 카드) 근거로, 세션 생성 라디오 활성화·데이터 모델(공통 식별자+참여자별 매칭 트랙 이중 계층)·휴리스틱 매칭 유틸(제목 유사도+아티스트+길이, 임계값은 TODO로 남김)·매칭 확인 UI 4종·혼합 모드 Now Playing·서비스 전환 UI 숨김을 지시. Free 배너 등 서비스별 가드가 혼합 세션에 새어 들어가지 않도록(R3.17류 실수 반복 방지) 명시적으로 주의 지시. 작업량이 크니 판단 필요 지점은 로그에 근거와 함께 남기도록 지시.
