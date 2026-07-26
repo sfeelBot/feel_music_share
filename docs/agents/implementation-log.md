@@ -196,3 +196,15 @@
   - iOS는 이번에도 macOS 부재로 빌드 검증 미수행(구조적 제약, round 1부터 동일).
   - 이 버그는 실기기 없이 코드 추적만으로 재현/수정 근거를 확보했다 — 위 표의 5개 시나리오가 검증 에이전트가 재현 시나리오를 재추적할 때 참고할 수 있도록 상세히 남겨둔다. 실기기에서의 최종 확인(플레이리스트를 비웠다가 새 곡을 추가하고 실제로 영상이 재생되는지)은 여전히 별도 필요(round 5 R5.18~R5.21과 동일 범주 제약).
   - `docs/specs/`, `docs/design/`은 이번에도 읽기/수정 없음. 커밋은 하지 않았다 — 리더 검토 후 커밋.
+
+## 2026-07-26 (Spotify Client ID 실값 반영)
+- 작업: 사용자가 Spotify Developer Dashboard에서 앱 등록 후 발급받은 실제 Client ID를 `apps/mobile/src/config/env.ts`의 `ENV.SPOTIFY_CLIENT_ID`에 반영. `'TODO_SPOTIFY_CLIENT_ID'` placeholder → `'4b076092ea1b4f8e9d41b7eaec85920a'`로 교체, 그 외 값(`SPOTIFY_REDIRECT_URI`, `SPOTIFY_APP_REMOTE_REDIRECT_URI`, Firebase placeholder 등)은 지시대로 건드리지 않았다. `.env.example`의 `SPOTIFY_CLIENT_ID=` 줄도 지시대로 빈 채로 유지(수정 안 함). `.env` 기반 설정 전환 같은 리팩터링도 이번 범위에 포함하지 않았다(파일 헤더의 TODO 주석 그대로 유지).
+- 상태: 완료(검증 대기)
+- 변경 파일: `apps/mobile/src/config/env.ts`(한 줄만 변경).
+- 비고(검증 시 주의):
+  - `git diff`로 이번 변경이 정확히 그 한 줄(`SPOTIFY_CLIENT_ID` 값)뿐임을 확인했다.
+  - `npx tsc --noEmit`: 에러 다수 발생하나 전부 이번 변경과 무관한 기존 이슈임을 `git stash`로 교차 확인 — (1) `__tests__/playlistSequencing.test.ts`·`__tests__/trackMatcher.test.ts`의 `describe/it/expect` 미인식(tsconfig에 jest 타입 미설정, jest 실행 자체는 정상 통과함 — tsc와 jest의 타입 검사 경로가 다름), (2) `src/state/SessionContext.tsx(386,97)` "Expected 4 arguments, but got 5" — 이 작업 시작 시점에 이미 워킹트리에 있던 다른 미완료 작업(`mockSessionSeed.ts`/`sessionService.ts`/`SessionContext.tsx`/`theme/tokens.ts`/`types/domain.ts`가 커밋되지 않은 채 수정된 상태로 남아 있었음, 이번 작업자가 만든 변경 아님)에서 비롯된 것으로 보인다. 이번 작업은 `env.ts` 한 줄만 건드렸으므로 위 에러들에 대한 책임 범위 밖이나, 검증/차기 라운드에서 인지할 수 있도록 남겨둔다.
+  - `npx eslint .`: **0 errors, 16 warnings**(기존과 동일, 신규 경고 없음).
+  - `npx jest`: **3 suites / 11 tests 전부 통과**(`playlistSequencing.test.ts`, `trackMatcher.test.ts`, `App.test.tsx`) — tsc에서는 타입 에러가 났던 테스트 파일들도 jest 자체 실행(babel 트랜스폼 경로)에서는 정상 통과함, 회귀 아님.
+  - 실제 OAuth 로그인 콜백/Premium 확인 플로우는 지시대로 실기기 없이 검증하지 않았다 — 값 반영과 정적 검증까지만 수행. Android/iOS 실기기 빌드도 이번 라운드에서는 수행하지 않았다(지시 범위 밖, 변경이 문자열 값 하나뿐이라 빌드 영향 없음).
+  - 커밋은 하지 않았다 — 리더가 처리.

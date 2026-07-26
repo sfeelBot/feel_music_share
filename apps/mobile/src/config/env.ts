@@ -12,7 +12,7 @@
 
 export const ENV = {
   /** Spotify OAuth (Authorization Code + PKCE) 설정 — Web API 호출(검색, /v1/me로 Premium 확인)용. */
-  SPOTIFY_CLIENT_ID: 'TODO_SPOTIFY_CLIENT_ID',
+  SPOTIFY_CLIENT_ID: '4b076092ea1b4f8e9d41b7eaec85920a',
   SPOTIFY_REDIRECT_URI: 'feelmusicshare://spotify-auth-callback',
   SPOTIFY_SCOPES: [
     'user-read-email',
