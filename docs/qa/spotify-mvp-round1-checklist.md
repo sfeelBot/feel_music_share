@@ -712,4 +712,93 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 | 미검증(환경 제약, 실패 아님) | R9.13 — 실기기 OAuth 콜백/브라우저 전환/딥링크 복귀/다크모드 육안 확인, 지시사항이 명시한 검증 범위 밖 |
 | 실패 | 없음 |
 
+---
+
+## Round 10 검증 (코드로 참여하기 + 세션 설정 화면)
+
+> 검증 대상 커밋: `caea14d` ("Implement join-by-code and the session settings screen") — 서로 격리된 두 git worktree(`worktree-agent-ab4f705e4e664e61e`: 코드로 참여하기, `worktree-agent-a9d7e2ffe97d0f204`: 세션 설정 화면)에서 병렬 구현된 뒤 리더가 `SessionContext.tsx`/`sessionService.ts`를 손으로 이어붙여 병합한 결과. 이번 라운드는 기능 자체 검증뿐 아니라 **병합 정합성**(스플라이스 과정에서 어느 한쪽 코드가 누락/중복되지 않았는지)을 최우선으로 확인했다.
+> 검증일: 2026-07-26
+> 검증 담당: 검증(Verification) 서브에이전트
+> 검증 방식: `git show caea14d --stat`으로 변경 파일 목록 확인 → `docs/agents/implementation-log.md` 최근 두 항목(294~399행) 전문 재확인(잘림 여부) → `SessionContext.tsx`/`sessionService.ts`/`sessionPermissions.ts` 전체 파일 재독 후 4개 지점(인터페이스/구현/useMemo value/deps) 대조 → `HomeScreen.tsx`/`SessionSettingsView.tsx`/`RoomScreen.tsx`/`ParticipantsBottomSheet.tsx` 코드 트레이스 → 두 신규 테스트 파일(`joinSessionByCode.test.ts` 7건, `sessionPermissions.test.ts` 6개 describe) 내용 검토 → `git diff 71176df caea14d`로 Round 9 이후 전체 diff를 파일 단위로 재확인(회귀 위험 지점인 `RoomScreen.tsx`/`ParticipantsBottomSheet.tsx` 라인 단위 대조) → `apps/mobile`에서 tsc/eslint/jest 독립 재현 → Android `clean` 포함 완전 재빌드 독립 재현.
+> 환경: Windows 11 Pro (10.0.26200), JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`. macOS/Xcode 없음 — iOS는 이번에도 코드 리뷰 수준까지만(네이티브 파일 미변경, 구조적 제약, Round 1~9와 동일).
+
+### 1. 병합 정합성 — `SessionContext.tsx`
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R10.1 | 인터페이스 선언부(`SessionContextValue`)에 `joinSession`/`requestServiceSwitch`/`resignAdmin` 3개 모두 존재하는가 | 통과 | 61~66행 `joinSession`, 93행 `requestServiceSwitch`, 98행 `resignAdmin` — 각각 JSDoc 주석과 함께 온전히 선언돼 있다. |
+| R10.2 | 실제 구현부(`useCallback` 정의)에 3개 함수 모두 정확히 1회씩만 존재하는가(중복/누락 없음) | 통과 | `grep -n "const joinSession = \|const requestServiceSwitch = \|const resignAdmin = "` 결과 158행/394행/422행 각 1건씩만 매칭 — 중복 선언 없음. `joinSession`은 `sessionService.joinSessionByCode` 호출 후 성공 시에만 session/currentParticipantId 갱신(158~165행), `requestServiceSwitch`는 `canSwitchService` 가드 통과 후 `sessionService.switchService` 호출 + `triggerTuning()`(394~420행), `resignAdmin`은 `canResignAdmin` 가드 후 `sessionService.revokeAdmin(prev.sessionId, currentParticipantId)` 재사용(422~431행) — 로직도 구현 로그의 서술과 정확히 일치. |
+| R10.3 | `useMemo`로 묶인 반환 객체(`value`)에 3개 함수 모두 노출되는가 | 통과 | 646~673행 `value` 객체에 `joinSession`(653행), `requestServiceSwitch`(664행), `resignAdmin`(665행) 모두 포함. |
+| R10.4 | 그 `useMemo`의 의존성 배열에도 3개 함수 모두 빠짐없이 포함되는가(누락 시 stale closure 버그로 이어짐) | 통과 | 674~700행 deps 배열에 `joinSession`(680행), `requestServiceSwitch`(691행), `resignAdmin`(692행) 모두 포함 — value 객체 순서와 1:1 대응, 누락 없음. |
+| R10.5 | 두 에이전트가 각각 다른 위치(`createSession` 근처 vs `appointAdmin/revokeAdmin` 근처)에 추가하기로 한 설계대로 실제로 서로 겹치지 않는 자리에 배치됐는가 | 통과 | `joinSession`은 `createSession` 바로 다음(158행), `requestServiceSwitch`/`resignAdmin`은 `appointAdmin`/`revokeAdmin` 바로 다음(373~431행)에 위치 — 물리적으로 떨어져 있어 병합 스플라이스 시 충돌 여지가 애초에 낮았음을 코드 배치로도 확인. |
+
+### 2. 병합 정합성 — `sessionService.ts` / import / 로그
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R10.6 | `getSessionByInviteCode`/`joinSessionByCode`(코드로 참여하기)와 `switchService`(세션 설정)가 둘 다 온전히 존재하고 서로의 로직을 침범하지 않는가 | 통과 | `getSessionByInviteCode`(92~98행)·`joinSessionByCode`(125~160행)는 92~160행 구간에, `switchService`(236~243행)는 별도 구간에 위치 — 서로 참조/간섭하지 않는다. `joinSessionByCode`가 참여자를 추가할 때 `session.service`(mixed 여부)만 읽고 `switchService`가 쓰는 `session.service` 필드를 함께 변경하지 않아 두 함수의 부수효과가 겹치지 않음을 확인. |
+| R10.7 | `SessionContext.tsx`의 `sessionPermissions`에서 `canResignAdmin`/`canSwitchService` import, `sessionService`에서 `JoinSessionResult` type import가 정확한가 | 통과 | 2~3행 `import * as sessionService`/`import type {JoinSessionResult} from '../services/session/sessionService'`, 6행 `import {canResignAdmin, canSwitchService} from './sessionPermissions'` — 실제로 158행(`joinSession` 반환 타입에 `JoinSessionResult` 암묵 사용), 402행/427행(`canSwitchService`/`canResignAdmin` 호출)에서 각각 소비됨을 확인. `SessionSettingsView.tsx`도 7~14행에서 `sessionPermissions`의 6개 함수를 동일하게 import해 재사용. `npx tsc --noEmit` 0 errors로 import 그래프 전체의 정합성을 정적으로도 재확인(R10.16). |
+| R10.8 | `docs/agents/implementation-log.md`가 두 에이전트의 로그 항목을 손실 없이 온전히 담고 있는가(과거 라운드의 로그 편집 실수 재발 여부) | 통과 | 파일 전체 399줄 중 "코드로 참여하기" 항목이 294~360행(작업 요약 → 판단 근거 → Firebase TODO → 작업 범위 밖 → 변경 파일 → 상태 → 비고/Android MAX_PATH blocker까지 전 구간 온전), "세션 설정 화면" 항목이 361~399행(0.worktree 동기화 → 1.진입점 판단 → 2.신규/변경 파일 6종 → 3.알려진 제약 3가지 → 4.정적 검증 → 5.Android 빌드(환경 제약) → 변경 파일/비고까지 전 구간 온전)으로 각각 문단이 끊기거나 중간에 잘린 흔적 없이 이어짐을 처음부터 끝까지 직접 읽어 확인. |
+
+### 3. 기능 1 — 코드로 참여하기
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R10.9 | `HomeScreen.tsx` — 3가지 실패 경로(`not_found`/`capacity_full`/`platform_required`)가 각각 다른 안내로 구분되는가 | 통과 | `attemptJoin`의 `switch(result.reason)`(66~85행) — `not_found` → Alert("세션을 찾을 수 없어요" / "코드를 다시 확인해주세요"), `capacity_full` → Alert("이 세션은 정원이 가득 찼어요" / "최대 인원에 도달"), `platform_required` → Alert 없이 `setStep('platform')`으로 화면 전환. 세 경로가 서로 다른 문구/다른 UI 반응으로 명확히 구분됨. 빈 코드 입력 시에도 별도 Alert("코드를 입력해주세요", 43~46행). |
+| R10.10 | 혼합 세션이면 `PlatformSelect` 단계로 전환되고, 확인 후 실제 참여가 되는가 | 통과 | `platform_required` 시 `setStep('platform')`(81행) → `step==='platform'`이면 `PlatformSelect` 렌더(90~110행, `joiningPlatform` state 기본값 'spotify') → "확인하고 입장" 버튼이 `attemptJoin(joiningPlatform)`을 재호출(104행) → `joinSession({..., platform: joiningPlatform})` → `sessionService.joinSessionByCode`가 이번엔 `platform`이 채워져 있어 정상적으로 참여자를 추가하고 `{ok:true, ...}` 반환 → `result.ok` 분기에서 `navigation.navigate('Room', ...)`. 플로우가 코드 트레이스상 끊김 없이 이어짐을 확인. |
+| R10.11 | 성공 시 `Room` 화면으로 정확히 이동하는가 | 통과 | 60~64행 `if (result.ok) { setStep('code'); navigation.navigate('Room', {sessionId: result.session.sessionId}); return; }` — `RootStackParamList`(`navigation/types.ts` 6행 `Room: {sessionId: string}`)와 타입 일치. `step`을 'code'로 되돌려 다음에 화면을 다시 열었을 때 이전 세션 잔여 상태(플랫폼 선택 화면)가 남지 않도록 정리하는 것도 확인. |
+| R10.12 | `sessionService.joinSessionByCode` — 정원 검사, 재입장 시 정원 검사 우회, 초대 코드 정규화가 실제로 동작하는가 | 통과 | 125~160행 — ①재입장(같은 `participantId`가 이미 `session.participants`에 존재)은 정원 검사(140행) 이전인 135~138행에서 바로 `{ok:true, ..., participant: existing}`으로 반환해 정원 검사 자체를 거치지 않음(우회 확인). ②신규 참여자는 140행에서 `session.participants.length >= session.capacity`일 때 `capacity_full` 반환. ③`getSessionByInviteCode`(92~98행)가 `inviteCode.trim().toUpperCase()`로 정규화 후 조회 — 대소문자·앞뒤 공백 모두 허용. 검사 순서도 재입장 → 정원 → platform_required 순으로, 구현 로그가 주장한 "정원 초과 여부를 platform_required보다 먼저 검사"와 일치. |
+| R10.13 | 데모 스코프 한계(같은 앱 프로세스 세션만 참여 가능)가 정직하게 문서화됐는가, 새로운 우회 시도가 없는가 | 통과 | `sessionService.ts` 34행 모듈 스코프 `const sessions = new Map(...)`, 109~112행 JSDoc이 "같은 기기(같은 앱 인스턴스)에서 방금 만든 세션에 한해서만 실제로 참여를 성립시킬 수 있다"고 명시. `HomeScreen.tsx` 19~22행에도 동일 제약이 반복 문서화됨. 코드 전체를 검토한 결과 로컬스토리지/파일시스템/딥링크 등으로 이 제약을 우회하려는 시도가 전혀 없음(순수 in-memory `Map` 조회만 수행) — 정직하게 한계를 인정하고 넘어간 것으로 판단. |
+| R10.14 | `joinSessionByCode.test.ts`(7건) 내용이 실제로 의미 있는가 | 통과 | 7개 테스트가 각각 (1)정상 참여+역할/링컬러/정원 검증, (2)대소문자·공백 정규화, (3)존재하지 않는 코드→`not_found`, (4)정원 초과→`capacity_full`+참여자 미추가, (5)혼합 세션 platform 없이 호출→`platform_required`+참여자 미추가, (6)혼합 세션 platform 지정→성공+`participant.platform` 확인, (7)재입장 시 정원 검사 우회(정원이 이미 꽉 찬 상태에서도 같은 participantId로 재입장 성공, 인원수는 늘지 않음)를 각각 독립적으로 검증 — R10.12의 로직 주장과 테스트 케이스가 1:1로 대응하며, 하드코딩된 인원수 대신 `session.participants.length`/`session.capacity`를 기준으로 단언(assert)해 시드 데이터 변경에도 깨지지 않도록 짠 점도 확인(18~19행 주석). 형식적 테스트가 아니라 실제 회귀를 잡을 수 있는 케이스들로 판단. |
+
+### 4. 기능 2 — 세션 설정 화면
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R10.15 | `SessionSettingsView.tsx` — 방장/관리자만 서비스 전환 가능(일반사용자는 비활성+안내문구)한가 | 통과 | `ServiceSwitchRow`(209~239행) — `canSwitch = canSwitchService(viewerRole)`(94행)이 false면 `TouchableOpacity`가 `disabled={!canSwitch}`(224행)로 비활성화되고 `accessibilityState={{disabled: true}}`(226행)도 함께 설정, 버튼 스타일도 회색조로 변함(227~228행 `opacity: canSwitch ? 1 : 0.5`). `!canSwitch`일 때만 "ⓘ 방장 또는 관리자만 전환할 수 있어요" 안내문구가 노출(232~236행). `openSwitchDialog`(96~99행) 자체도 `if (!canSwitch) {return;}`로 이중 방어. |
+| R10.16 | 혼합 세션은 전환 UI 자체가 없고 "내가 참여 중인 플랫폼" 읽기 전용 표시로 대체되는가 | 통과 | 80~91행 `if (!shouldShowServiceSwitch(session.service)) { return <SettingsShell>...<MixedPlatformRow myPlatform={myPlatform} />...</SettingsShell>; }` — `ServiceSwitchRow`/다이얼로그/오버레이 관련 JSX가 이 분기에는 아예 렌더되지 않는다(조건부 렌더가 아니라 함수 자체가 조기 반환하는 구조라 트리에 존재하지도 않음). `MixedPlatformRow`(193~206행)는 "내가 참여 중인 플랫폼: {서비스}"와 "혼합 세션은 세션 전체 차원의 서비스 전환이 없어요" 안내를 읽기 전용으로 표시. |
+| R10.17 | 정원이 읽기 전용("변경 불가")으로 표시되는가 | 통과 | `CapacityRow`(183~190행) — `정원: {capacity}명 (변경 불가)` 텍스트만 표시, 탭 가능한 컨트롤(Stepper/버튼 등) 자체가 존재하지 않는다. |
+| R10.18 | 관리자 본인에게만 "관리자 사임하기"가 보이는가 | 통과 | `RoleSection`(168~180행) — `canResignAdmin(role) && <TouchableOpacity>...관리자 사임하기 →...</TouchableOpacity>`(173~177행). `canResignAdmin`은 `role==='admin'`일 때만 true(sessionPermissions.ts 26~28행) — 방장(`host`)·일반사용자(`regular`) 모두 노출되지 않음. 탭 시 `Alert.alert`(134~139행 `confirmResign`)로 취소/사임하기 재확인 후 `onResignAdmin` 호출. |
+| R10.19 | `sessionPermissions.ts`의 6개 순수 함수가 `SessionContext.tsx`(가드)와 `SessionSettingsView.tsx`(UI 분기) 양쪽에서 일관되게 재사용되는가(로직 중복/불일치 없음) | 통과 | `SessionContext.tsx` 6행에서 `canResignAdmin`/`canSwitchService` import 후 402행/427행에서 서버 측 권한 가드로 사용. `SessionSettingsView.tsx` 7~14행에서 6개 함수(`canResignAdmin`/`canSwitchService`/`shouldShowServiceSwitch`/`oppositeService`/`serviceLabel`/`roleDisplayLabel`) 전부 import해 UI 분기(R10.15/R10.16/R10.18)와 다이얼로그·오버레이 문구(`serviceLabel`)에 사용. 두 파일 어디에도 `role === 'admin'`/`role === 'host'` 같은 자체 판단 로직을 별도로 새로 작성한 곳이 없음(grep으로 재확인) — 권한 판단 로직이 `sessionPermissions.ts` 한 곳에만 존재. |
+| R10.20 | 서비스 전환 확인 다이얼로그(2.13a)→전환 중 오버레이(2.13b)→완료 토스트 흐름이 실제로 연결됐는가 | 통과 | `openSwitchDialog`(전환하기 탭) → `dialogTarget` 설정 → `ServiceSwitchDialog` 렌더(121~128행) → "전환하기" 확정 시 `confirmSwitch`(101~113행)가 `dialogTarget→null`, `transitionTarget` 설정 → `TransitionOverlay` 렌더(129행) → `setTimeout(TRANSITION_OVERLAY_MS=1400ms)` 후 `onRequestServiceSwitch(target)`(→`SessionContext.requestServiceSwitch` 호출, `RoomScreen.tsx` 140행에서 배선) → `onSwitchComplete(message)`(→`RoomScreen.showToast`, 142행에서 배선) → `onClose()`(설정 화면 닫힘) — 5단계가 콜백 체인으로 실제로 연결돼 있음을 코드 트레이스로 확인. `RoomScreen.tsx`의 토스트 배너(98~102행, `TOAST_DISPLAY_MS=3200ms` 후 자동 소멸)도 배선 확인. |
+| R10.21 | `ParticipantsBottomSheet.tsx`에서 "내가 참여 중인 플랫폼" 임시 텍스트가 실제로 제거됐고 "세션 설정" 진입 링크가 추가됐는가, 기존 역할 배지/Free 태그/관리자 임명 메뉴는 회귀 없이 그대로인가 | 통과 | `git diff 71176df caea14d -- .../ParticipantsBottomSheet.tsx` 직접 확인 — `isMixed`/`viewerPlatform` 로컬 변수와 `myPlatformInfo` 조건부 텍스트 블록(구 71~95행대)이 diff에서 완전히 삭제됐고, 그 대신 `onOpenSettings` prop(44~45행)과 "⚙ 세션 설정" `TouchableOpacity`(117~119행)가 추가됨. `RoleBadge`(171행)·`shouldShowFreeTag` 기반 Free 태그(173~175행)·방장 전용 `⋮` 메뉴(관리자 임명/해제, 181~197행)는 diff에 전혀 등장하지 않아 이번 변경에서 손대지 않았음을 확인 — 회귀 없음. |
+| R10.22 | `sessionPermissions.test.ts`(6건) 내용 검토 | 통과 | 6개 describe 블록이 각각 `canSwitchService`(host/admin 허용, regular 거부 — US-208), `canResignAdmin`(admin만 true), `shouldShowServiceSwitch`(spotify/youtube는 true, mixed는 false — 09문서 결정 3), `oppositeService`(양방향 플립), `serviceLabel`(라벨 매핑), `roleDisplayLabel`(00-ux-flow.md 2.13절의 세 와이어프레임 예시 문구와 정확히 일치하는지)을 검증 — 순수 함수 6개 전부에 대해 분기·경계 케이스를 빠짐없이 커버하며, 스펙 문서 근거를 주석으로 명시해 형식적 테스트가 아님을 확인. |
+| R10.23 | 구현 로그가 스스로 밝힌 알려진 제약(서비스별 플레이리스트 독립 보존이 데이터 수준까지는 아님, `PlaylistView.tsx` 서비스 칩 미연결)이 실제로 그 상태인가, 이번 라운드 지시 범위 밖 판단이 타당한가 | 통과(제약 사실 확인, 스코프 판단 타당) | ①`sessionService.switchService`(236~243행)는 `session.service` 필드만 바꾸고 `session.playlist`는 전혀 건드리지 않는다 — 코드로 직접 확인, 주석(226~231행)도 이 한계를 명시. Spotify→YouTube 전환 시 실제로는 같은 `playlist` 배열을 계속 보여주는 것이라 "곡이 안 사라진다"는 결과만 우연히 재현될 뿐, "서비스별로 독립된 두 벌의 곡 목록"이라는 데이터 모델 자체는 없음 — 알려진 제약이 사실과 일치. ②`grep -n "onPress" apps/mobile/src/screens/room/PlaylistView.tsx`로 서비스 칩 관련 코드를 확인한 결과 탭 핸들러가 연결돼 있지 않음(정적임)을 재확인 — 알려진 제약이 사실과 일치. 두 항목 모두 이번 라운드 작업 지시 범위(`RoomScreen.tsx`/`ParticipantsBottomSheet.tsx`/신규 화면/`SessionContext.tsx`)에 명시적으로 포함되지 않았고, 전자는 Firebase 연동 시점의 더 큰 데이터 모델 확장이 필요한 별도 작업, 후자는 UX 진입점 단축 경로 추가에 불과해 이번 기능의 핵심 요구사항(권한 게이팅, 혼합 세션 예외, 정원 읽기 전용, 관리자 사임)과 무관하다고 판단 — 실패로 잡지 않는다. |
+
+### 5. 정적 검증 + 빌드 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R10.24 | `npx tsc --noEmit` (apps/mobile) | 통과 | 0 errors, 출력 없음. 구현 로그·리더 주장과 일치. |
+| R10.25 | `npx eslint .` (apps/mobile) | 통과 | **0 errors, 23 warnings** — 전부 기존 `react-native/no-inline-styles` 패턴, 파일별/줄별 목록을 직접 출력해 대조. `SessionSettingsView.tsx` 227행(`opacity: canSwitch ? 1 : 0.5`) 1건이 신규 경고로 추가됐고, 이는 코드베이스 전반의 동일 패턴(다른 파일들도 전부 삼항 인라인 opacity)과 같은 종류 — 구현 로그 주장과 정확히 일치. |
+| R10.26 | `npx jest` (apps/mobile) | 통과 | **7 suites / 39 tests 전부 통과**(`App.test.tsx`, `joinSessionByCode.test.ts`, `sessionPermissions.test.ts`, `trackMatcher.test.ts`, `playlistSequencing.test.ts`, `mixedTrackView.test.ts`, `matchQueueNavigation.test.ts`) — 리더 주장과 정확히 일치, 회귀 없음. |
+| R10.27 | Android `clean` 포함 완전 재빌드 (`./gradlew.bat clean --no-daemon` → `./gradlew.bat assembleDebug --no-daemon`, 주 체크아웃 경로 `E:\music share\apps\mobile\android`) | 통과 | `clean`: **BUILD SUCCESSFUL in 9s**(네이티브 CMake 산출물까지 포함해 전부 삭제 확인, `externalNativeBuildCleanDebug`/`Release` 로그로 4개 ABI 전부 클린됨을 확인). 이어서 `assembleDebug`: **BUILD SUCCESSFUL in 1m 56s**, 203 actionable tasks(173 executed/30 up-to-date) — `react-native-screens`/`react-native-safe-area-context`의 CMake/ninja 코드젠(`buildCMakeDebug[arm64-v8a]` 등 4개 ABI)이 처음부터 전부 재실행됐음에도 실패 없이 통과. 세션 설정 구현 에이전트가 제기했던 "새 아키텍처 codegen 경로가 구조적으로 260자를 넘을 수 있다"는 우려는 **주 체크아웃 경로에서는 clean 재빌드로도 재현되지 않음**을 확인 — 해당 우려는 worktree 특유의 추가 경로 깊이(구현 로그 R10.8 참고 문서상 `.claude/worktrees/agent-.../` 경로가 355자)에서만 발생하는 문제였고, `main`의 짧은 경로(`E:\music share\apps\mobile\...`)에서는 clean 여부와 무관하게 항상 260자 미만으로 남는다는 리더의 기존 판단이 재확인됐다. |
+| R10.28 | iOS 코드 리뷰 수준(구조적 제약) | 통과(리뷰 수준) | 이번 diff가 `apps/mobile/ios`/`apps/mobile/android` 네이티브 디렉터리를 전혀 건드리지 않음(변경 파일 목록에 없음, R10 diff stat 재확인) — 순수 JS/TS/컴포넌트 변경만이라 iOS 쪽 구조적 리스크는 낮다고 판단하나, 실제 iOS 빌드/런타임은 이번에도 macOS 부재로 미검증(Round 1~9와 동일한 구조적 제약, 신규 아님). |
+
+### 6. 회귀 확인 — 기존 Spotify/YouTube/혼합 세션 기능
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R10.29 | `RoomScreen.tsx`(헤더/탭 구조 변경) 회귀 없음 | 통과 | `git diff 71176df caea14d -- .../RoomScreen.tsx` 라인 단위 대조 — 헤더(`session.sessionName ▾` + `⋮` 버튼, 89~96행)와 탭 스위처(`TabButton` 2개, 104~107행)는 diff에 전혀 등장하지 않는 순수 유지 구간. 변경은 전부 추가형(import 1줄, state 2개, `useEffect`/`showToast` 헬퍼, `viewerRole` 파생 변수, 토스트 배너 JSX, `SessionSettingsView` 렌더, `onOpenSettings` 콜백, 관련 스타일) — 기존 줄 삭제는 `const {session, isHost, appointAdmin, revokeAdmin, myPlatform, currentParticipantId}` 한 줄이 구조분해 확장을 위해 여러 줄로 개행된 것뿐(내용 손실 없음). |
+| R10.30 | `ParticipantsBottomSheet.tsx`(props 변경) 회귀 없음 | 통과 | R10.21에서 상세 확인한 것과 동일한 diff — `viewerParticipantId`가 구조분해에서만 빠지고 인터페이스 타입 자체는 유지(`RoomScreen.tsx`가 여전히 이 prop을 넘겨주고 있어 호출부도 깨지지 않음, tsc 0 errors로 재확인), 나머지 참여자 행 렌더링(`ParticipantRow`, `isPlayable`/`shouldShowFreeTag` 헬퍼 포함) 로직은 diff에 전혀 등장하지 않아 완전히 그대로 유지됨. |
+| R10.31 | Round 1~9가 통과시킨 나머지 파일(`CreateSessionScreen.tsx`, `NowPlayingView.tsx`, `YouTubeNowPlayingView.tsx`, `PlaylistView.tsx`, `MatchingQueueSheet.tsx` 등)이 이번 diff에 전혀 포함되지 않았는가 | 통과 | `git diff 71176df caea14d --stat` 전체 목록(11개 파일: 신규 테스트 2, 컴포넌트/화면 4, 신규 화면 1, 서비스/상태/권한 3, 로그 2)에 위 파일들이 하나도 없음 — 물리적으로 변경 자체가 없으므로 회귀 가능성이 원천적으로 없다. |
+
+### 7. 기타 관찰 사항 (실패 아님, 참고용)
+
+| # | 항목 | 상세 |
+|---|---|---|
+| 참고 1 | `sessionService.ts` 92행 `getSessionByInviteCode`의 JSDoc(84~86행)이 "HomeScreen.tsx의 사전 조회에도... 쓰인다"고 서술하지만, 실제로는 `joinSessionByCode` 내부(130행)에서만 호출되고 `HomeScreen.tsx`가 이 함수를 직접 import/호출하는 곳은 없다(HomeScreen은 `useSession().joinSession`만 호출). 기능에는 영향 없는 주석 상의 과장/부정확이므로 실패로 잡지 않음 — 다음 라운드에서 주석만 정정해도 무방. |
+| 참고 2 | `PlatformSelect.tsx`(이번 diff에 포함되지 않은 기존 파일) 상단 주석이 여전히 "이번 라운드에서는 세션 생성 화면의 호스트 플로우에만 실제로 연결했다 — 코드로 참여하기가 아직 Alert 스텁이라..."라고 서술해 이번 Round 10으로 이미 해소된 제약(R7.31 갭)을 구식 문구 그대로 남기고 있다. 이 파일 자체는 이번 diff의 변경 대상이 아니었으므로(작업 지시 범위 밖) 스테일 주석이 남은 것은 이해할 수 있으나, 실제 동작(R10.10)과 문서가 어긋나는 상태이므로 다음 라운드에서 주석 갱신을 권고. |
+
+### Round 10 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 31 (R10.1~R10.31) |
+| 참고(실패 아님) | 주석 정확도 2건 — `sessionService.ts`의 `getSessionByInviteCode` JSDoc 과장, `PlatformSelect.tsx`의 구식 스코프 주석(둘 다 기능에는 영향 없음) |
+| ⛔ 미검증(환경 제약, 실패 아님) | iOS 실빌드/런타임 — 네이티브 파일 무변경, 코드 리뷰 수준까지만 수행(Round 1~9와 동일한 구조적 제약) |
+| 실패 | 없음 |
+
+**결론: 통과.** 이번 라운드의 핵심 리스크였던 "리더의 수동 병합 중 일부 코드가 누락되지는 않았는가"를 `SessionContext.tsx`의 4개 지점(인터페이스/구현/useMemo value/deps)과 `sessionService.ts`의 두 기능 영역, import 문, `implementation-log.md`의 두 로그 항목까지 전부 대조했고 — 어느 한 곳도 누락·중복·손실이 없음을 확인했다(R10.1~R10.8). 코드로 참여하기(3가지 실패 경로 구분, 혼합 세션 참여자 플랫폼 선택, 정원/재입장/코드 정규화 로직)와 세션 설정 화면(권한별 서비스 전환 게이팅, 혼합 세션 예외, 정원 읽기 전용, 관리자 사임, 다이얼로그→오버레이→토스트 흐름) 둘 다 지시된 요구사항을 코드 트레이스로 충족함을 확인했다(R10.9~R10.23). `sessionPermissions.ts`의 6개 순수 함수가 `SessionContext.tsx`와 `SessionSettingsView.tsx` 양쪽에서 로직 중복 없이 일관되게 재사용됨도 확인했다(R10.19). 정적 검증(tsc/eslint/jest)과 Android **clean 포함 완전 재빌드**를 독립적으로 재현해 리더의 증분 빌드 확인보다 더 엄격한 조건에서도 BUILD SUCCESSFUL을 얻었고, 세션 설정 구현 에이전트가 제기했던 codegen 경로 길이 우려가 주 체크아웃 경로에서는 재현되지 않음을 직접 확인했다(R10.27). Round 1~9가 통과시킨 기존 Spotify/YouTube/혼합 세션 기능에 대한 회귀도 없다(R10.29~R10.31) — `RoomScreen.tsx`/`ParticipantsBottomSheet.tsx`의 변경이 순수 추가형이며 기존 로직을 삭제·수정한 곳이 없음을 라인 단위로 확인했다. 두 건의 사소한 주석 부정확성(참고 1, 2)은 기능 동작에 영향이 없어 실패로 분류하지 않았으나 다음 라운드에서 정정을 권고한다.
+
 **결론: 통과.** 커밋 `977298c`는 지시된 범위(diff 확인, 정책 준수, 로그인 재사용, 에러 핸들링, 다크모드 토큰, 정적 검증, Android 빌드) 전 항목에서 통과했다. 특히 정책 준수(R9.2~R9.4)를 저장소 전체 검색까지 포함해 확인한 결과, `docs/specs/04-playlist.md`가 2026-07-24 확정한 해석 A(참여 자체는 항상 허용, 재생 제어만 제한) 정책과 정확히 일치하며 이 화면에 새로운 `isPremium` 차단 로직이 추가되지 않았음을 코드로 확인했다. 정적 검증(R9.8~R9.10)과 Android 빌드(R9.11)는 구현 로그의 주장과 사실상 일치(테스트 스위트 수 표기 차이는 Round 8 스냅샷 반영 누락일 뿐 회귀 아님)하게 독립 재현됐다. 실기기 OAuth 콜백 자체(R9.13)는 지시사항이 명시한 대로 미검증으로 남긴다 — 이는 실패가 아니라 환경 제약이며, 이 화면의 배선/네비게이션/정책 준수까지가 이번 검증 범위였다.
