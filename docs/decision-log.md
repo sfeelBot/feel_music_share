@@ -113,3 +113,44 @@
 - `docs/decisions-needed.md` — Spotify Extended Quota Mode 항목(적극 진행 보류로 재해석)
 - `docs/external-service-setup-guide.md` — YouTube API 설정 완료 기록
 - `docs/specs/06-mvp-scope-and-tech-stack.md` — 원래 MVP 범위 결정(Spotify+YouTube 동시 지원, 바뀌지 않음)
+
+---
+
+## 2026-07-28 — Spotify 지원 완전 제거 + 혼합(Mixed) 세션 모드 제거 (MVP 범위 재정의)
+
+**참석**: 사용자(제품 오너), 리더(오케스트레이터)
+**안건**: 위 2026-07-27 결정("개발 우선순위를 YouTube로 전환하되 Spotify 지원 자체는 유지")을 **번복**하고, Spotify 관련 코드를 전부 삭제해 YouTube 단일 플랫폼 앱으로 재편할지 결정.
+
+### 배경
+
+- 2026-07-27 결정 이후에도 Spotify API 제약이 계속 발목을 잡았다(Extended Quota Mode는 개인 프로젝트로 사실상 신청 불가라는 사실이 재확인됨, `docs/decisions-needed.md`).
+- 사용자가 "spotfy 관련된 부분을 모두 삭제한 버젼을 만들어주고 그걸 main으로 해줘"라고 명시적으로 요청 — 어제(2026-07-27)의 "유지" 결정을 뒤집는 것임을 리더가 먼저 인지하고 사용자에게 확인.
+- 혼합(Mixed) 세션 모드는 "서로 다른 플랫폼 참여자를 매칭"하는 것이 핵심 개념이라, Spotify가 완전히 빠지면 개념 자체가 성립하지 않는다는 점을 리더가 짚고 AskUserQuestion으로 처리 방향을 확인.
+
+### 논의 내용
+
+1. **Spotify 삭제 범위**: 전면 삭제로 확정 — OAuth 로그인, Web API 연동(검색/재생 제어), Spotify 전용 세션 유형, 관련 UI(`SpotifyConnectScreen`, Premium 안내 모달 등)/타입/의존성(`react-native-app-auth`)/테스트 전부 대상.
+2. **혼합 모드 처리**: 두 가지 선택지 비교 — (a) 혼합 모드도 함께 삭제(YouTube 단일 플랫폼 앱으로 재편, 세션 생성 시 서비스 선택지 자체가 사라짐), (b) 코드/타입은 남기되 사실상 작동 불가 상태로 방치. (b)는 죽은 코드가 그대로 남아 혼란을 준다는 점에서 불리하다고 판단.
+3. **배포 방식**: 삭제 작업 전 현재 상태(Spotify+혼합 모드 포함)를 별도 백업 브랜치로 보존한 뒤, 삭제 작업은 `main`에 새 커밋으로 쌓는 방식(히스토리 리라이트 없음)으로 진행하기로 확인. 완료 후 origin까지 push하기로 확인.
+
+### 결정
+
+1. **Spotify 지원을 완전히 제거한다.** OAuth/Web API 연동, Spotify 전용 세션, 관련 UI/타입/의존성 전부 삭제 대상.
+2. **혼합(Mixed) 세션 모드도 함께 제거한다.** 앱은 YouTube 단일 플랫폼으로 재편된다 — 세션 생성 시 서비스 선택 단계 자체가 없어진다.
+3. **삭제 전 상태를 `spotify-mixed-legacy` 브랜치로 보존**(로컬+origin 둘 다 push 완료, 커밋 `477317a` 지점). 필요 시 이 브랜치에서 언제든 되돌아볼 수 있다.
+4. **삭제 작업은 `main`에 새 커밋으로 진행**(force-push/히스토리 리라이트 없음), 완료·검증 후 origin/main에 push한다.
+5. 이 결정으로 `docs/specs/06-mvp-scope-and-tech-stack.md`(Spotify+YouTube 동시 지원 결정), `docs/specs/02-spotify-integration.md`, `docs/specs/09-cross-platform-mixed-mode.md` 등 다수의 기존 spec 문서가 **더 이상 현재 앱 상태를 반영하지 않게 된다** — 삭제하지 않고 "과거 결정 이력"으로 남기되, 각 문서 상단에 이 결정으로 대체됐다는 안내를 추가한다(문서 자체를 지우면 왜 이런 구조였는지의 맥락이 사라지므로 보존).
+
+### 후속 조치
+
+- [ ] planner에게 정확한 삭제 범위(파일 단위) + 데이터 모델(`MusicService` 타입 등) 변경 계획 수립 위임.
+- [ ] 관련 spec 문서(02, 06, 09 등)에 "이 결정으로 대체됨" 안내 추가.
+- [ ] implementer에게 단계적 삭제 작업 위임(규모가 크므로 여러 라운드로 분할 예상).
+- [ ] designer에게 단순화된 화면 흐름(서비스 선택 단계 제거) 검토 위임(필요 시).
+- [ ] verifier에게 최종 검증 위임(Docker+KVM, "주요 기능 변경"급).
+- [ ] 전부 완료 후 `origin/main`에 push.
+
+### 관련 문서
+
+- 위 "2026-07-27 — 개발 우선순위를 YouTube 중심으로 전환" 항목(이번 결정으로 대체됨 — 삭제하지 않고 이력으로 유지)
+- `docs/specs/02-spotify-integration.md`, `docs/specs/06-mvp-scope-and-tech-stack.md`, `docs/specs/09-cross-platform-mixed-mode.md` — 이번 결정으로 대체된 과거 spec
