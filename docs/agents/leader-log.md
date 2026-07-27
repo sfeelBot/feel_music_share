@@ -55,6 +55,10 @@
 - 결과(implementer 완료): 리더 지시대로 정확히 수정 — `buildYoutubePlayerHtml`에 `startSeconds` 옵션(정수 클램프) 추가, `initialHtml`이 비혼합 세션에 한해 `session.playback.positionMs`를 전달하도록 배선. 단위 테스트 5건 추가.
 - 리더 검증: diff 리뷰 + `tsc`/`eslint`/`jest`(9 suites/48 tests)/Android 빌드 독립 재현 후 커밋 `a256190`.
 - 후속 분배: verifier에게 Round 14(좁은 범위, YouTube 시크 복원 단일 갭) 위임(백그라운드) — 혼합 세션 제외 로직·트랙 전환 시 회귀 없음 재확인 지시.
+
+- 요청: 사용자가 "개발 에이전트한테 도커같은 가상환경으로도 iOS와 Android 실기기 검증이 불가능한지 확인 요청해줘".
+- 판단: "개발 에이전트"라고 했지만 성격상(결정 없이 기술 실현 가능성만 조사) spiker 역할에 더 맞다고 판단해 spiker로 위임, 사용자에게 이유 설명.
+- 분배: spiker에게 위임(백그라운드) — Android는 Docker 기반 에뮬레이터로 빌드를 넘어 런타임 검증까지 가능한지(HAXM/WHPX 중첩 가상화 문제 포함, 로컬 AVD 대안도 짧게 언급), iOS는 Docker/컨테이너가 원리적으로 왜 안 되는지(컨테이너 vs VM 차이, Apple 라이선스 제약 별도 구분)를 조사하도록 지시. 기존에 조사된 iOS 클라우드 대안(GitHub Actions macOS 러너 등)은 중복 조사하지 말라고 명시.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
