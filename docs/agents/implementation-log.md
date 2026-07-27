@@ -621,3 +621,16 @@
   3. Android: 신규 네이티브 의존성(`@react-native-firebase/auth`) 추가로 인한 빌드 영향(증분 + clean 둘 다)은 이번 라운드에서 직접 확인하지 못했다 — 검증 에이전트가 반드시 확인해야 하는 항목.
   4. iOS는 기존과 동일한 구조적 제약(`GoogleService-Info.plist` 부재)을 그대로 물려받는다 — `@react-native-firebase/auth`도 Android만 실제 네이티브 설정이 있는 상태.
   5. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 처리 예정.
+
+## 2026-07-27 (Spotify 곡 검색 400 오류 수정 — limit=15 → 10, 진단 정정)
+- 작업: 실기기에서 곡 검색 시 `{"error": {"status": 400, "message": "Invalid limit"}}`가 발생하던 문제 수정. 리더가 이전에 `docs/decisions-needed.md`에 남긴 "Development Mode 앱은 `/v1/search` 자체 접근 불가(2024-11-27 정책 변경), Extended Quota Mode 신청 필요" 진단은 **낡은 정보에 근거한 오진**이었다 — 리더가 이번 라운드 착수 전 Spotify 공식 문서(https://developer.spotify.com/documentation/web-api/reference/search, https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide)를 WebFetch로 직접 재확인한 결과, 2026년 2월 정책 변경으로 Development Mode 앱도 `/v1/search`에 여전히 접근 가능하되 `limit` 파라미터 허용 범위가 0~50(기본 20)에서 **0~10(기본 5)으로 축소**됐을 뿐이다. `spotifyWebApi.ts`의 하드코딩된 `limit=15`가 이 새 상한을 초과한 것이 400의 실제 원인.
+  1. `searchSpotifyTracks`가 호출하는 `/search?type=track&limit=15&...`를 `SPOTIFY_SEARCH_LIMIT = 10`(상수, 파일 상단 근거 주석 포함) 참조로 변경. 상한값 10을 그대로 택한 이유: 검색 결과를 최대한 많이 보여주는 편이 UX상 유리하고, 10개면 한 화면 스크롤 목록으로도 충분하다고 판단(다른 값을 택할 근거를 발견하지 못함).
+  2. `spotifyWebApi.ts` 전체를 훑어 다른 `limit` 사용처가 있는지 확인(`grep -n "limit"`) — 이 파일이 호출하는 엔드포인트는 `/me`(프로필 조회, limit 파라미터 없음)와 `/search`(이번에 고친 곳) 둘뿐이라 추가로 고칠 곳도, 다음 라운드 후보로 남길 곳도 없었다.
+  3. `AddTrackModal.tsx`(검색 UI)를 확인 — 검색 결과 개수(15개)를 가정한 페이지네이션·"더보기" 버튼·고정 인덱스 로직 등은 없었다. `FlatList`가 `results` 배열을 그대로 렌더링하는 구조라 10개로 줄어도 별도 수정 없이 자연스럽게 동작한다.
+- 상태: 완료(검증 대기)
+- 변경 파일: `apps/mobile/src/services/spotify/spotifyWebApi.ts`.
+- 비고(검증 시 주의):
+  - `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 25 warnings — 전부 기존과 동일한 관용적 `react-native/no-inline-styles`, 이번 변경으로 신규 발생한 경고 없음), `npx jest`(9 suites / 48 tests 전부 통과) 확인.
+  - Android 빌드(`assembleDebug`)는 이번 라운드에서 생략했다 — 이 변경은 JS/TS 파일의 URL 쿼리 파라미터 값 하나만 바꾼 것이라 네이티브 빌드 산출물에 영향을 줄 수 없다고 판단(패키지 의존성/네이티브 설정 변경 없음). 필요시 검증 에이전트가 회귀 확인 차원에서 다시 돌려도 무방하나, 이번 코드 변경만 놓고 보면 빌드 실패 리스크는 없다.
+  - **실기기 재검증 필수**: 이번 수정은 코드 리뷰(Spotify 공식 문서 대조)로 원인을 특정하고 고친 것이라, 실제로 400이 사라지고 검색 결과가 정상적으로 나오는지는 아직 실기기로 확인되지 않았다. `docs/decisions-needed.md`의 관련 항목(Spotify Extended Quota Mode)도 "정정, 실기기 재확인 대기" 상태로 갱신해뒀다 — 정상 동작 확인되면 그 항목 자체를 삭제(Extended Quota Mode 불필요로 결론)하는 것이 리더 몫.
+  - 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.

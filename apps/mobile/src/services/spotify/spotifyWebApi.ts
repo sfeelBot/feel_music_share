@@ -64,6 +64,19 @@ export interface SpotifySearchTrack {
   durationMs: number;
 }
 
+/**
+ * Spotify Web API 검색 결과 개수 상한.
+ *
+ * 근거 (2026-07-27): Spotify 공식 문서(https://developer.spotify.com/documentation/web-api/reference/search,
+ * https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide)에 따르면
+ * 2026-02 정책 변경으로 `/v1/search`의 `limit` 허용 범위가 0~50(기본 20)에서 0~10(기본 5)으로
+ * 축소됐다 — Development Mode 앱이 `/v1/search` 자체에 접근 불가해진 것이 아니라(그 진단은 낡은
+ * 정보에 근거한 오진이었음, docs/decisions-needed.md 참고), 범위를 초과한 `limit` 값이 400 Invalid
+ * limit을 유발한 순수 파라미터 버그였다. 상한값인 10을 그대로 쓴다 — 검색 결과를 최대한 많이
+ * 보여주는 편이 UX상 유리하고, 10개면 한 화면 스크롤 목록으로도 충분히 유용하다는 판단.
+ */
+const SPOTIFY_SEARCH_LIMIT = 10;
+
 /** GET /v1/search?type=track — 곡 검색 (US-301). */
 export async function searchSpotifyTracks(
   query: string,
@@ -82,7 +95,7 @@ export async function searchSpotifyTracks(
         duration_ms: number;
       }>;
     };
-  }>(`/search?type=track&limit=15&q=${encodeURIComponent(query)}`, accessToken);
+  }>(`/search?type=track&limit=${SPOTIFY_SEARCH_LIMIT}&q=${encodeURIComponent(query)}`, accessToken);
 
   return (data.tracks?.items ?? []).map(item => ({
     serviceTrackId: item.uri,
