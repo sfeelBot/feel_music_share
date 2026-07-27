@@ -1,5 +1,7 @@
 # 02. Spotify 연동 리서치 및 제약
 
+> **(2026-07-28) 이 문서는 2026-07-28 결정으로 대체됨.** `docs/decision-log.md` "2026-07-28 — Spotify 지원 완전 제거 + 혼합(Mixed) 세션 모드 제거" 항목에 따라 Spotify 지원 자체가 앱에서 완전히 제거된다 — 아래 조사 내용은 더 이상 현재 앱 상태를 반영하지 않는다. 삭제하지 않고 과거 결정 이력(왜 한때 이런 구조였는지)으로 보존한다. 실제 삭제 범위는 `docs/specs/11-youtube-only-migration-plan.md` 참고.
+>
 > 상태: v1 (2026-07-23) + 5절 추가(2026-07-23, 같은 날 — "호스트 단독 Premium + 오디오 중계" 모델 검토/기각 기록)
 > 리서치 근거: Spotify for Developers 공식 문서, Spotify Community 포럼, Spotify Engineering 블로그, Spotify 공식 이용약관 (2026-07-23 기준 WebSearch/WebFetch로 확인)
 
