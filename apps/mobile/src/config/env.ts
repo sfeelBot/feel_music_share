@@ -28,13 +28,21 @@ export const ENV = {
   SPOTIFY_APP_REMOTE_REDIRECT_URI: 'feelmusicshare://spotify-remote-callback',
 
   /**
-   * Firebase 프로젝트 설정 — 전부 placeholder. 실제 프로젝트가 Firebase 콘솔에서 생성된 뒤
-   * `google-services.json`(Android) / `GoogleService-Info.plist`(iOS)를 각 네이티브 프로젝트에
-   * 추가하고, 아래 값(JS 초기화용, RN Firebase는 네이티브 설정 파일을 우선 사용하므로 이 값은
-   * 주로 문서화/웹 SDK 호환 목적)을 채워야 한다. 상세는 services/firebase/firebaseClient.ts 참고.
+   * Firebase 프로젝트 설정. `FIREBASE_PROJECT_ID` / `FIREBASE_API_KEY` / `FIREBASE_APP_ID`는
+   * 여전히 placeholder다 — `@react-native-firebase`는 네이티브 브릿지 방식이라
+   * `google-services.json`(Android) / `GoogleService-Info.plist`(iOS)만 있으면 앱 시작 시
+   * 기본 Firebase 앱이 네이티브 레이어에서 자동 초기화되므로, 이 세 값은 JS 코드에서 실제로
+   * 쓰이지 않는다(주로 문서화/웹 SDK 병행 시 대비 목적). 상세는 services/firebase/firebaseClient.ts 참고.
+   *
+   * `FIREBASE_DATABASE_URL`은 예외다 — 위 세 값과 달리 **실제로 JS 코드에서 사용된다**.
+   * 이 RTDB 인스턴스(`feel-music-share`)는 `asia-southeast1` 리전이고,
+   * `@react-native-firebase/database`의 `getDatabase()`는 인자 없이 호출하면 기본 리전
+   * (`us-central1`)을 가정하므로 비기본 리전 인스턴스에는 연결되지 않는다(공식 문서 근거).
+   * 그래서 `getDatabase(getApp(), FIREBASE_DATABASE_URL)` 형태로 이 URL을 명시적으로 전달해야
+   * 한다 (2026-07-27, Firebase 콘솔에서 RTDB 활성화 후 확정).
    */
   FIREBASE_PROJECT_ID: 'TODO_FIREBASE_PROJECT_ID',
   FIREBASE_API_KEY: 'TODO_FIREBASE_API_KEY',
   FIREBASE_APP_ID: 'TODO_FIREBASE_APP_ID',
-  FIREBASE_DATABASE_URL: 'TODO_FIREBASE_REALTIME_DATABASE_URL',
+  FIREBASE_DATABASE_URL: 'https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/',
 } as const;

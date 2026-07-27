@@ -5,16 +5,21 @@
  * — 실시간 동기화/백엔드는 Firebase로 확정됐다. docs/decision-log.md(2026-07-27)에서
  * Realtime Database(RTDB) 단일 구성으로 최종 확정됐다.
  *
- * ## 진행 상태 (2026-07-27, RTDB 코드 준비 라운드)
+ * ## 진행 상태 (2026-07-27, RTDB URL 연결 라운드)
  *
  * - Firebase 콘솔 프로젝트 생성 + Android 앱(`com.mobile`) 등록 + `google-services.json` 배치 +
  *   Google Services Gradle 플러그인 연결까지 완료됨(Round 16 검증 통과, 커밋 `2a6f51d`).
  * - `@react-native-firebase/app`, `@react-native-firebase/database` 설치 완료.
- * - **RTDB 자체는 Firebase 콘솔에서 아직 활성화("데이터베이스 만들기")되지 않았다.** 앱 초기화는
- *   되지만(아래 설명 참고) 실제 read/write는 콘솔에서 DB를 켜기 전까지 실패한다 — 의도된 제약이며
- *   목업 데이터로 덮지 않는다.
- * - 이 라운드에서는 `getFirebaseDatabase()` 헬퍼만 노출하고, 실제로 이 헬퍼를 호출해 read/write하는
- *   코드(`services/session/sessionService.ts` 교체)는 다음 라운드에서 진행한다.
+ * - **RTDB가 Firebase 콘솔에서 활성화됐다** (`asia-southeast1` 리전,
+ *   `https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/`). 이 리전은
+ *   `@react-native-firebase/database`의 기본 리전(`us-central1`)이 아니므로, `getDatabase()`를
+ *   인자 없이 호출하면 올바른 인스턴스에 연결되지 않는다 — 이 라운드에서
+ *   `getDatabase(getApp(), FIREBASE_DATABASE_URL)`로 명시적 URL을 전달하도록 수정했다
+ *   (`src/config/env.ts`의 `FIREBASE_DATABASE_URL` 참고).
+ * - 이 라운드에서는 여전히 `getFirebaseDatabase()` 헬퍼만 올바른 인스턴스를 가리키도록 고쳤을 뿐,
+ *   실제로 이 헬퍼를 호출해 read/write하는 코드(`services/session/sessionService.ts` 교체)는 다음
+ *   라운드에서 진행한다 — 그래서 이 라운드만으로는 런타임에서 RTDB 연결 성공/실패가 아직
+ *   관찰되지 않는다.
  *
  * ## 왜 코드에서 Firebase 프로젝트 설정값(apiKey 등)을 직접 넘기지 않는가
  *
@@ -25,8 +30,13 @@
  * (공식 문서 https://rnfirebase.io/ "Installation" 절 — "the default Firebase app instance will
  * be created automatically for you when your app starts"). 즉 JS 코드에서
  * `initializeApp({apiKey, projectId, ...})`을 다시 호출할 필요가 없다 — 오히려 잘못 호출하면
- * 기본 앱과 설정이 어긋날 위험만 생긴다. `src/config/env.ts`의 `FIREBASE_*` placeholder 값들은
- * 이 방식에서는 사실상 불필요하다 — 자세한 근거는 `.env.example` 갱신 이력 참고.
+ * 기본 앱과 설정이 어긋날 위험만 생긴다. `src/config/env.ts`의 `FIREBASE_PROJECT_ID` /
+ * `FIREBASE_API_KEY` / `FIREBASE_APP_ID` placeholder 값들은 이 방식에서는 사실상 불필요하다 —
+ * 자세한 근거는 `.env.example` 갱신 이력 참고.
+ *
+ * 단, `FIREBASE_DATABASE_URL`은 예외다 — 비기본 리전(`asia-southeast1`) RTDB 인스턴스는
+ * 네이티브 브릿지의 자동 초기화만으로는 `getDatabase()`가 올바른 인스턴스를 찾지 못하므로,
+ * 아래 `getFirebaseDatabase()`에서 이 값을 명시적으로 `getDatabase(app, url)`에 전달한다.
  *
  * ## 모듈러 API를 쓰는 이유
  *
@@ -36,8 +46,10 @@
  * 패턴을 기준으로 작성된다. 이 프로젝트는 처음부터 모듈러 API로 통일한다.
  */
 
-import {getApps} from '@react-native-firebase/app';
+import {getApp, getApps} from '@react-native-firebase/app';
 import {getDatabase, type Database} from '@react-native-firebase/database';
+
+import {ENV} from '../../config/env';
 
 export interface FirebaseConnectionStatus {
   /**
@@ -94,14 +106,17 @@ export function getFirebaseConnectionStatus(): FirebaseConnectionStatus {
 /**
  * 기본 Firebase 앱에 연결된 Realtime Database 인스턴스를 반환한다.
  *
- * 네이티브 설정 파일(`google-services.json`)에 RTDB URL이 없는 현재 상태에서는, 이 함수가
- * 반환하는 `Database` 인스턴스로 실제 read/write(`ref(db, path)` 등)를 시도하면 실패한다 —
- * RTDB가 Firebase 콘솔에서 아직 활성화되지 않았기 때문이다(의도된 제약, `docs/decision-log.md`
- * "후속 조치" 참고). 이 함수 자체는 인스턴스 생성만 하며 네트워크 요청을 보내지 않는다.
+ * 이 프로젝트의 RTDB 인스턴스(`https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/`)는
+ * `asia-southeast1` 리전이고, `@react-native-firebase/database`의 `getDatabase()`를 인자 없이
+ * 호출하면 기본 리전(`us-central1`)을 가정한다 — 즉 비기본 리전 인스턴스에는 연결되지 않는다
+ * (공식 문서 근거). 그래서 반드시 `getDatabase(app, url)` 형태로 앱 인스턴스와 URL을 함께
+ * 명시적으로 전달해야 한다. `FIREBASE_DATABASE_URL`은 `src/config/env.ts`에 정의되어 있다.
  *
- * 이 헬퍼를 실제로 호출해 read/write를 수행하는 코드는 아직 작성하지 않는다 — 그건
- * `services/session/sessionService.ts`의 인메모리 로직을 교체하는 다음 라운드의 범위다.
+ * 이 함수 자체는 `Database` 인스턴스 생성만 하며 네트워크 요청을 보내지 않는다 — 이 헬퍼를 실제로
+ * 호출해 read/write를 수행하는 코드는 아직 작성하지 않았다 — 그건
+ * `services/session/sessionService.ts`의 인메모리 로직을 교체하는 다음 라운드의 범위다. 따라서
+ * URL이 실제로 올바른 RTDB 인스턴스를 가리키는지는 이 라운드만으로는 런타임에서 확인되지 않는다.
  */
 export function getFirebaseDatabase(): Database {
-  return getDatabase();
+  return getDatabase(getApp(), ENV.FIREBASE_DATABASE_URL);
 }
