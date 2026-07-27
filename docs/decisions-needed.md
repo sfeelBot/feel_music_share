@@ -9,16 +9,15 @@
 ## 외부 계정 설정 필요 (사용자 액션)
 
 1. **Spotify Developer 앱 — Extended Quota Mode 신청 필요 (긴급도 상향, 2026-07-27)** (developer.spotify.com/dashboard) — (2026-07-26) User Management에 테스트 계정 추가 후 **로그인 자체는 실기기에서 성공 확인됨**. 하지만 (2026-07-27 실기기 확인) 곡 검색 시도 시 `{"error": {"status": 400, "message": "Invalid limit"}}` 오류 발생 — 리더가 코드(`spotifyWebApi.ts`의 `limit=15`)를 직접 검토하고 Spotify 공식 커뮤니티/이슈 트래커로 원인을 확인한 결과 **코드 문제가 아니다**. 2024년 11월 27일 Spotify API 정책 변경 이후, **Development Mode 앱은 `/v1/search`를 포함한 카탈로그 엔드포인트 자체에 접근할 수 없게 됐고**, 이때 반환되는 오류 메시지가 실제 원인(접근 권한 없음)과 무관하게 "Invalid limit"로 오해의 소지가 있게 나온다(Spotify 측의 알려진 오류 메시지 이슈, 출처: [music-assistant/support#5360](https://github.com/music-assistant/support/issues/5360)). **순수 클라이언트 측 우회 방법은 없다** — Spotify Dashboard에서 해당 앱의 **Extended Quota Mode 신청**(앱 정보 제출 후 Spotify 심사)이 필요하다. 심사에 시간이 걸릴 수 있으니 최대한 빨리 신청 권장 — 이게 없으면 Spotify 세션에서 곡 검색 기능 자체가 동작하지 않는다.
-2. **Firebase 연동 — Realtime Database 콘솔 활성화 필요** — (2026-07-27) DB 선택 결정 완료(**Realtime Database**로 확정, 회의록: [`docs/decision-log.md`](decision-log.md)). 패키지명 재등록·`google-services.json` 배치·Gradle 플러그인 연결도 전부 완료(Round 16 통과). **아직 남은 것**: Firebase 콘솔 → `feel-music-share` → Build → Realtime Database → "데이터베이스 만들기"로 활성화. 활성화 시 생성되는 데이터베이스 URL이 포함된 새 `google-services.json`을 재다운로드해 공유해야 함(현재 파일에는 RTDB URL 없음). 이게 되면 (a) 실제 write→read 지연시간 실측 스파이크, (b) `sessionService.ts` 실제 데이터 연동 착수 가능. **상세 절차는 [`docs/firebase-integration-guide.md`](firebase-integration-guide.md) 참고**.
-3. **YouTube Data API v3 활성화** (Google Cloud Console) — YouTube 곡 검색·메타데이터 조회를 실제로 붙이려면 필요. 현재는 `apps/mobile/src/services/youtube/youtubeMockSearch.ts` 정적 목업으로 대체되어 있음.
+2. **YouTube Data API v3 활성화** (Google Cloud Console) — YouTube 곡 검색·메타데이터 조회를 실제로 붙이려면 필요. 현재는 `apps/mobile/src/services/youtube/youtubeMockSearch.ts` 정적 목업으로 대체되어 있음.
 
 ## 추후 논의로 보류된 항목 (해결 전까지 계속 유지)
 
-4. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
+3. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
 
 ## 다음 라운드 예정 — 구현 후 실기기 확인 필요 (지금 당장 사용자가 할 일 아님, 참고용)
 
-5. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.**
+4. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.**
    - (a) **광고 노출 확인**: 실제 임베드 환경에서 영상 재생 시 프리롤/미드롤 광고가 뜨는지 육안 확인 — Premium이어도 서드파티 WebView 임베드에서 무광고가 보장되는지 공식 문서로 확답을 못 찾았기 때문(`docs/specs/03-youtube-integration.md` 7절).
    - (b) **명령 응답 지연 실측**: 재생/일시정지/탐색 명령을 내린 뒤 실제 화면 반영까지 걸리는 시간 측정 — 동기화 드리프트 보정 설계(`05-sync-architecture.md`)에 반영할 참고 수치를 얻기 위함.
    - 목적은 "YouTube를 포함할지 말지 판단"이 아니라(이미 포함하기로 결정됨) "제품 카피·사용자 기대치 문구를 정확히 쓰기 위한 실측"이다(`docs/specs/06-mvp-scope-and-tech-stack.md` 참고).

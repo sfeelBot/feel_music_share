@@ -31,11 +31,11 @@
 
 ### 후속 조치
 
-- [ ] 사용자: Firebase 콘솔 → `feel-music-share` 프로젝트 → Build → Realtime Database → "데이터베이스 만들기"로 활성화.
-- [ ] 활성화 시 나오는 데이터베이스 URL(리전 정보 포함) 공유 — `google-services.json` 재다운로드가 필요할 수 있음(현재 파일에는 RTDB URL이 없음, DB 생성 후 갱신됨).
-- [ ] 리더/구현 에이전트: `@react-native-firebase/app` + `@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 활성화 여부와 무관하게 코드 준비는 병행 진행 — 2026-07-27 착수).
-- [ ] 이후 여러 라운드에 걸쳐 `sessionService.ts`(현재 인메모리 목업)의 읽기/쓰기 로직을 RTDB 호출로 단계적 교체.
-- [ ] DB 활성화 후 spiker 후속 스파이크로 실제 write→read round-trip 지연시간 실측(참고용 권고가 실측으로 검증되는지 확인).
+- [x] 사용자: Firebase 콘솔 → `feel-music-share` 프로젝트 → Build → Realtime Database → "데이터베이스 만들기"로 활성화. (완료, 2026-07-27)
+- [x] 활성화 시 나오는 데이터베이스 URL 공유 — `https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/`(리전: `asia-southeast1`). RTDB는 기본 리전(`us-central1`)이 아닌 인스턴스라 `@react-native-firebase/database`의 `getDatabase(app, url)`에 이 URL을 명시적으로 전달해야 한다(공식 문서 — 비기본 리전 인스턴스는 URL 생략 시 연결 실패). `google-services.json` 재다운로드 없이도 코드에서 이 URL을 직접 넘기는 방식으로 진행(2026-07-27 리더 판단, 아래 참고).
+- [x] 리더/구현 에이전트: `@react-native-firebase/app` + `@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 활성화 전 코드 준비, 2026-07-27 완료, 커밋 `58317c2`, Round 17 검증 통과).
+- [ ] 이후 여러 라운드에 걸쳐 `sessionService.ts`(현재 인메모리 목업)의 읽기/쓰기 로직을 RTDB 호출로 단계적 교체 — RTDB 활성화 완료로 착수 가능해짐.
+- [ ] DB 활성화 후 spiker 후속 스파이크로 실제 write→read round-trip 지연시간 실측(참고용 권고가 실측으로 검증되는지 확인) — 이제 가능.
 
 ### 관련 문서
 
