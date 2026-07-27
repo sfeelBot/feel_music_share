@@ -157,21 +157,22 @@
 
 ---
 
-## 2026-07-28 — 로그인 방식: 간편 로그인(Google + Kakao 등) 채택
+## 2026-07-28 — 로그인 방식: 간편 로그인(Google, Kakao, Naver 등) 채택
 
 **참석**: 사용자(제품 오너), 리더(오케스트레이터)
 **안건**: 위 "Spotify 지원 완전 제거" 결정으로 비어버린 로그인 수단을 무엇으로 채울지 — `docs/specs/11-youtube-only-migration-plan.md` 5절이 제시한 3가지 선택지(닉네임만/익명인증+프로필화면/실제 OAuth) 중 결정.
 
 ### 결정
 
-**실제 소셜 로그인(간편 로그인) 방식을 채택한다 — Google, Kakao 등.** 5절의 선택지 (c)에 해당. 기기를 바꿔도 같은 계정으로 로그인하면 신원이 유지되고, "진짜 로그인"이라는 사용자 기대에 부합한다는 게 (c)를 고를 때의 장점으로 이미 정리돼 있었다.
+**실제 소셜 로그인(간편 로그인) 방식을 채택한다 — Google, Kakao, Naver 등.** 5절의 선택지 (c)에 해당. 기기를 바꿔도 같은 계정으로 로그인하면 신원이 유지되고, "진짜 로그인"이라는 사용자 기대에 부합한다는 게 (c)를 고를 때의 장점으로 이미 정리돼 있었다. (2026-07-28 갱신: 최초에는 "Google + Kakao 등"으로 정리됐으나, 사용자가 곧이어 Naver를 명시적으로 추가함 — Kakao와 마찬가지로 국내 사용자 대상 주요 소셜 로그인 제공자.)
 
 ### 후속 조치 — 착수 전 기술 조사 필요 (중요)
 
 - Google 로그인은 Firebase Authentication이 기본 제공하는 표준 제공자라 비교적 단순하다(`@react-native-google-signin/google-signin` + Firebase `GoogleAuthProvider`, Google Cloud Console OAuth 클라이언트 등록 + Android SHA-1 지문 등록 필요).
-- **Kakao 로그인은 Firebase Authentication의 기본 제공 제공자 목록에 없다** — Google/Apple/Facebook/Twitter/GitHub/Microsoft/Yahoo/Play Games/Game Center + 이메일/전화번호/익명만 기본 지원되고, Kakao는 별도 연동이 필요하다(예: Kakao SDK로 발급받은 토큰을 Firebase Custom Token으로 교환하는 서버 로직 — 이 프로젝트가 아직 Cloud Functions를 도입하지 않았다는 점과 직접 충돌할 가능성이 있음, 또는 Kakao가 OIDC(OpenID Connect)를 지원한다면 Firebase의 범용 OIDC 제공자 설정으로 우회 가능할 수도 있음 — **정확한 현재(2026년 기준) 연동 방법은 확정되지 않았고 조사가 필요하다**).
-- 따라서 실제 구현(migration 로드맵의 "라운드 3")에 들어가기 전에, spiker에게 Kakao+Firebase Auth 연동의 정확한 현재 방법(Cloud Functions 필요 여부 포함)을 조사시킨 뒤 착수한다. Google 로그인 자체는 이 조사와 무관하게 표준 경로라 병행 진행 가능.
+- **Kakao·Naver 로그인은 둘 다 Firebase Authentication의 기본 제공 제공자 목록에 없다** — Google/Apple/Facebook/Twitter/GitHub/Microsoft/Yahoo/Play Games/Game Center + 이메일/전화번호/익명만 기본 지원되고, 나머지는 별도 연동이 필요하다(예: 각 SDK로 발급받은 토큰을 Firebase Custom Token으로 교환하는 서버 로직 — 이 프로젝트가 아직 Cloud Functions를 도입하지 않았다는 점과 직접 충돌할 가능성이 있음, 또는 OIDC(OpenID Connect)를 지원한다면 Firebase의 범용 OIDC 제공자 설정으로 우회 가능할 수도 있음 — **정확한 현재(2026년 기준) 연동 방법은 둘 다 확정되지 않았고 조사가 필요하다**).
+- 따라서 실제 구현(migration 로드맵의 "라운드 3")에 들어가기 전에, spiker에게 Kakao+Naver 각각의 Firebase Auth 연동 정확한 현재 방법(Cloud Functions 필요 여부 포함)을 조사시킨 뒤 착수한다. Google 로그인 자체는 이 조사와 무관하게 표준 경로라 병행 진행 가능.
 - 데이터 모델(라운드 1)·화면 UI 단순화(라운드 2)는 이 결정과 무관하게 이미 착수 가능 상태 그대로 유지.
+- **(2026-07-28 추가) 디자인 작업은 별도 지시 있을 때까지 보류** — 사용자가 명시적으로 "디자인은 멈춰" 요청. planner/spiker 조사, implementer의 기계적 코드 정리(라운드 1 등)는 계속 진행하되, 화면 카피 재작성 등 designer 서브에이전트가 필요한 작업은 착수하지 않는다(예: `OnboardingScreen.tsx` 3번째 컷 콘텐츠 재작성 — migration 계획 문서가 이미 "디자인 에이전트 협업 필요"로 표시해둔 항목).
 
 ### 관련 문서
 

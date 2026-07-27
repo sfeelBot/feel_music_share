@@ -8,7 +8,7 @@
 
 ## 외부 계정 설정 필요 (사용자 액션)
 
-1. **Kakao 개발자 계정/앱 등록 (2026-07-28 신규, 로그인 방식 결정에 따라 발생 예정)** — Google+Kakao 간편 로그인 채택(`docs/decision-log.md` 2026-07-28) 후속. Kakao 로그인은 Firebase Auth 기본 제공 제공자가 아니라 별도 연동이 필요 — spiker 조사 결과가 나오면 정확히 무엇을 등록해야 하는지(Kakao Developers 앱 생성, REST API 키, Redirect URI 등) 이 항목에 구체화해서 다시 안내할 예정. 아직 조사 전이라 지금 당장 할 일은 없음.
+1. **Kakao·Naver 개발자 계정/앱 등록 (2026-07-28 신규, 로그인 방식 결정에 따라 발생 예정)** — Google+Kakao+Naver 간편 로그인 채택(`docs/decision-log.md` 2026-07-28) 후속. 둘 다 Firebase Auth 기본 제공 제공자가 아니라 별도 연동이 필요 — spiker 조사 결과가 나오면 정확히 무엇을 등록해야 하는지(Kakao Developers/Naver Developers 앱 생성, REST API 키, Redirect URI 등) 이 항목에 구체화해서 다시 안내할 예정. 아직 조사 전이라 지금 당장 할 일은 없음.
 2. **RTDB 보안 규칙 배포 (2026-07-27 신규)** — 저장소 루트의 `database.rules.json`(1라운드에서 작성, 아직 미배포)을 Firebase 콘솔 Realtime Database → 규칙 탭에 직접 붙여넣거나 `firebase deploy --only database`(Firebase CLI 프로젝트 초기화 필요)로 배포해야 함. 배포 전까지는 RTDB가 여전히 기본 잠금 상태(`.read`/`.write` 모두 `false`)라 세션 생성/조회/참여 시도가 전부 거부됨(회귀 아님, 의도된 순서). 익명 인증 활성화는 완료됨(2026-07-27) — 이것만 되면 세션 생성이 실제로 되는지 바로 확인 가능.
 
 ## 추후 논의로 보류된 항목 (해결 전까지 계속 유지)
