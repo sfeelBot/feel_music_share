@@ -1140,4 +1140,46 @@ Round 13에서 발견된 비차단 갭(R13.19) 하나만 좁게 고치는 커밋
   7. YouTube 세션 화면(WebView 기반 IFrame Player) 렌더링 — 이번 라운드는 Spotify 로그인 벽만 다뤘고 YouTube 경로는 애초에 진입하지 못함.
   8. 위 전체 과정에서 다크모드 렌더링 재확인(이번 라운드는 로그인 벽 이전 화면만 다크모드 확인함).
 
+---
+
+## Round 16 검증 (Firebase Gradle 플러그인 연결)
+
+> 검증 대상 커밋: `2a6f51d` ("Wire up google-services.json and the Google Services Gradle plugin")
+> 검증일: 2026-07-27
+> 검증 담당: 검증(Verification) 서브에이전트
+> 참고 문서: `docs/agents/implementation-log.md`(2026-07-27 항목), `docs/specs/06-mvp-scope-and-tech-stack.md`
+> 환경: Windows 11 Pro (10.0.26200). Android: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`. iOS는 macOS 부재로 코드 리뷰 수준까지만.
+
+이번 라운드는 Firebase 콘솔에서 패키지명 오타(`come.mobile`)가 정정 등록된 `google-services.json`을 배치하고 Google Services Gradle 플러그인(4.5.0)만 연결하는 좁은 범위의 인프라 배선 작업이다. 리더가 이미 증분 빌드는 확인했으므로, 이번 검증은 **clean 재빌드**로 처음부터 다시 확인하는 데 집중했다 — 전체 체크리스트를 반복하지 않는다.
+
+### 1. 핵심 시나리오
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R16.1 | `git show 2a6f51d`로 diff 확인 — 변경 범위가 설명과 일치하는가 | 통과 | 변경 파일 4개뿐: `apps/mobile/android/app/build.gradle`(+4, `apply plugin: "com.google.gms.google-services"` 추가), `apps/mobile/android/build.gradle`(+4, `classpath("com.google.gms:google-services:4.5.0")` 추가), `apps/mobile/android/app/google-services.json`(신규 48줄), `docs/agents/implementation-log.md`(+17). 설명과 정확히 일치 — `@react-native-firebase` 패키지 설치, `firebaseClient.ts` 수정, RTDB/Firestore 코드는 diff에 전혀 등장하지 않음. |
+| R16.2 | `apps/mobile/android/app/google-services.json`이 `com.mobile` client를 포함하는가, `come.mobile` 오타 항목도 남아있지만 무해한가 | 통과 | 파일에 client 배열 2개 확인: (1) `package_name: "com.mobile"`, `mobilesdk_app_id: "1:1000609556712:android:24105986b8836b9795015d"` (2) `package_name: "come.mobile"`, `mobilesdk_app_id: "1:1000609556712:android:d7e7371132bad03e95015d"`. google-services 플러그인은 빌드 시 `applicationId`(`com.mobile`)와 일치하는 client만 골라 리소스를 생성하므로(R16.5에서 실측 확인) `come.mobile` 잔존 항목은 무해함을 확인. |
+| R16.3 | 루트 레벨 스테일 `google-services.json` 제거 확인 | 통과 | 커밋 diff 자체엔 루트 파일 삭제가 나타나지 않음(애초에 git으로 추적된 적 없는 untracked 파일이었기 때문 — `git log --all -- google-services.json` 결과 없음) — 다만 현재 워킹 디렉터리에 `E:\music share\google-services.json`이 실제로 존재하지 않음(`ls` 실패로 확인)을 재확인해 커밋 메시지의 "제거" 주장과 실제 상태가 일치함을 검증. |
+| R16.4 | `apps/mobile/android/build.gradle`의 classpath 추가, `apps/mobile/android/app/build.gradle`의 `apply plugin` 추가가 기존 스타일과 일관되는가 | 통과 | 이 프로젝트는 `plugins{}` DSL이 아니라 `apply plugin: "..."` 나열형을 쓴다는 것을 `app/build.gradle` 상단(`com.android.application`/`org.jetbrains.kotlin.android`/`com.facebook.react` 3개가 이미 이 스타일)에서 재확인 — 신규 `apply plugin: "com.google.gms.google-services"`가 동일한 나열형 뒤에 추가되어 스타일 일관. 루트 `build.gradle`의 `buildscript{dependencies{classpath(...)}}` 블록도 기존 `com.android.tools.build:gradle`/`com.facebook.react:react-native-gradle-plugin`/`org.jetbrains.kotlin:kotlin-gradle-plugin` 3개와 동일한 `classpath("group:artifact:version")` 문법으로 추가되어 일관됨. |
+| R16.5 | **핵심**: Android clean 재빌드(`./gradlew.bat clean` → `./gradlew.bat assembleDebug`, 지시된 환경변수)로 BUILD SUCCESSFUL 확인, `processDebugGoogleServices` 태스크 실행 확인 | 통과 | `clean --no-daemon`: **BUILD SUCCESSFUL in 12s**(22 actionable tasks: 12 executed, 10 up-to-date). 이어서 `assembleDebug --no-daemon`: **BUILD SUCCESSFUL in 1m 56s**(204 actionable tasks: 174 executed, 30 up-to-date) — clean 직후라 대부분 실제 실행(174/204)됨, 리더가 확인한 증분 빌드와 달리 이번엔 처음부터 전부 재구성. 빌드 로그에서 `> Task :app:processDebugGoogleServices` 실행 확인(별도 grep으로 재확인) — 태스크가 스킵되지 않고 실제로 돌았음을 검증. |
+| R16.6 | **핵심**: 생성된 `app/build/generated/res/processDebugGoogleServices/values/values.xml`의 `google_app_id`가 `com.mobile` client의 `mobilesdk_app_id`와 정확히 일치하고 `come.mobile` client의 값이 아닌지 재확인 | 통과 | clean 빌드 후 새로 생성된 `values.xml`을 직접 읽음: `google_app_id = "1:1000609556712:android:24105986b8836b9795015d"` — 이는 `com.mobile` client의 `mobilesdk_app_id`와 문자열 단위로 정확히 일치하며, `come.mobile` client의 값(`1:1000609556712:android:d7e7371132bad03e95015d`)과는 명확히 다름. `app/build.gradle`의 `defaultConfig.applicationId "com.mobile"`(98행)도 재확인해 플러그인이 `applicationId`와 `google-services.json` 내 `package_name`을 정확히 매칭시켰음을 근거와 함께 검증 — 이번 라운드의 핵심 성공 기준을 실측으로 충족. |
+| R16.7 | 범위 확인 — `package.json`에 `@react-native-firebase/*` 패키지가 실수로 추가되지 않았는지, `firebaseClient.ts`가 여전히 STUB인지, RTDB/Firestore 신규 코드가 없는지 | 통과 | `grep -i firebase apps/mobile/package.json` 결과 없음(의존성 미추가). `firebaseClient.ts` 전체를 읽어 확인 — `getFirebaseConnectionStatus()`가 여전히 항상 `{isConfigured: false}`를 반환하는 STUB 그대로이며, 파일 상단 주석도 "TODO(다음 단계 — Firebase 프로젝트 생성 이후)"로 미착수 상태를 명시. 커밋 diff(R16.1)에서도 이 파일이 전혀 등장하지 않아 손대지 않았음이 이중으로 확인됨. RTDB/Firestore 관련 신규 코드 없음 — 지시받은 범위를 정확히 지켰다. |
+
+### 2. 정적 검증 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R16.8 | `npx tsc --noEmit` (apps/mobile) | 통과 | 0 errors, 출력 없음 — Android 네이티브 설정만 바뀐 커밋이라 JS/TS 회귀가 없을 것이라는 예상과 일치. |
+| R16.9 | `npx eslint .` (apps/mobile) | 통과 | 0 errors, 23 warnings — Round 14/15와 동일한 관용적 `react-native/no-inline-styles` 경고뿐, 신규 경고 없음. |
+| R16.10 | `npx jest` (apps/mobile) | 통과 | **9 suites / 48 tests 전부 통과** — 지시받은 수치와 정확히 일치. |
+| R16.11 | iOS — 이번 커밋이 iOS 파일을 건드렸는가 | 통과(리뷰 수준) | `git show 2a6f51d --name-only`의 변경 파일 4개 전부 `apps/mobile/android/...` 또는 `docs/...`뿐이며 `apps/mobile/ios/` 경로는 등장하지 않음. `apps/mobile/ios/`에 `GoogleService-Info.plist`도 아직 없음(`grep`으로 확인, 존재하지 않음) — 예상대로 iOS 무영향. 실제 iOS 빌드/런타임은 이번에도 macOS 부재로 미검증(구조적 제약, Round 1부터 동일). |
+
+### Round 16 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 11 (R16.1~R16.11) |
+| 실패 | 없음 |
+
+**결론: 통과.** 리더가 증분 빌드만 확인했던 것과 달리, 이번 검증은 `./gradlew.bat clean` 이후 완전 재빌드(204개 태스크 중 174개 실제 실행)로 처음부터 다시 확인했고 여전히 BUILD SUCCESSFUL이었다(R16.5). 이번 라운드의 핵심 성공 기준 — google-services.json에 남아있는 `come.mobile` 오타 항목이 있어도 플러그인이 `applicationId`(`com.mobile`)와 정확히 일치하는 client를 골라 리소스를 생성하는지 — 를 clean 빌드로 새로 생성된 `values.xml`을 직접 읽어 `google_app_id`가 `com.mobile` client의 `mobilesdk_app_id`와 문자열 단위로 정확히 일치함을 실측 확인했다(R16.6). 기존 `apply plugin:` 나열형 스타일과의 일관성(R16.4), 지시받은 좁은 범위를 지켰는지(`@react-native-firebase` 미설치, `firebaseClient.ts` STUB 유지, RTDB/Firestore 코드 없음 — R16.7)도 모두 확인했다. 정적 검증(tsc 0 errors, eslint 0 errors/23 warnings, jest 9 suites/48 tests)도 회귀 없이 독립 재현했다(R16.8~R16.10). 이번 커밋은 Android 네이티브 설정 파일과 문서만 건드렸고 iOS 파일은 전혀 건드리지 않았다(R16.11). 다음 라운드(`@react-native-firebase` SDK 설치 및 실제 초기화)로 넘어가도 무방하다.
+
 이 공백은 이번 라운드의 의도된 범위 제한이지 새로 발견된 결함이 아니지만, "완료"로 간주할 수 있는 범위는 어디까지나 로그인 벽 이전으로 한정된다는 점을 리더/사용자에게 명확히 전달해야 한다.

@@ -226,3 +226,16 @@
   - 전체 항목: 통과 17(R15.0a~R15.17) / 관찰(실패 아님) 1(R15.18) / 실패 0. **로그인 벽 이전 범위에 한해 "완료"로 간주한다.**
   - **중요 — 이번 라운드가 채우지 못한 검증 공백(숨기지 않음)**: Spotify 로그인 벽 이후의 모든 기능(세션 생성, Now Playing, 플레이리스트 추가/삭제/순서변경, 참여자 관리, 서비스 전환, 동기화 배지, YouTube 화면 등 — Round 1~14가 코드 리뷰/단위 테스트로만 확인해온 모든 것)은 이번에도 실제 기기 실행 검증이 되지 않았다. 자동화된 에이전트가 실제 Spotify 계정으로 로그인하는 것은 보안/계정 소유권상 부적절해 의도적으로 범위에서 제외했다. **사용자가 실기기(또는 이 Docker+KVM 환경)에서 본인 Spotify 계정으로 직접 로그인한 뒤** 이어서 확인해야 할 8개 항목 목록을 `docs/qa/spotify-mvp-round1-checklist.md` Round 15 절 말미에 상세히 정리해두었다 — 리더가 다음 단계로 사용자에게 안내할 것을 권고한다.
   - 검증 후 테스트 컨테이너(`android-qa-round15`)는 정지·삭제 완료, 이미지(`budtmo/docker-android:emulator_11.0`)는 재사용을 위해 로컬 캐시에 남겨둠(스파이크 때와 동일한 관례). 스크린샷은 스크래치 디렉터리에만 저장, 저장소에는 커밋하지 않음.
+
+## 2026-07-27 (Round 16, Firebase Gradle 플러그인 연결)
+- 검증 대상: 커밋 `2a6f51d` ("Wire up google-services.json and the Google Services Gradle plugin") — Firebase 콘솔에서 패키지명 오타(`come.mobile`)가 정정 등록된 `google-services.json`을 `apps/mobile/android/app/`에 배치하고 Google Services Gradle 플러그인(4.5.0)을 연결. `@react-native-firebase` SDK 설치·`firebaseClient.ts` 실제 초기화는 의도적으로 범위 밖(여전히 STUB). `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 16 검증 (Firebase Gradle 플러그인 연결)" 절 추가(append, 11개 항목).
+- 플랫폼: 둘 다 (Android는 clean 재빌드로 실측 검증, iOS는 이번 커밋이 iOS 파일을 전혀 건드리지 않았음을 diff로 확인한 코드 리뷰 수준 — macOS 부재로 인한 구조적 제약은 Round 1부터 동일).
+- 결과: 통과
+- 상세:
+  - **핵심 성공 기준 실측**: `./gradlew.bat clean --no-daemon`(BUILD SUCCESSFUL in 12s) → `./gradlew.bat assembleDebug --no-daemon`(BUILD SUCCESSFUL in 1m 56s, 204 tasks: 174 executed/30 up-to-date, 리더의 증분 빌드와 달리 이번엔 완전 재구성) — 빌드 로그에서 `> Task :app:processDebugGoogleServices` 실제 실행 확인. clean 빌드 후 새로 생성된 `app/build/generated/res/processDebugGoogleServices/values/values.xml`을 직접 읽어 `google_app_id = "1:1000609556712:android:24105986b8836b9795015d"`가 `com.mobile` client의 `mobilesdk_app_id`와 정확히 일치하고, `come.mobile` client의 값(`...d7e7371132bad03e95015d`)이 아님을 확인 — `applicationId "com.mobile"`(app/build.gradle 98행)과의 매칭이 실제로 정확함을 실측으로 검증했다.
+  - `git show 2a6f51d` 확인 — 변경 파일 4개(`app/build.gradle` +4, 루트 `build.gradle` +4, 신규 `google-services.json` 48줄, `implementation-log.md` +17)뿐, 설명과 정확히 일치. 기존 `apply plugin: "..."` 나열형 스타일(`plugins{}` DSL 아님)과 신규 플러그인 추가 스타일이 일관됨을 재확인.
+  - 루트 레벨 스테일 `google-services.json`(`come.mobile` 오타)이 실제로 워킹 디렉터리에서 사라졌음을 재확인(git 미추적 파일이었어서 diff엔 안 나타나지만 `ls` 실패로 부재 확인).
+  - **범위 확인**: `package.json`에 `@react-native-firebase/*` 미추가, `firebaseClient.ts`는 `getFirebaseConnectionStatus()`가 여전히 `{isConfigured: false}`를 반환하는 STUB 그대로(diff에도 이 파일 미등장), RTDB/Firestore 신규 코드 없음 — 지시받은 좁은 범위를 정확히 지켰음을 확인.
+  - **정적 검증 독립 재현**: `npx tsc --noEmit` 0 errors / `npx eslint .` 0 errors, 23 warnings(Round 14/15와 동일 목록, 신규 경고 없음) / `npx jest` 9 suites, 48 tests 전부 통과 — Android 네이티브 설정뿐인 커밋답게 JS/TS 회귀 없음.
+  - **iOS**: `git show --name-only`로 변경 파일 4개가 전부 `apps/mobile/android/...` 또는 `docs/...`뿐임을 확인, `apps/mobile/ios/`에 `GoogleService-Info.plist`도 아직 없음 — iOS 무영향. 실제 iOS 빌드/런타임은 이번에도 macOS 부재로 미검증(구조적 제약).
+  - 전체 항목: 통과 11(R16.1~R16.11) / 실패 0. **"완료"로 간주한다.**
