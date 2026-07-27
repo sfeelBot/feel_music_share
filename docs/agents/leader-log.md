@@ -27,7 +27,7 @@
 
 1. **완료(2026-07-26~27)**: YouTube 재생 연동, 혼합 세션 모드, 코드로 참여하기+세션 설정 화면, 초대코드/서비스칩 연결, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원, 스플래시/엣지상태/적응형아이콘 — Round 5~16 전부 검증 통과. 상세는 `docs/roadmap.md`와 `docs/qa/spotify-mvp-round1-checklist.md` 참고.
 2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료 + RTDB vs Firestore 결정(RTDB, `docs/decision-log.md`) + SDK 설치/`firebaseClient.ts` 실제 초기화 완료(커밋 `58317c2`).
-3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase 콘솔 RTDB 활성화(사용자 액션, 유일한 남은 블로커) → 되는 대로 `sessionService.ts` 실제 RTDB 연동 착수, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보. Round 17(RTDB SDK 설치+초기화, build-only) 검증 통과 완료(15/15) — 이번 Firebase 관련 코드 준비 라운드는 완전히 끝났고, 다음은 콘솔 활성화 대기.
+3. **다음 우선순위(사용자 확인 필요)**: (a) Spotify Extended Quota Mode 신청(사용자 액션), (b) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보, (c) `sessionService.ts` 실제 RTDB 연동 착수 — RTDB 콘솔 활성화(2026-07-27)+URL 코드 반영(커밋 `c43ceb6`)까지 완료돼 착수 가능하나, **RTDB 보안 규칙이 아직 완전 잠금 상태라 규칙 설계가 선행/동반돼야 함**(스파이크로 발견, `docs/firebase-integration-guide.md` 8~9번 참고) — 이게 이제 Firebase 트랙의 진짜 다음 스텝.
 4. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태.
 
 - 요청: 사용자가 "RTDB로 구축해줘" + "위 rtdb 결정 관련 내용은 회의록 형식으로 정리해서 docs 폴더에 하나 만들도 넣어놔".
@@ -105,6 +105,11 @@
 - 요청: 사용자가 RTDB 데이터베이스 URL 공유(`https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/`) — Firebase 콘솔에서 직접 RTDB를 활성화 완료했다는 뜻.
 - 확인(리더 직접): 현재 `google-services.json`에 databaseURL 필드가 없음을 확인(재다운로드 필요할 수 있는 상태). 다만 `asia-southeast1`은 RNFB 기본 리전(`us-central1`)이 아니므로, 재다운로드를 기다리기보다 `getDatabase(app, url)`로 URL을 코드에서 직접 명시하는 방식이 더 빠르고 정확하다고 판단(RNFB 공식 문서상 비기본 리전은 URL 명시가 필수). `docs/decisions-needed.md` Firebase 항목 완전 삭제, `decision-log.md` 후속조치 체크박스 갱신, `firebase-integration-guide.md` 체크리스트 갱신 — 커밋 `c5f992e`.
 - 분배: 병렬 위임(백그라운드, 파일 겹침 없음) — (1) implementer: `env.ts`의 `FIREBASE_DATABASE_URL` placeholder를 실제 URL로 교체 + `firebaseClient.ts`의 `getFirebaseDatabase()`가 `getDatabase(getApp(), url)` 형태로 URL을 명시 전달하도록 수정(작은 범위, `isDatabaseVerified`/실제 read-write 코드는 여전히 다음 라운드로 명확히 한정). (2) spiker: RTDB REST API로 실제 write→read round-trip 지연시간 실측 시도(`docs/spikes/firebase-rtdb-vs-firestore.md`에 후속 절 추가) — 보안 규칙이 잠겨있어 실패할 가능성을 사전 고지하고, 그 경우 규칙을 직접 바꾸지 말고 정직하게 "실측 불가, 이유"로 기록하도록 지시. `apps/mobile/` 코드는 건드리지 말라고 명시(implementer와 충돌 방지).
+- 결과(implementer 완료): 지시대로 정확히 완료 — `env.ts`에 실 URL 반영(나머지 3개 FIREBASE_* 값은 그대로 TODO 유지), `firebaseClient.ts`의 `getFirebaseDatabase()`가 `getDatabase(getApp(), ENV.FIREBASE_DATABASE_URL)`로 비기본 리전(`asia-southeast1`)을 명시 지정하도록 변경, `isDatabaseVerified` 로직은 지시대로 손 안 댐. 실제 read/write 호출 코드는 여전히 없음(grep 확인) — 런타임 동작 변화 없음을 정직하게 명시.
+- 리더 검증: diff 리뷰 + `tsc`/`eslint`(0 errors, 23 pre-existing warnings)/`jest`(9 suites/48 tests) 독립 재현 + Android 증분 빌드 독립 재현(BUILD SUCCESSFUL, JS/config만 바뀐 라운드라 clean 재빌드는 불필요로 판단) 후 커밋 `c43ceb6`.
+- 결과(spiker 완료 — 중요 발견): 진짜 write→read round-trip은 **실측 불가**로 판명 — 새 RTDB 인스턴스의 기본 잠금 보안 규칙(`.read`/`.write` 모두 `false`) 그대로라 REST 호출이 401로 거부됨(예상된 시나리오, 실패 아님, 규칙을 직접 바꾸지 않음 — 지시 준수). 보조로 401 거부 응답의 왕복시간(10회 반복)을 순수 네트워크 RTT 하한선으로 측정: 평균 166.6ms/`asia-southeast1` 기준 — 공식 문서의 "RTDB ≤10ms"는 서버 내부 처리 지연이지 클라이언트-서버 종단간 RTT가 아니라는 우려를 뒷받침하는 방향. RTDB 단일 구성 결정 자체를 뒤집을 근거는 아니라고 명시. **부수적으로 중요한 실무적 발견**: 이 보안 규칙 잠금 상태 그대로면 `sessionService.ts`를 RTDB로 바꿔도 실제 사용자의 read/write가 전부 거부된다 — 규칙 설계가 다음 라운드의 실질적 선행 조건임을 확인.
+- 리더 검토: 두 산출물(spike 문서+로그) diff가 정직하고 과장 없음을 확인 후 커밋 `8582a2f`. `docs/firebase-integration-guide.md`에 "RTDB 보안 규칙 미설정" 항목을 다음 라운드 선행조건으로 신규 추가, "현재 상황 요약" 갱신.
+- **Firebase 트랙 현재 상태**: 콘솔 활성화+URL 코드 반영까지 전부 완료. 진짜 다음 스텝은 "RTDB 보안 규칙 설계"(누가 어떤 세션 데이터를 읽고/쓸 수 있는지)와 `sessionService.ts` 실연동을 함께 다루는 라운드 — 사용자 결정이 필요한 새 항목은 아직 없음(규칙 설계 자체는 기술/제품 로직이라 planner/implementer 선에서 가능, 필요시 확인만 받으면 됨).
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 

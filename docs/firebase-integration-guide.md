@@ -25,9 +25,11 @@
 4. ~~`services/firebase/firebaseClient.ts`의 STUB을 실제 초기화 코드로 교체.~~ (완료 — 모듈러 API(`getApps`, `getDatabase`) 기반. `getFirebaseConnectionStatus()`가 "앱 초기화됨"과 "DB 활성화 확인됨"을 필드로는 구분하되, 후자는 실제 read/write 전까지 알 수 없다는 한계를 코드 주석에 명시.)
 5. ~~빌드 재검증(`tsc`/`eslint`/`jest` + `gradlew assembleDebug`, clean 빌드 포함)으로 새 네이티브 의존성이 기존 빌드를 깨뜨리지 않는지 확인.~~ (완료 — 전부 통과, androidx.browser 때와 같은 네이티브 버전 충돌 없었음, Round 17)
 6. ~~Firebase 콘솔에서 RTDB 활성화, 데이터베이스 URL 확보.~~ (완료, 2026-07-27 — `https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/`)
-7. `env.ts`의 `FIREBASE_DATABASE_URL` placeholder에 위 URL 반영 + `firebaseClient.ts`의 `getFirebaseDatabase()`가 이 URL을 `getDatabase(app, url)`로 명시 전달하도록 수정(비기본 리전이라 URL 생략 시 연결 실패). **다음 라운드 시작점, 작은 범위.**
-8. 이후 실제 세션 상태(플레이리스트, 재생 위치, 참여자 목록) 읽기/쓰기 로직을 STUB인 `services/session/sessionService.ts`(현재 인메모리 목업)에서 RTDB 호출로 단계적으로 교체 — 이건 큰 작업이라 여러 라운드로 나눠 진행. 7번 완료 후 착수.
-9. iOS 쪽 `GoogleService-Info.plist`는 iOS 배포 자체가 추후 논의 보류 상태라 다루지 않는다(`docs/decisions-needed.md` 참고).
+7. ~~`env.ts`의 `FIREBASE_DATABASE_URL` placeholder에 위 URL 반영 + `firebaseClient.ts`의 `getFirebaseDatabase()`가 이 URL을 `getDatabase(app, url)`로 명시 전달하도록 수정.~~ (완료, 2026-07-27 — 커밋 `c43ceb6`. RTDB가 비기본 리전(`asia-southeast1`)이라 URL 명시가 필수였음.)
+8. **(신규, 2026-07-27 스파이크로 발견)** RTDB 보안 규칙(`security rules`)이 아직 미설정 — 새 인스턴스 기본값인 완전 잠금(`.read`/`.write` 모두 `false`) 상태 그대로다(`docs/spikes/firebase-rtdb-vs-firestore.md` "2026-07-27 후속" 절, 익명 REST 요청이 401로 거부됨을 실측으로 확인). **이 상태로는 `sessionService.ts`를 실제 RTDB 호출로 바꿔도 read/write가 전부 거부된다** — 세션 참여자가 세션 데이터를 읽고/쓸 수 있도록 허용하는 규칙 설계가 다음 라운드(9번)의 선행 조건이거나 그 안에 포함되어야 한다.
+9. 실제 세션 상태(플레이리스트, 재생 위치, 참여자 목록) 읽기/쓰기 로직을 STUB인 `services/session/sessionService.ts`(현재 인메모리 목업)에서 RTDB 호출로 단계적으로 교체 — 큰 작업이라 여러 라운드로 나눠 진행(보안 규칙 설계 포함). **다음 라운드 시작점.**
+10. RTDB 실제 write→read round-trip 지연시간 실측은 보안 규칙이 완전 잠금 상태라 아직 못 함(순수 네트워크 RTT 하한선만 참고 확보: 평균 166.6ms, `asia-southeast1` 기준) — 9번에서 규칙이 열리면(테스트든 실제 규칙이든) 후속 스파이크로 재시도 가능.
+11. iOS 쪽 `GoogleService-Info.plist`는 iOS 배포 자체가 추후 논의 보류 상태라 다루지 않는다(`docs/decisions-needed.md` 참고).
 
 ## 참고 문서
 - `docs/specs/05-sync-architecture.md` — 서버 기준 시계 동기화 모델
