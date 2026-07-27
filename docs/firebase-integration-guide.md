@@ -17,14 +17,14 @@
 1. Firebase 콘솔 → `feel-music-share` → Build → **Realtime Database** → "데이터베이스 만들기"로 활성화.
 2. 활성화 시 생성되는 **데이터베이스 URL(리전 정보 포함)**을 공유하거나, `google-services.json`을 재다운로드해서 공유(현재 파일에는 RTDB URL이 없어 재다운로드가 필요할 가능성이 큼).
 
-## 진행 상태 — 코드 준비 작업 (2026-07-27 착수)
+## 진행 상태 — 코드 준비 작업 (2026-07-27 착수, 같은 날 4~5번까지 완료)
 
-1. ~~`apps/mobile/package.json`에 `@react-native-firebase/app` + `@react-native-firebase/database` 설치.~~
+1. ~~`apps/mobile/package.json`에 `@react-native-firebase/app` + `@react-native-firebase/database` 설치.~~ (완료 — `25.1.0` 고정 버전, RN 0.76.9 + New Architecture 조합에서 공식 테스트되는 조합. 근거: 구현 로그 2026-07-27 항목 참고)
 2. ~~`google-services.json`을 `apps/mobile/android/app/google-services.json`에 배치.~~ (완료)
 3. ~~Google Services Gradle 플러그인 연결.~~ (완료, Round 16)
-4. `services/firebase/firebaseClient.ts`의 STUB을 실제 초기화 코드로 교체 — **콘솔에서 RTDB가 아직 활성화되지 않은 상태에서도 코드 준비는 병행 진행 가능**(초기화 자체는 되지만 실제 read/write는 DB 활성화 전까지 실패할 것 — 의도된 제약, 목업으로 덮지 않음).
-5. 빌드 재검증(`tsc`/`eslint`/`jest` + `gradlew assembleDebug`)으로 새 네이티브 의존성이 기존 빌드를 깨뜨리지 않는지 확인.
-6. 이후 실제 세션 상태(플레이리스트, 재생 위치, 참여자 목록) 읽기/쓰기 로직을 STUB인 `services/session/sessionService.ts`(현재 인메모리 목업)에서 RTDB 호출로 단계적으로 교체 — 이건 큰 작업이라 여러 라운드로 나눠 진행.
+4. ~~`services/firebase/firebaseClient.ts`의 STUB을 실제 초기화 코드로 교체.~~ (완료 — 모듈러 API(`getApps`, `getDatabase`) 기반. `getFirebaseConnectionStatus()`가 "앱 초기화됨"과 "DB 활성화 확인됨"을 필드로는 구분하되, 후자는 실제 read/write 전까지 알 수 없다는 한계를 코드 주석에 명시. **RTDB 자체는 여전히 콘솔에서 비활성 상태라 read/write는 다음 라운드까지 시도하지 않음.**)
+5. ~~빌드 재검증(`tsc`/`eslint`/`jest` + `gradlew assembleDebug`, clean 빌드 포함)으로 새 네이티브 의존성이 기존 빌드를 깨뜨리지 않는지 확인.~~ (완료 — 전부 통과, androidx.browser 때와 같은 네이티브 버전 충돌 없었음)
+6. 이후 실제 세션 상태(플레이리스트, 재생 위치, 참여자 목록) 읽기/쓰기 로직을 STUB인 `services/session/sessionService.ts`(현재 인메모리 목업)에서 RTDB 호출로 단계적으로 교체 — 이건 큰 작업이라 여러 라운드로 나눠 진행. **다음 라운드 시작점.**
 7. iOS 쪽 `GoogleService-Info.plist`는 iOS 배포 자체가 추후 논의 보류 상태라 다루지 않는다(`docs/decisions-needed.md` 참고).
 
 ## 참고 문서
