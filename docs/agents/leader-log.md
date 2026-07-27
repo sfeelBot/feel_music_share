@@ -79,6 +79,8 @@
 - 리더 검증: diff 리뷰 후 커밋 `8c6f005`(사용자 사전 승인에 따라 push 예정).
 - 외부 액션: `git push origin main`(`4948db9..e0a3a79`, 35개 커밋 — 세션 한도 복구, YouTube 우선순위 전환 전체, debuggableVariants 수정, Round 20까지 이번 세션 작업 전부) 완료.
 - 분배: implementer에게 위임(백그라운드) — Round 20 R20.5(HomeScreen 로딩 스피너 영구 고정) 수정: `attemptJoin`에 try/catch/finally 추가(로딩 상태 복귀 최우선), catch에서 사용자 안내(기존 Alert 패턴 재사용, RTDB 세부 에러 노출 금지). 겸사겸사 R20.4c(CreateSessionScreen 에러 피드백 부재)도 같은 톤으로 catch 추가 지시(로딩 복귀용 finally는 이미 있으니 안 건드림).
+- 결과(implementer 완료): 지시대로 정확히 수정 — 기존 `not_found`/`capacity_full` Alert 톤을 그대로 재사용, RTDB 세부 에러 노출 없음. 리더 검증(diff+tsc/eslint/jest 독립 재현) 후 커밋 `d8f1a46`.
+- 분배: verifier에게 위임(백그라운드) — 이번 버그 수정 실기기 확인 + 사용자가 요청한 "화면별 캡쳐" 작업을 **같은 Docker 세션에서 함께 처리**(에뮬레이터 재기동 낭비 방지). 파트 A: 조인/생성 실패 시 스피너 복귀+Alert 노출 확인. 파트 B: `docs/screenshots/`에 지금 도달 가능한 화면(스플래시~세션생성, RoomScreen 계열은 RTDB 규칙 미배포로 이번에도 불가 — 정직하게 스킵 지시)들을 규칙대로 캡처해 저장.
 - push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
