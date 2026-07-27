@@ -998,3 +998,52 @@ diff 범위 내에서 위 항목들이 깨진 흔적은 발견되지 않았다. 
 | 실패 | 없음 |
 
 **결론: 통과.** 이번 라운드의 핵심 리스크였던 "타입 시스템이 못 잡는 런타임 로직 오류"를 중심으로 확인한 결과, `switchService`의 스냅샷 저장→복원 순서(R13.3), 서비스별 슬롯 격리(`withActivePlaylistEntries`가 활성 서비스 키 하나만 스프레드로 교체, R13.1/R13.7), 혼합 세션 무영향(R13.5) 모두 코드 트레이스로 실제 동작을 직접 확인했고 잘못된 서비스 키 접근이나 스냅샷 순서 실수는 발견되지 않았다. 소비 화면 3곳(`PlaylistView`/`NowPlayingView`/`YouTubeNowPlayingView`) 전수 확인 결과 `session.playlist`(옛 단일 필드) 잔재는 코드/주석 어디에도 없다(R13.6). Round 1~12에서 검증된 자동 다음 곡 전환·순서변경·선곡자 배지·Free 배너·서비스 전환 다이얼로그/오버레이 흐름 전부 새 데이터 구조 위에서 회귀 없이 동작함을 확인했다(R13.8~R13.12). 정적 검증(tsc 0 errors/eslint 0 errors 23 warnings/jest 8 suites 43 tests)과 Android 클린 재빌드(BUILD SUCCESSFUL) 모두 구현 로그의 주장과 정확히 일치한다(R13.14~R13.17). 다만 두 가지를 기록해둔다: (1) 구현 로그의 "신규 테스트 5개" 서술은 실제로는 4개인 사소한 오기(R13.2, 테스트 자체의 질/커버리지에는 문제 없음). (2) YouTube 세션에서는 복원된 재생 위치가 실제 플레이어 시크에 반영되지 않는 관찰 사항이 있다(R13.19) — 이번 라운드가 명시적으로 "데이터 수준 구현"으로 스코프를 제한했으므로 실패로 처리하지는 않았으나, 사용자 체감 기준으로 "이어서 쓸 수 있다"를 완성하려면 다음 라운드에서 YouTube 플레이어 시크 연동이 필요하다.
+
+## Round 14 검증 (YouTube 재생 위치 복원)
+
+> 검증 대상 커밋: `a256190` ("Restore YouTube playback position after switching back from Spotify")
+> 검증일: 2026-07-27
+> 검증 담당: 검증(Verification) 서브에이전트
+> 참고 문서: `docs/agents/implementation-log.md`(2026-07-27 항목), Round 13 관찰 사항 R13.19(이번 커밋이 수정하는 갭 원본 리포트), `docs/roadmap.md`
+> 환경: Windows 11 Pro (10.0.26200). Android: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`. iOS는 macOS 부재로 이번에도 코드 리뷰 수준까지만.
+
+Round 13에서 발견된 비차단 갭(R13.19) 하나만 좁게 고치는 커밋이라 범위를 좁혀 검증했다 — 전체 체크리스트를 반복하지 않고 이번 diff와 직접 관련된 항목만 확인.
+
+### 1. 핵심 시나리오 (코드 트레이스 + 단위 테스트 검증)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R14.1 | `git show a256190`으로 diff 확인 — 변경 범위가 설명과 일치하는가 | 통과 | `apps/mobile/src/services/youtube/youtubePlayerHtml.ts`(`BuildYoutubePlayerHtmlOptions.startSeconds?: number` 추가, `playerVars.start`에 반영), `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`(`initialHtml`이 `startSeconds: !isMixed && session ? Math.floor(session.playback.positionMs / 1000) : 0` 전달), 신규 `apps/mobile/__tests__/youtubePlayerHtml.test.ts`(38줄, 5 `it`), `docs/roadmap.md`/`docs/agents/implementation-log.md` 문서 갱신뿐 — 설명과 정확히 일치. `loadVideoById`/`cueVideoById`(`youtubePlayerStub.ts`)는 이번 diff에 전혀 등장하지 않음(수정 없음, 설명대로). |
+| R14.2 | `playerVars.start` 반영 — 생성된 HTML에 `start: <정수>`가 실제 포함되는가, 음수/소수점 방어(0 클램프, `Math.floor`)가 정확한가 | 통과 | `youtubePlayerHtml.ts` 41~44행: `safeStartSeconds = typeof startSeconds === 'number' && Number.isFinite(startSeconds) && startSeconds > 0 ? Math.floor(startSeconds) : 0` — `NaN`/`Infinity`/음수/0/미제공을 전부 0으로 클램프하고, 양수는 `Math.floor`로 정수화한 뒤 107행에서 `start: ${safeStartSeconds},`로 `playerVars`에 직접 보간함을 코드로 확인. |
+| R14.3 | `__tests__/youtubePlayerHtml.test.ts`(5건)가 이 케이스들을 의미 있게 커버하는가(통과만 하고 부실하지 않은지) | 통과 | 실제 케이스: (1) `startSeconds` 미제공 → `start: 0,` (2) 정수 92 → `start: 92,` 그대로 반영 (3) 소수점 92.7 → `start: 92,`(내림 확인) (4) 음수 -5 → `start: 0,`(클램프 확인) (5) videoId/autoplay와 공존 확인(`start: 10,`이 `videoId: "xyz789"`/`autoplay: 1,`과 동시에 올바르게 보간되는지). `safeStartSeconds` 계산식의 두 방어 분기(`Number.isFinite` 및 `> 0` 클램프)를 각각 다른 테스트로 독립 검증하고 있어 표면적 통과가 아니라 실제 경계 조건을 커버한다고 판단. 사소한 보완 여지: `startSeconds: 0`을 명시적으로 전달하는 케이스는 별도 테스트가 없다(미제공 케이스와 동일한 0 클램프 경로를 타므로 결과는 같지만, "0을 명시적으로 넘긴 경우"를 구분해서 확인하는 테스트는 없음) — 결과에 영향을 주는 실패는 아니라 통과로 판단하되 기록해둔다. |
+| R14.4 | 혼합 세션 제외 — `isMixed`일 때 `startSeconds`가 항상 0인가 | 통과 | `YouTubeNowPlayingView.tsx` 106행: `startSeconds: !isMixed && session ? Math.floor(session.playback.positionMs / 1000) : 0` — `isMixed`가 `session?.service === 'mixed'`(66행)이므로 혼합 세션이면 조건식이 무조건 `false`가 되어 `: 0` 분기로 빠진다. 삼항 표현식 자체가 단순해 조건 분기 실수(예: `isMixed`와 `!isMixed` 뒤바뀜) 여지가 낮음을 확인. |
+| R14.5 | 혼합 세션의 `session.playback.positionMs`가 실제로 "참여자별 매칭 재생용" 다른 의미인지, 구현 로그 주장을 코드로 재확인 | 부분 통과(주장이 정확하진 않으나 결론은 맞음, 아래 상세) | `sessionService.switchService`(283~321행): 함수 최상단에서 `if (!session \|\| session.service === 'mixed') return undefined;`로 혼합 세션이면 즉시 반환하고 스냅샷 저장/복원 로직 자체가 전혀 실행되지 않음을 확인 — 즉 혼합 세션에는 애초에 "서비스 전환 후 복귀"라는 개념이 없으므로 `positionMs`를 스냅샷/복원 대상으로 삼을 이유가 없다. 다만 `types/domain.ts`(177~185행) `PlaybackState.positionMs`는 혼합/비혼합 세션 모두 동일한 `SessionState.playback` 필드를 공유하는 단일 타입이며, `resolveMixedCurrentTrackForMe`(`mixedTrackView.ts`)를 확인한 결과 실제로 참조하는 것은 `session.playback.currentEntryId`(어떤 `mixedPlaylist` 엔트리가 지금 재생 중인지)뿐이고 `positionMs`는 이 함수 안에서 전혀 읽지 않는다 — "참여자별 매칭 재생 추적용으로 쓰인다"는 구현 로그/코드 주석의 서술은 다소 부정확하다(정확히는: 혼합 세션에서도 `positionMs`는 여전히 "현재 엔트리의 서버 기준 재생 위치"라는 동일한 의미이며, 단지 `switchService`가 혼합 세션을 아예 다루지 않아 이번 갭 수정의 "전환 후 복귀 시 위치 복원" 시나리오 자체가 혼합 세션에는 존재하지 않을 뿐). 결과적으로 "혼합 세션은 이번 수정 대상에서 제외해야 한다"는 결론 자체는 코드로 뒷받침되고 실무적으로 문제없으나, 그 근거로 든 "다른 의미의 값"이라는 표현은 부정확한 설명이었다 — 동작에는 영향 없는 문서/주석 수준 이슈이므로 실패로 처리하지 않았다. 구현 에이전트에게 다음 기회에 주석 표현 수정을 권장한다(`YouTubeNowPlayingView.tsx` 96~98행, `youtubePlayerHtml.ts` 28~29행, 구현 로그 524행 동일 표현). |
+| R14.6 | 트랙 전환 시 회귀 없음 — `requestNextTrack`/`requestPrevTrack` 등으로 곡이 바뀔 때 여전히 `loadVideoById(currentVideoId)`(startSeconds 없이, 기본값 0)로 호출되는가 | 통과 | `YouTubeNowPlayingView.tsx` 127~137행 곡 전환 effect: `youtubePlayerController.loadVideoById(currentVideoId)` / `cueVideoById(currentVideoId)` 모두 두 번째 인자(`startSeconds`) 없이 호출됨을 확인 — 이번 diff가 이 effect를 전혀 건드리지 않았음도 `git show`로 재확인. `youtubePlayerStub.ts` 165/171행 `loadVideoById(videoId: string, startSeconds = 0)`/`cueVideoById(videoId: string, startSeconds = 0)` 기본값 파라미터가 그대로 유지돼 있어, 인자를 생략하면 항상 0초부터 시작한다 — 이전 곡의 위치를 실수로 이어붙이는 부작용 없음. |
+| R14.7 | 최초 참여/생성 케이스 — `positionMs`가 0인 정상적인 최초 진입에서 `start: 0`으로 자연스럽게 동작하는가 | 통과 | 별도 분기 없이 `Math.floor(0 / 1000) = 0`이 `startSeconds`로 전달되고, `youtubePlayerHtml.ts`의 클램프 로직도 `0`을 그대로 `0`으로 처리(양수가 아니므로 `> 0` 조건에서 걸러짐, 결과는 동일)해 `start: 0,`이 생성됨을 확인 — 지시대로 특수 분기가 필요 없다는 주장이 코드로 뒷받침됨. |
+
+### 2. 정적 검증 + 빌드 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R14.8 | `npx tsc --noEmit` (apps/mobile) | 통과 | 0 errors, 출력 없음. |
+| R14.9 | `npx eslint .` (apps/mobile) | 통과 | 0 errors, 23 warnings — Round 13과 완전히 동일한 파일/줄 목록(전부 기존 `react-native/no-inline-styles` 관용 경고), 신규 경고 없음. |
+| R14.10 | `npx jest` (apps/mobile) | 통과 | **9 suites / 48 tests 전부 통과**(`playlistSequencing`/`youtubePlayerHtml`(신규)/`matchQueueNavigation`/`trackMatcher`/`sessionPermissions`/`mixedTrackView`/`serviceSwitchPlaylistIsolation`/`joinSessionByCode`/`App` 9개) — 구현 로그가 주장한 수치(9 suites/48 tests, 기존 8/43 + 신규 5)와 정확히 일치. |
+| R14.11 | Android `./gradlew.bat assembleDebug --no-daemon`(지시된 환경변수) | 통과 | **BUILD SUCCESSFUL in 10s**(203 actionable tasks: 23 executed, 180 up-to-date) — `a256190`이 이미 이 로컬 브랜치의 조상 커밋이라 대부분 UP-TO-DATE로 나오지만, 실패 없이 성공적으로 완료됨을 재확인. |
+| R14.12 | iOS — 이번 커밋이 iOS 관련 파일을 건드렸는가 | 통과(리뷰 수준) | `git show a256190 --stat`의 변경 파일 5개(`youtubePlayerHtml.ts`/`YouTubeNowPlayingView.tsx`/신규 테스트/`implementation-log.md`/`roadmap.md`) 전부 `apps/mobile/src/...`·`apps/mobile/__tests__/...`·`docs/...`뿐이며 `apps/mobile/ios/` 경로는 등장하지 않음 — 예상대로 iOS 네이티브/코드 무영향. 실제 iOS 빌드/런타임은 이번에도 macOS 부재로 미검증(구조적 제약, Round 1부터 동일). |
+
+### 3. 미검증 (환경 제약)
+
+| # | 항목 | 상세 |
+|---|---|---|
+| R14.13 | 실기기/에뮬레이터에서 "Spotify→YouTube 전환 후 다시 YouTube로 복귀 → 이전에 멈췄던 지점 근처부터 실제로 재생 시작"의 시각적 확인 | ⛔ 미검증(환경 제약) — 실기기가 없어 `playerVars.start`가 IFrame Player 로드 시 실제로 해당 지점부터 재생을 시작하는지(YouTube 서버 측 seek 정확도, 버퍼링 등)까지는 이 환경에서 확인 불가. 코드 트레이스(R14.2~R14.4) + 단위 테스트(R14.3) 수준까지만 검증됨. 구현 로그도 동일하게 인지하고 있음(534행 비고 1번) — 실패로 잡지 않는다. |
+
+### Round 14 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 6 (R14.1, R14.2, R14.3, R14.4, R14.6, R14.7) + 정적검증/빌드 5 (R14.8~R14.12) |
+| 🟡 부분 통과(동작엔 문제 없으나 근거 서술이 부정확) | 1 (R14.5 — "혼합 세션은 다른 의미의 값" 서술이 부정확, 제외 결론 자체는 맞음) |
+| ⛔ 미검증(환경 제약, 실패 아님) | 1 (R14.13, 실기기 시각적 확인 + iOS 실빌드) |
+| 실패 | 없음 |
+
+**결론: 통과.** Round 13에서 데이터 수준까지만 복원되고 실제 IFrame Player 시크에는 반영되지 않던 갭(R13.19)이 이번 커밋으로 해소됐다. 원인 진단(곡 전환 경로가 아니라 최초 마운트 시 `initialHtml`이 원인)이 코드와 정확히 일치하고, `buildYoutubePlayerHtml`의 `startSeconds` 방어 로직(NaN/음수/소수점 클램프)과 신규 단위 테스트 5건이 실제로 그 경계 조건들을 의미 있게 커버함을 확인했다(R14.2~R14.3). 혼합 세션 제외 로직은 코드상 정확히 동작하지만(R14.4), 그 근거로 삼은 "positionMs가 혼합 세션에서 다른 의미로 쓰인다"는 서술은 `mixedTrackView.ts`를 직접 추적한 결과 정확하지 않다 — 실제로는 `switchService`가 혼합 세션을 아예 다루지 않아 "전환 후 복귀" 시나리오 자체가 혼합 세션에 없을 뿐이다(R14.5). 이는 동작에 영향을 주지 않는 주석/문서 수준의 부정확함이라 실패로 처리하지 않았으나, 리더가 구현 에이전트에게 주석 표현 정정을 권장할 만하다. 트랙 전환 경로(`loadVideoById`/`cueVideoById`)가 여전히 `startSeconds` 없이(기본값 0) 호출되어 회귀가 없음(R14.6), 최초 참여/생성 시 `positionMs===0`이 별도 분기 없이 자연스럽게 `start: 0`으로 이어짐(R14.7)도 확인했다. 정적 검증(tsc 0 errors, eslint 0 errors/23 warnings, jest 9 suites/48 tests)과 Android 빌드(BUILD SUCCESSFUL) 모두 구현 로그의 주장과 정확히 일치하게 독립 재현했다(R14.8~R14.11). 이번 커밋은 iOS 파일을 건드리지 않았다(R14.12). 실기기에서의 시각적 시크 확인만 환경 제약으로 미검증 상태로 남긴다(R14.13).
