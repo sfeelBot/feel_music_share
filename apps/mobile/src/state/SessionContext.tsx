@@ -1,4 +1,4 @@
-import React, {createContext, useCallback, useContext, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import * as sessionService from '../services/session/sessionService';
 import type {JoinSessionResult} from '../services/session/sessionService';
 import {activePlaylistEntries, withActivePlaylistEntries} from './activeServicePlaylist';
@@ -25,18 +25,30 @@ import type {
  * Firebase로 확정하면서 그 커스텀 서버 자체가 존재하지 않게 됐고, 이번 라운드는 "Spotify 전용 세션
  * MVP 핵심 화면" UI 완성이 목표이므로 services/session/sessionService.ts의 인메모리 목업으로 대체했다.
  *
+ * ## RTDB 1라운드(2026-07-27) 반영 사항
+ *
+ * `createSession`/`joinSession`은 이제 `sessionService`의 async 함수(RTDB 다중 경로 update()/set())를
+ * 호출하므로 이 컨텍스트의 두 액션도 Promise를 반환하도록 바꿨다(호출부 CreateSessionScreen.tsx/
+ * HomeScreen.tsx도 함께 `await`하도록 수정됨). 세션 생성/참여 이후에는 아래 useEffect가
+ * `sessionService.subscribeToSession`(RTDB `onValue`)을 구독해 **참여자 목록만** 실시간으로
+ * 반영한다 — 다른 기기가 같은 초대 코드로 참여하면 이 구독을 통해 참여자 목록이 갱신된다(10번
+ * 문서 1라운드 "독립 검증 가능 근거" 시나리오). `participants` 필드만 병합하고 sessionName/
+ * service/capacity/hostParticipantId는 건드리지 않는다 — `service`는 아직 로컬 전용인
+ * `requestServiceSwitch`(3라운드 전까지 RTDB에 쓰이지 않음)가 낙관적으로 바꾸는 필드라, 구독이
+ * 이 필드까지 덮어쓰면 "다른 참여자가 들어왔다"는 무관한 이벤트가 서비스 전환 상태를 되돌려버리는
+ * 충돌이 생길 수 있어 의도적으로 범위를 좁혔다.
+ *
  * TODO(Firebase 연동 — 다음 라운드, 정확한 교체 지점):
- * 1. `createSession` → Firestore `sessions/{id}` 문서 생성(Cloud Function 경유 권장)으로 교체.
- * 2. 아래 useEffect 자리에 Firestore `onSnapshot`/RTDB `onValue` 구독을 추가해 session 상태를
- *    실시간으로 반영해야 한다(지금은 로컬 상태 변경만 있고 "구독"이 없다 — 참여자가 1명뿐인 로컬
- *    데모라 아직 필요 없었음).
- * 3. `requestPlay/Pause/Seek/NextTrack` → Cloud Function 호출로 교체하고, 그 응답이 아니라
- *    구독 채널로 돌아오는 새 playback 문서를 반영하는 구조로 바꿔야 한다(현재는 낙관적으로 로컬에서
- *    바로 상태를 바꾸고 있음 — 서버 기준 시계 모델, 05-sync-architecture.md 모델 A).
- * 4. `utils/clock.ts`의 클록 오프셋 계산(ping-pong)은 아직 어디에도 연결돼 있지 않다 — Cloud
- *    Functions가 발급하는 서버 타임스탬프와 연결해야 실제로 의미가 생긴다.
+ * 1. `addTrack/removeTrack/reorderPlaylist` → 2-A라운드에서 RTDB `sessions/{id}/playlists/*`로 교체.
+ * 2. `addMixedTrack`/매칭 함수들 → 2-B라운드에서 RTDB `mixedPlaylist`로 교체.
+ * 3. `requestPlay/Pause/Seek/NextTrack` → 3라운드에서 Cloud Function 없이 RTDB `playback` 직접
+ *    쓰기로 교체하고, 그 응답이 아니라 구독 채널로 돌아오는 새 playback 값을 반영하는 구조로
+ *    바꿔야 한다(현재는 낙관적으로 로컬에서 바로 상태를 바꾸고 있음 — 서버 기준 시계 모델,
+ *    05-sync-architecture.md 모델 A).
+ * 4. `utils/clock.ts`의 클록 오프셋 계산(ping-pong)은 아직 어디에도 연결돼 있지 않다 — 3라운드가
+ *    발급하는 서버 타임스탬프와 연결해야 실제로 의미가 생긴다.
  * 5. 참여자 목록의 실시간 연결 상태(connectionStatus)도 Firebase Presence 패턴(RTDB `onDisconnect`
- *    등)으로 교체 필요 — 지금은 항상 'connected'로 고정된 목업.
+ *    등)으로 교체 필요(4라운드) — 지금은 항상 'connected'로 고정된 목업.
  */
 
 interface SessionContextValue {
@@ -51,20 +63,20 @@ interface SessionContextValue {
     /** 혼합 세션(service==='mixed')일 때만 의미 있음 — 호스트가 2.6c에서 선택한 참여 플랫폼. */
     hostPlatform?: MixedParticipantPlatform;
     host: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
-  }) => SessionState;
+  }) => Promise<SessionState>;
   /**
    * "코드로 참여하기"(HomeScreen.tsx) — 초대 코드로 기존 세션에 참여자로 합류한다. createSession과
    * 대칭적으로, 성공/실패를 화면이 분기할 수 있도록 결과를 그대로 반환한다(성공 시에만 session/
    * currentParticipantId를 갱신하고, 실패 시에는 로컬 상태를 건드리지 않는다).
-   * TODO(Firebase 연동): sessionService.joinSessionByCode 주석 참고 — 지금은 같은 앱 프로세스 안의
-   * 세션에만 실제로 참여할 수 있다(다른 기기 세션은 이 프로세스 메모리에 없어 조회 불가).
+   * RTDB 1라운드부터 실제 원격(다른 기기가 만든) 세션도 초대 코드로 조회/참여할 수 있다 —
+   * sessionService.joinSessionByCode 주석 참고.
    */
   joinSession: (params: {
     inviteCode: string;
     joiningUser: {participantId: string; displayName: string; accountTier: 'premium' | 'free'};
     /** 혼합 세션일 때만 필요. 아직 선택 전이면 생략 — 결과가 reason:'platform_required'로 온다. */
     platform?: MixedParticipantPlatform;
-  }) => JoinSessionResult;
+  }) => Promise<JoinSessionResult>;
   leaveSession: () => void;
   requestPlay: () => void;
   requestPause: () => void;
@@ -149,15 +161,15 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     tuningTimer.current = setTimeout(() => setIsTuning(false), TUNING_DISPLAY_MS);
   }, []);
 
-  const createSession = useCallback<SessionContextValue['createSession']>(params => {
-    const created = sessionService.createSession(params);
+  const createSession = useCallback<SessionContextValue['createSession']>(async params => {
+    const created = await sessionService.createSession(params);
     setSession(created);
     setCurrentParticipantId(params.host.participantId);
     return created;
   }, []);
 
-  const joinSession = useCallback<SessionContextValue['joinSession']>(params => {
-    const result = sessionService.joinSessionByCode(params.inviteCode, params.joiningUser, params.platform);
+  const joinSession = useCallback<SessionContextValue['joinSession']>(async params => {
+    const result = await sessionService.joinSessionByCode(params.inviteCode, params.joiningUser, params.platform);
     if (result.ok) {
       setSession(result.session);
       setCurrentParticipantId(result.participant.participantId);
@@ -169,6 +181,28 @@ export function SessionProvider({children}: {children: React.ReactNode}) {
     setSession(null);
     setCurrentParticipantId(null);
   }, []);
+
+  // RTDB 1라운드: 다른 기기가 같은 초대 코드로 참여하면 이 세션의 참여자 목록이 실시간으로
+  // 갱신되어야 한다(10번 문서 "독립 검증 가능 근거"). 파일 상단 주석 참고 — 의도적으로
+  // participants 필드만 병합한다(service 등 아직 로컬 전용인 필드와의 충돌 방지).
+  useEffect(() => {
+    const sessionId = session?.sessionId;
+    if (!sessionId) {
+      return undefined;
+    }
+    const unsubscribe = sessionService.subscribeToSession(sessionId, snapshot => {
+      if (!snapshot) {
+        return;
+      }
+      setSession(prev => {
+        if (!prev || prev.sessionId !== sessionId) {
+          return prev;
+        }
+        return {...prev, participants: snapshot.participants};
+      });
+    });
+    return unsubscribe;
+  }, [session?.sessionId]);
 
   const requestPlay = useCallback(() => {
     setSession(prev => {

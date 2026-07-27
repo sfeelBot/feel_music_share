@@ -8,6 +8,7 @@ import SpotifyConnectScreen from '../screens/SpotifyConnectScreen';
 import HomeScreen from '../screens/HomeScreen';
 import CreateSessionScreen from '../screens/CreateSessionScreen';
 import RoomScreen from '../screens/RoomScreen';
+import SessionSettingsView from '../screens/room/SessionSettingsView';
 import {useTheme} from '../theme/ThemeContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -33,6 +34,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} options={{headerShown: false}} />
         <Stack.Screen name="CreateSession" component={CreateSessionScreen} options={{headerShown: false}} />
         <Stack.Screen name="Room" component={RoomScreen} options={{headerShown: false}} />
+        <Stack.Screen name="SessionSettings" component={SessionSettingsView} options={{headerShown: false}} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -3,10 +3,12 @@ import {ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'r
 import {SafeAreaView} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
+import BackButton from '../components/BackButton';
 import {PrimaryButton} from '../components/Buttons';
 import CapacityStepper from '../components/CapacityStepper';
 import PlatformSelect from '../components/PlatformSelect';
 import {useAuth} from '../services/auth/AuthContext';
+import {useFirebaseAuth} from '../state/FirebaseAuthContext';
 import {useSession} from '../state/SessionContext';
 import {useTheme} from '../theme/ThemeContext';
 import {brand} from '../theme/tokens';
@@ -19,6 +21,11 @@ import {SESSION_CAPACITY_DEFAULT, type MixedParticipantPlatform, type MusicServi
  * 세션을 만들지 않고, 먼저 호스트 본인이 참여할 플랫폼을 고르는 2.6c 단계를 거친다(00-ux-flow.md
  * 2.6절 "혼합 선택: 호스트 자신도 이 세션의 참여자이므로, 먼저 호스트 본인이 참여할 플랫폼을
  * 선택/확인하는 화면(2.6c)을 거친 뒤...").
+ * (2026-07-27 RTDB 1라운드) `participantId`는 더 이상 Spotify 프로필의 `profile.id`가 아니라
+ * Firebase Auth 익명 인증의 `auth.uid`를 쓴다(RTDB 보안 규칙이 "본인 여부"를 검사할 수 있는
+ * 유일한 위조 불가능 값 — docs/specs/10-rtdb-schema-and-security-rules.md "설계 변경 요구사항").
+ * `useFirebaseAuth().uid`가 아직 준비되지 않았으면(앱 시작 직후 익명 로그인이 끝나기 전) 세션
+ * 생성을 진행하지 않는다.
  */
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateSession'>;
 
@@ -33,6 +40,7 @@ const INFO_BY_SERVICE: Record<MusicService, string> = {
 export default function CreateSessionScreen({navigation}: Props) {
   const theme = useTheme();
   const {profile} = useAuth();
+  const {uid: firebaseUid} = useFirebaseAuth();
   const {createSession} = useSession();
 
   const [sessionName, setSessionName] = useState('우리 둘의 플레이리스트');
@@ -44,24 +52,27 @@ export default function CreateSessionScreen({navigation}: Props) {
   const [step, setStep] = useState<'form' | 'platform'>('form');
   const [hostPlatform, setHostPlatform] = useState<MixedParticipantPlatform>('spotify');
 
-  const finalizeCreate = (resolvedHostPlatform?: MixedParticipantPlatform) => {
-    if (!profile) {
+  const finalizeCreate = async (resolvedHostPlatform?: MixedParticipantPlatform) => {
+    if (!profile || !firebaseUid) {
       return;
     }
     setIsCreating(true);
-    const session = createSession({
-      sessionName,
-      service,
-      capacity,
-      hostPlatform: resolvedHostPlatform,
-      host: {
-        participantId: profile.id,
-        displayName: profile.displayName,
-        accountTier: profile.isPremium ? 'premium' : 'free',
-      },
-    });
-    setIsCreating(false);
-    navigation.replace('Room', {sessionId: session.sessionId});
+    try {
+      const session = await createSession({
+        sessionName,
+        service,
+        capacity,
+        hostPlatform: resolvedHostPlatform,
+        host: {
+          participantId: firebaseUid,
+          displayName: profile.displayName,
+          accountTier: profile.isPremium ? 'premium' : 'free',
+        },
+      });
+      navigation.replace('Room', {sessionId: session.sessionId});
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handlePrimaryButtonPress = () => {
@@ -77,9 +88,7 @@ export default function CreateSessionScreen({navigation}: Props) {
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: theme.bg}]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setStep('form')} accessibilityLabel="뒤로 가기">
-            <Text style={[styles.back, {color: theme.text}]}>←</Text>
-          </TouchableOpacity>
+          <BackButton onPress={() => setStep('form')} />
           <Text style={[styles.headerTitle, {color: theme.text}]}>혼합 세션 참여</Text>
           <View style={styles.back} />
         </View>
@@ -99,9 +108,7 @@ export default function CreateSessionScreen({navigation}: Props) {
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: theme.bg}]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} accessibilityLabel="뒤로 가기">
-          <Text style={[styles.back, {color: theme.text}]}>←</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => navigation.goBack()} />
         <Text style={[styles.headerTitle, {color: theme.text}]}>세션 만들기</Text>
         <View style={styles.back} />
       </View>

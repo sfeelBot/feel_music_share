@@ -1,7 +1,9 @@
 import React, {useState} from 'react';
-import {FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Animated, FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {GestureHandlerRootView, PanGestureHandler} from 'react-native-gesture-handler';
 import Avatar from './Avatar';
 import RoleBadge from './RoleBadge';
+import {useDragToDismiss} from '../hooks/useDragToDismiss';
 import {useTheme} from '../theme/ThemeContext';
 import {syncColors} from '../theme/tokens';
 import type {ParticipantInfo, SessionState} from '../types/domain';
@@ -29,8 +31,13 @@ import type {ParticipantInfo, SessionState} from '../types/domain';
  * TODO(Firebase 연동): 관리자 임명/해제는 반드시 서버(Cloud Functions)에서 권한을 재검증해야 한다
  * (04-playlist.md "디자인 에이전트 전달 사항" 6번) — 이 컴포넌트는 클라이언트 표시만 담당한다.
  *
- * 드래그로 닫는 제스처는 이번 라운드에서 구현하지 않았다(제스처 라이브러리 미설치) — 닫기 버튼/배경
- * 탭으로 대체. TODO(다음 단계): react-native-gesture-handler 도입 시 드래그 닫기 추가.
+ * (2026-07-27 추가, PB-03) "아래로 드래그해서 닫기" 제스처를 `hooks/useDragToDismiss.ts` +
+ * `PanGestureHandler`로 추가했다(파트 A에서 react-native-gesture-handler가 어차피 새로 들어와서
+ * TODO를 해소할 좋은 기회). 그래버+제목 영역에만 핸들러를 걸어 아래 `FlatList`의 세로 스크롤과
+ * 충돌하지 않게 했다. **중요**: 이 컴포넌트는 RN `Modal`로 렌더링되는데, `Modal`은 앱 루트와 분리된
+ * 별도 네이티브 윈도우라 `App.tsx`의 `GestureHandlerRootView`가 닿지 않는다 — 그래서 `Modal` 내부에
+ * 자체 `GestureHandlerRootView`를 하나 더 둬야 제스처가 동작한다(안 그러면 Android에서 아예
+ * 반응하지 않는다, RNGH 공식 이슈 #1168 등에서 반복 보고된 문제).
  */
 interface ParticipantsBottomSheetProps {
   visible: boolean;
@@ -77,6 +84,7 @@ export default function ParticipantsBottomSheet({
 }: ParticipantsBottomSheetProps) {
   const theme = useTheme();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const {translateY, onGestureEvent, onHandlerStateChange} = useDragToDismiss(onClose);
 
   const playableCount = participants.filter(p => isPlayable(session, p)).length;
   const headerTitle =
@@ -86,41 +94,48 @@ export default function ParticipantsBottomSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, {backgroundColor: theme.overlay}]} onPress={onClose} />
-      <View style={[styles.sheet, {backgroundColor: theme.bgElevated}]}>
-        <View style={[styles.grabber, {backgroundColor: theme.border}]} />
-        <Text style={[styles.title, {color: theme.text}]}>{headerTitle}</Text>
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <Pressable style={[styles.backdrop, {backgroundColor: theme.overlay}]} onPress={onClose} />
+        <Animated.View
+          style={[styles.sheet, {backgroundColor: theme.bgElevated, transform: [{translateY}]}]}>
+          <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
+            <Animated.View>
+              <View style={[styles.grabber, {backgroundColor: theme.border}]} />
+              <Text style={[styles.title, {color: theme.text}]}>{headerTitle}</Text>
+            </Animated.View>
+          </PanGestureHandler>
 
-        <FlatList
-          data={participants}
-          keyExtractor={item => item.participantId}
-          renderItem={({item}) => (
-            <ParticipantRow
-              session={session}
-              participant={item}
-              menuOpen={openMenuId === item.participantId}
-              canManage={viewerIsHost && item.role !== 'host'}
-              onToggleMenu={() =>
-                setOpenMenuId(prev => (prev === item.participantId ? null : item.participantId))
-              }
-              onAppointAdmin={() => {
-                onAppointAdmin(item.participantId);
-                setOpenMenuId(null);
-              }}
-              onRevokeAdmin={() => {
-                onRevokeAdmin(item.participantId);
-                setOpenMenuId(null);
-              }}
-            />
-          )}
-        />
-        <TouchableOpacity onPress={onOpenSettings} style={styles.settingsBtn} accessibilityRole="button">
-          <Text style={[styles.settingsText, {color: theme.text}]}>⚙ 세션 설정</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button">
-          <Text style={[styles.closeText, {color: theme.textSecondary}]}>닫기</Text>
-        </TouchableOpacity>
-      </View>
+          <FlatList
+            data={participants}
+            keyExtractor={item => item.participantId}
+            renderItem={({item}) => (
+              <ParticipantRow
+                session={session}
+                participant={item}
+                menuOpen={openMenuId === item.participantId}
+                canManage={viewerIsHost && item.role !== 'host'}
+                onToggleMenu={() =>
+                  setOpenMenuId(prev => (prev === item.participantId ? null : item.participantId))
+                }
+                onAppointAdmin={() => {
+                  onAppointAdmin(item.participantId);
+                  setOpenMenuId(null);
+                }}
+                onRevokeAdmin={() => {
+                  onRevokeAdmin(item.participantId);
+                  setOpenMenuId(null);
+                }}
+              />
+            )}
+          />
+          <TouchableOpacity onPress={onOpenSettings} style={styles.settingsBtn} accessibilityRole="button">
+            <Text style={[styles.settingsText, {color: theme.text}]}>⚙ 세션 설정</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button">
+            <Text style={[styles.closeText, {color: theme.textSecondary}]}>닫기</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -179,7 +194,10 @@ function ParticipantRow({
       </View>
       <Text style={[styles.status, {color: statusColor}]}>{statusLabel}</Text>
       {canManage && (
-        <TouchableOpacity onPress={onToggleMenu} accessibilityLabel={`${participant.displayName}님 관리 메뉴 열기`}>
+        <TouchableOpacity
+          onPress={onToggleMenu}
+          accessibilityLabel={`${participant.displayName}님 관리 메뉴 열기`}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
           <Text style={[styles.menuTrigger, {color: theme.textSecondary}]}>⋮</Text>
         </TouchableOpacity>
       )}
@@ -202,6 +220,7 @@ function ParticipantRow({
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {flex: 1},
   backdrop: {flex: 1},
   sheet: {
     position: 'absolute',

@@ -1,6 +1,8 @@
-import {describe, expect, it} from '@jest/globals';
+import {afterEach, describe, expect, it} from '@jest/globals';
 import {addTrack, createSession, getSession, switchService} from '../src/services/session/sessionService';
 import type {Track} from '../src/types/domain';
+
+const {__resetMockDatabase} = require('@react-native-firebase/database');
 
 /**
  * 04-playlist.md "플레이리스트 구조" 절(서비스별 독립 보존, US-105b/US-105c/US-308) 검증 —
@@ -10,6 +12,11 @@ import type {Track} from '../src/types/domain';
  *
  * 작업 지시 "검증 시나리오"를 그대로 코드화했다: Spotify 세션에서 A/B/C 추가 → YouTube로 전환
  * → YouTube는 비어있음 → YouTube에서 D 추가 → 다시 Spotify로 전환 → A/B/C 보존, D는 안 보임.
+ *
+ * (2026-07-27 RTDB 1라운드) `createSession`은 이제 RTDB 다중 경로 update()를 거치는 async
+ * 함수라 await한다 — `addTrack`/`getSession`/`switchService`는 이번 라운드 범위 밖이라 여전히
+ * 동기 함수 그대로다(sessionService.ts 상단 "부분 마이그레이션 상태" 주석 참고). `getSession`은
+ * RTDB가 아니라 로컬 캐시를 읽으므로 이 테스트가 그대로 동기 호출을 유지할 수 있다.
  */
 
 function track(id: string, title: string): Track {
@@ -21,12 +28,16 @@ function host() {
 }
 
 describe('서비스 전환 시 플레이리스트/재생 위치 독립 보존', () => {
-  it('비활성 서비스의 곡 목록은 전환 후에도 그대로 보존되고, 다른 서비스에 추가한 곡은 섞이지 않는다', () => {
-    const created = createSession({sessionName: '전환 테스트', service: 'spotify', capacity: 2, host: host()});
+  afterEach(() => {
+    __resetMockDatabase();
+  });
+
+  it('비활성 서비스의 곡 목록은 전환 후에도 그대로 보존되고, 다른 서비스에 추가한 곡은 섞이지 않는다', async () => {
+    const created = await createSession({sessionName: '전환 테스트', service: 'spotify', capacity: 2, host: host()});
     const me = created.participants[0];
 
-    // 데모 시드가 이미 spotify 쪽에 곡을 채워둘 수 있으므로(생성 시점 활성 서비스만 시드), 그
-    // 개수에 의존하지 않고 "추가로 넣은 A/B/C"의 존재 여부만으로 검증한다.
+    // (2026-07-27부터 createSession은 더 이상 데모 곡을 시드하지 않지만, 절대 개수에 의존하지
+    // 않고 "추가로 넣은 A/B/C"의 존재 여부만으로 검증하는 기존 스타일을 그대로 유지한다.
     addTrack(created.sessionId, track('spotify:a', 'A'), me);
     addTrack(created.sessionId, track('spotify:b', 'B'), me);
     addTrack(created.sessionId, track('spotify:c', 'C'), me);
@@ -62,8 +73,8 @@ describe('서비스 전환 시 플레이리스트/재생 위치 독립 보존', 
     expect(switchedBackToSpotify?.playlists.youtube.entries.map(e => e.track.title)).toEqual(['D']);
   });
 
-  it('재생 위치(currentEntryId/positionMs)가 서비스별로 독립적으로 기억되고 복원된다', () => {
-    const created = createSession({sessionName: '재생위치 테스트', service: 'spotify', capacity: 2, host: host()});
+  it('재생 위치(currentEntryId/positionMs)가 서비스별로 독립적으로 기억되고 복원된다', async () => {
+    const created = await createSession({sessionName: '재생위치 테스트', service: 'spotify', capacity: 2, host: host()});
     const me = created.participants[0];
 
     addTrack(created.sessionId, track('spotify:a', 'A'), me);
@@ -100,8 +111,8 @@ describe('서비스 전환 시 플레이리스트/재생 위치 독립 보존', 
     expect(toYoutubeAgain?.playback.positionMs).toBe(15000);
   });
 
-  it('같은 서비스로 "전환"을 시도하면 아무것도 바뀌지 않는다', () => {
-    const created = createSession({sessionName: '동일 서비스', service: 'spotify', capacity: 2, host: host()});
+  it('같은 서비스로 "전환"을 시도하면 아무것도 바뀌지 않는다', async () => {
+    const created = await createSession({sessionName: '동일 서비스', service: 'spotify', capacity: 2, host: host()});
     const me = created.participants[0];
     const before = getSession(created.sessionId)!;
     const result = switchService(created.sessionId, 'spotify', me.participantId);
@@ -109,8 +120,8 @@ describe('서비스 전환 시 플레이리스트/재생 위치 독립 보존', 
     expect(result?.playlists).toBe(before.playlists);
   });
 
-  it('혼합 세션에서는 switchService가 아무 것도 하지 않는다(09문서 "결정 3")', () => {
-    const created = createSession({
+  it('혼합 세션에서는 switchService가 아무 것도 하지 않는다(09문서 "결정 3")', async () => {
+    const created = await createSession({
       sessionName: '혼합',
       service: 'mixed',
       capacity: 2,

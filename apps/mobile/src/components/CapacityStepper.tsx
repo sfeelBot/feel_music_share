@@ -7,6 +7,9 @@ import {SESSION_CAPACITY_MAX, SESSION_CAPACITY_MIN} from '../types/domain';
 /**
  * 세션 정원 스테퍼 (02-key-ui-patterns.md 7절) — 기본값 2명, 범위 2~12명.
  * 스테퍼(−/+) + 슬라이더 트랙(현재 값 대비 위치 표시)을 함께 노출한다.
+ *
+ * (2026-07-27, PB-09 — docs/design/06-ui-polish-audit.md) +/− 버튼을 36×36에서 44×44로 키웠다
+ * (Apple HIG 최소 터치 타겟 44×44pt 충족).
  */
 interface CapacityStepperProps {
   value: number;
@@ -53,9 +56,9 @@ export default function CapacityStepper({value, onChange}: CapacityStepperProps)
 const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginBottom: 12},
   stepBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',

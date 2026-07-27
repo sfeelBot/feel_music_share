@@ -1,9 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import {Modal, Pressable, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Animated, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {GestureHandlerRootView, PanGestureHandler} from 'react-native-gesture-handler';
 import AddTrackModal from './AddTrackModal';
 import MatchCandidateList from './MatchCandidateList';
 import MatchConfirmCard from './MatchConfirmCard';
 import MatchFailCard from './MatchFailCard';
+import {useDragToDismiss} from '../hooks/useDragToDismiss';
 import {useAuth} from '../services/auth/AuthContext';
 import {resolveQueueEntryId} from '../state/matchQueueNavigation';
 import {useSession} from '../state/SessionContext';
@@ -17,6 +19,11 @@ import type {Track} from '../types/domain';
  * 하나씩 보여준다(강제 모달로 매 곡마다 가로막지 않는다는 디자인 절충안, 00-ux-flow.md 2.11a).
  * 카드(2.11b) → 대체 후보(2.11c) / 매칭 실패(2.11d) → 직접 검색(2.11 재사용) 화면 전환을
  * 이 컴포넌트 하나가 담당한다.
+ *
+ * (2026-07-27 추가, PB-03) 헤더 영역에 "아래로 드래그해서 닫기"를 추가했다 —
+ * `ParticipantsBottomSheet.tsx`와 같은 이유로 `hooks/useDragToDismiss.ts`를 재사용하고, 같은 이유로
+ * `Modal` 내부에 자체 `GestureHandlerRootView`가 필요하다(App.tsx 루트 래퍼는 Modal의 별도 네이티브
+ * 윈도우에 닿지 않는다 — 자세한 근거는 ParticipantsBottomSheet.tsx 주석 참고).
  */
 interface MatchingQueueSheetProps {
   visible: boolean;
@@ -39,6 +46,8 @@ export default function MatchingQueueSheet({visible, onClose}: MatchingQueueShee
     skipMyMatch,
   } = useSession();
   const [mode, setMode] = useState<Mode>('card');
+  // Rules of Hooks 준수: 아래 여러 조건부 return보다 반드시 앞서야 한다.
+  const {translateY, onGestureEvent, onHandlerStateChange} = useDragToDismiss(onClose);
 
   useEffect(() => {
     if (visible) {
@@ -86,59 +95,64 @@ export default function MatchingQueueSheet({visible, onClose}: MatchingQueueShee
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, {backgroundColor: theme.overlay}]} onPress={onClose} />
-      <View style={[styles.sheet, {backgroundColor: theme.bgElevated}]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} accessibilityLabel="닫기">
-            <Text style={[styles.close, {color: theme.textSecondary}]}>✕</Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, {color: theme.text}]}>
-            {mode === 'candidates' ? '다른 결과 보기' : '곡 매칭 확인'}
-            {myPendingMatchEntryIds.length > 1
-              ? ` (${myPendingMatchEntryIds.indexOf(entryId as string) + 1}/${myPendingMatchEntryIds.length})`
-              : ''}
-          </Text>
-          <View style={styles.close} />
-        </View>
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <Pressable style={[styles.backdrop, {backgroundColor: theme.overlay}]} onPress={onClose} />
+        <Animated.View style={[styles.sheet, {backgroundColor: theme.bgElevated, transform: [{translateY}]}]}>
+          <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
+            <Animated.View style={styles.header}>
+              <TouchableOpacity onPress={onClose} accessibilityLabel="닫기">
+                <Text style={[styles.close, {color: theme.textSecondary}]}>✕</Text>
+              </TouchableOpacity>
+              <Text style={[styles.headerTitle, {color: theme.text}]}>
+                {mode === 'candidates' ? '다른 결과 보기' : '곡 매칭 확인'}
+                {myPendingMatchEntryIds.length > 1
+                  ? ` (${myPendingMatchEntryIds.indexOf(entryId as string) + 1}/${myPendingMatchEntryIds.length})`
+                  : ''}
+              </Text>
+              <View style={styles.close} />
+            </Animated.View>
+          </PanGestureHandler>
 
-        {myMatch.status === 'failed' ? (
-          <MatchFailCard
-            entry={entry}
-            platform={myPlatform}
-            onManualSearch={() => setMode('search')}
-            onSkip={() => {
-              skipMyMatch(entryId as string);
-              setMode('card');
-            }}
-          />
-        ) : mode === 'candidates' ? (
-          <MatchCandidateList
-            candidates={myMatch.candidates}
-            onSelect={candidate => {
-              selectMyMatchCandidate(entryId as string, candidate);
-              setMode('card');
-            }}
-            onManualSearch={() => setMode('search')}
-          />
-        ) : myMatch.track ? (
-          <MatchConfirmCard
-            entry={entry}
-            track={myMatch.track}
-            hasCandidates={myMatch.candidates.length > 0}
-            onConfirm={() => {
-              confirmMyMatch(entryId as string);
-              setMode('card');
-            }}
-            onShowCandidates={() => setMode('candidates')}
-            onManualSearch={() => setMode('search')}
-          />
-        ) : null}
-      </View>
+          {myMatch.status === 'failed' ? (
+            <MatchFailCard
+              entry={entry}
+              platform={myPlatform}
+              onManualSearch={() => setMode('search')}
+              onSkip={() => {
+                skipMyMatch(entryId as string);
+                setMode('card');
+              }}
+            />
+          ) : mode === 'candidates' ? (
+            <MatchCandidateList
+              candidates={myMatch.candidates}
+              onSelect={candidate => {
+                selectMyMatchCandidate(entryId as string, candidate);
+                setMode('card');
+              }}
+              onManualSearch={() => setMode('search')}
+            />
+          ) : myMatch.track ? (
+            <MatchConfirmCard
+              entry={entry}
+              track={myMatch.track}
+              hasCandidates={myMatch.candidates.length > 0}
+              onConfirm={() => {
+                confirmMyMatch(entryId as string);
+                setMode('card');
+              }}
+              onShowCandidates={() => setMode('candidates')}
+              onManualSearch={() => setMode('search')}
+            />
+          ) : null}
+        </Animated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {flex: 1},
   backdrop: {flex: 1},
   sheet: {
     position: 'absolute',

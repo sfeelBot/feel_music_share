@@ -3,9 +3,11 @@ import {Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} 
 import {SafeAreaView} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
+import BackButton from '../components/BackButton';
 import {PrimaryButton, SecondaryButton} from '../components/Buttons';
 import PlatformSelect from '../components/PlatformSelect';
 import {useAuth} from '../services/auth/AuthContext';
+import {useFirebaseAuth} from '../state/FirebaseAuthContext';
 import {useSession} from '../state/SessionContext';
 import {useTheme} from '../theme/ThemeContext';
 import type {MixedParticipantPlatform} from '../types/domain';
@@ -16,16 +18,17 @@ import type {MixedParticipantPlatform} from '../types/domain';
  * (2026-07-26 구현) "코드로 참여하기"를 실제 로직으로 연결했다 — sessionService.joinSessionByCode
  * (SessionContext.tsx의 joinSession 액션 경유)로 초대 코드를 조회해 참여자를 추가한다.
  *
- * TODO(Firebase 연동, 알려진 데모 스코프 한계): 세션은 이 앱 프로세스의 in-memory 목업에만 존재하므로
- * (services/session/sessionService.ts), 이 화면에서 실제로 참여가 성립하는 경우는 **같은 기기(같은 앱
- * 인스턴스)에서 방금 만든 세션**뿐이다. 다른 기기가 만든 세션은 이 프로세스 메모리에 없어 "코드가
- * 존재하지 않음"으로 처리된다 — Firestore/RTDB 연동 후에는 실제 원격 조회로 자연히 해소된다.
+ * (2026-07-27 RTDB 1라운드) 세션이 이제 실제 RTDB에 저장되므로, 다른 기기가 만든 세션도 초대
+ * 코드로 참여할 수 있다(단, 이 라운드 자체는 RTDB 보안 규칙이 아직 배포 전이라 실제 read/write는
+ * 거부된다 — 코드 경로만 올바르게 준비된 상태, 회귀 아님). `participantId`는 Spotify 프로필의
+ * `profile.id` 대신 Firebase Auth 익명 인증 `uid`를 쓴다(CreateSessionScreen.tsx와 동일 근거).
  */
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({navigation}: Props) {
   const theme = useTheme();
   const {profile, logout} = useAuth();
+  const {uid: firebaseUid} = useFirebaseAuth();
   const {joinSession} = useSession();
   const [inviteCode, setInviteCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
@@ -35,8 +38,8 @@ export default function HomeScreen({navigation}: Props) {
   const [step, setStep] = useState<'code' | 'platform'>('code');
   const [joiningPlatform, setJoiningPlatform] = useState<MixedParticipantPlatform>('spotify');
 
-  const attemptJoin = (platform?: MixedParticipantPlatform) => {
-    if (!profile) {
+  const attemptJoin = async (platform?: MixedParticipantPlatform) => {
+    if (!profile || !firebaseUid) {
       return;
     }
     const trimmedCode = inviteCode.trim();
@@ -46,10 +49,10 @@ export default function HomeScreen({navigation}: Props) {
     }
 
     setIsJoining(true);
-    const result = joinSession({
+    const result = await joinSession({
       inviteCode: trimmedCode,
       joiningUser: {
-        participantId: profile.id,
+        participantId: firebaseUid,
         displayName: profile.displayName,
         accountTier: profile.isPremium ? 'premium' : 'free',
       },
@@ -91,9 +94,7 @@ export default function HomeScreen({navigation}: Props) {
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: theme.bg}]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setStep('code')} accessibilityLabel="뒤로 가기">
-            <Text style={[styles.back, {color: theme.text}]}>←</Text>
-          </TouchableOpacity>
+          <BackButton onPress={() => setStep('code')} />
           <Text style={[styles.appName, {color: theme.text}]}>혼합 세션 참여</Text>
           <View style={styles.back} />
         </View>
