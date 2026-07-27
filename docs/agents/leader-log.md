@@ -68,6 +68,9 @@
 - 외부 액션: 커밋 `c9eb4c3`(스파이크 산출물), push 안 함. 사용자에게 이 Docker 기반 Android 검증을 앞으로 verifier 라운드 표준 절차에 채택할지 확인.
 - 사용자 결정: "주요 기능추가시에만 채택. 기본적으로 빌드만 확인" — `CLAUDE.md`/`verifier.md`에 정책 명문화(커밋 `18db70f`).
 - 외부 액션: 사용자가 "push" 요청 → `git push origin main`(`fc6dbad..18db70f`, 10개 커밋: Round 13/14 검증, YouTube 시크 복원, Spotify 검색 오류 진단, Docker 스파이크+정책화) 완료.
+
+- 요청: 사용자가 "현재까지 기능 android 검증 시작해" — Docker 기반 실제 설치/실행 검증을 지금 바로 시작하라는 명시적 지시.
+- 분배: verifier에게 Round 15(Docker+KVM 실기기급 검증) 위임(백그라운드) — 최신 소스로 로컬 빌드해 설치(Release APK 대신), 스플래시/온보딩/Spotify 연동 화면(+Premium 모달 실제 탭)까지 실제 조작+스크린샷으로 검증. **중요 제약 사전 고지**: 이 앱은 로그인 없이 홈 화면 이후 진입 불가 — 자동화 에이전트가 실제 계정으로 로그인 시도하는 것은 금지(보안/계정 소유권 문제), 로그인 벽 이전까지만 실검증하고 그 이후는 "실기기 사용자 로그인 후 확인 필요" 목록으로 정직하게 남기도록 지시.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
