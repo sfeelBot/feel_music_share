@@ -114,6 +114,7 @@
 - 요청: 사용자가 "push하고 진행할 것들 진행해".
 - 외부 액션: `git push origin main`(`20af688..4948db9`, 19개 커밋 — Round 17 검증, RTDB URL 배선, 지연시간 스파이크 등 이번 세션 Firebase 작업 전부 포함) 완료.
 - 분배: planner에게 RTDB 트리 스키마 + 보안 규칙 설계 위임(백그라운드) — `sessionService.ts` 실연동(다음 큰 라운드)의 선행 설계 단계. 05-sync-architecture.md(서버기준시계/host-follower)·04-playlist.md·09-cross-platform-mixed-mode.md·현재 `domain.ts`/`sessionService.ts`를 근거로 (1) 경로별 스키마+read/write 권한 표, (2) 보안 규칙 초안(Firebase Auth 익명 인증 vs 세션코드 기반 두 시나리오 비교, 인증 방식 자체는 결정하지 말고 권고만), (3) `sessionService.ts` 교체를 몇 단계로 나눌지 로드맵, (4) 동시쓰기 충돌/마이그레이션 리스크를 요청. 산출물은 `docs/specs/10-rtdb-schema-and-security-rules.md` 신규.
+- 분배(병렬): verifier에게 Round 18(Round 15가 남긴 공백 — 로그인 벽 이후 화면을 데모 바이패스로 채우는 후속 검증) 위임(백그라운드, planner와 파일 겹침 없음) — Docker+KVM 실기기 검증으로 세션 생성/참여/메인화면/곡검색(실패 UI 확인)/설정화면을 데모 계정으로 실행. 데모 계정은 실제 Spotify API 호출이 안 되니 "정상적으로 실패하는지"만 확인하라고 명시, 혼합모드는 단일기기 한계를 정직하게 구분해 보고하라고 지시. 코드 변경 없이 순수 검증만.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
