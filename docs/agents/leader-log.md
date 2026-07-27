@@ -65,7 +65,9 @@
 - 외부 액션: `docs/decisions-needed.md` 항목 1번을 이 진단으로 갱신, 긴급도 상향(검색 기능 자체가 막혀있어 이전 "급하지 않음" 평가를 뒤집음). 커밋 `a538dc2`.
 
 - 결과(spiker, Docker 가상화 스파이크 완료 — 중요): **Android는 이 머신에서 실제로 Docker+KVM 패스스루로 에뮬레이터를 띄우고, 실제 배포 APK를 설치·실행해 화면 렌더링(온보딩 한글 텍스트)까지 스크린샷으로 실측 확인함.** 지금까지 모든 라운드가 "빌드 성공"까지만 확인했던 것에서 "설치→실행→화면 렌더링" 수준으로 검증 역량이 실질적으로 올라갈 수 있는 근거가 마련됨(단, 이 머신의 CPU/BIOS/WSL 빌드에 종속적이라 재현성 보장은 없음 — 로컬 AVD가 Docker 없이 더 단순한 대안일 가능성도 언급됨, 실측은 안 함). iOS는 컨테이너 기술 자체가 다른 커널(macOS)을 못 담는다는 구조적 불가능 + Apple SLA의 비-Apple 하드웨어 가상화 금지 라이선스 제약, 두 가지가 별개로 존재함을 확인(`docker-osx`도 실은 QEMU 전가상화 VM 래퍼일 뿐이라 반증 안 됨).
-- 외부 액션: 커밋 `c9eb4c3`(스파이크 산출물), push 안 함. 사용자에게 이 Docker 기반 Android 검증을 앞으로 verifier 라운드 표준 절차에 채택할지 확인 예정(재현성 리스크 있어 리더가 임의로 채택하지 않고 확인받기로 판단).
+- 외부 액션: 커밋 `c9eb4c3`(스파이크 산출물), push 안 함. 사용자에게 이 Docker 기반 Android 검증을 앞으로 verifier 라운드 표준 절차에 채택할지 확인.
+- 사용자 결정: "주요 기능추가시에만 채택. 기본적으로 빌드만 확인" — `CLAUDE.md`/`verifier.md`에 정책 명문화(커밋 `18db70f`).
+- 외부 액션: 사용자가 "push" 요청 → `git push origin main`(`fc6dbad..18db70f`, 10개 커밋: Round 13/14 검증, YouTube 시크 복원, Spotify 검색 오류 진단, Docker 스파이크+정책화) 완료.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
