@@ -70,6 +70,31 @@ react {
     autolinkLibrariesWithApp()
 }
 
+// Round 19 버그 수정: 위 debuggableVariants = [] 설정은 react-native-gradle-plugin의
+// TaskConfiguration.kt(configureReactTasks)에서 "debug"를 debuggableVariant가 아닌 것으로
+// 취급하게 만들어, createBundleDebugJsAndAssets(BundleHermesCTask) 태스크를 등록하면서
+// devEnabled를 무조건 false로 하드코딩한다 — 이 devEnabled 값이 Metro 번들링 시 `--dev false`로
+// 전달되어 JS 번들 안의 __DEV__ 전역값을 결정한다. 그 결과 debug APK를 빌드해도 __DEV__가 항상
+// false가 되어 SpotifyConnectScreen.tsx의 __DEV__ 전용 데모 로그인 버튼이 렌더링되지 않았다
+// (docs/qa/spotify-mvp-round1-checklist.md Round 18).
+//
+// debuggableVariants 자체를 되돌리면(예: ["debug"]) 번들이 APK에 내장되지 않고 debug 빌드가
+// Metro 서버 접속을 시도하게 되어, Metro 없는 사이드로드 환경에서 "Unable to load script"
+// 문제가 재발한다(위 40번째 줄 주석 참고) — 그래서 debuggableVariants는 그대로 []로 유지하고,
+// 대신 플러그인이 태스크를 등록한 *이후* afterEvaluate에서 devEnabled 프로퍼티만 true로
+// 재설정한다. Gradle의 Property<Boolean>은 태스크 실행 전까지 재설정 가능하므로 안전하다.
+// (android/app 프로젝트의 AndroidComponentsExtension.onVariants 콜백은 AGP 계약상 빌드
+// 스크립트 자신의 afterEvaluate보다 먼저 실행이 완료되도록 보장되므로, 이 afterEvaluate
+// 시점에는 createBundleDebugJsAndAssets 태스크가 이미 등록돼 있다.)
+//
+// release variant(createBundleReleaseJsAndAssets)는 절대 건드리지 않는다 — 배포용 빌드는
+// __DEV__=true가 되면 안 된다.
+afterEvaluate {
+    tasks.named("createBundleDebugJsAndAssets", com.facebook.react.tasks.BundleHermesCTask) {
+        devEnabled.set(true)
+    }
+}
+
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
