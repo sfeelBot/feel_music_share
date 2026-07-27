@@ -188,9 +188,9 @@ class WebViewYoutubePlayerController implements YoutubePlayerController {
 export const youtubePlayerController: YoutubePlayerController = new WebViewYoutubePlayerController();
 
 /**
- * 목업 검색 결과(`youtubeMockSearch.ts`)의 `serviceTrackId`는 `youtube:video:<id>` 형식이다.
- * 실제 YouTube Data API 연동(다음 라운드) 이후에는 접두사 없는 순수 videoId가 들어올 수도
- * 있으므로, 접두사가 없으면 원본 문자열을 그대로 videoId로 취급한다(안전한 폴백).
+ * 검색 결과(`youtubeSearch.ts`, 2026-07-27 실연동)의 `serviceTrackId`는 `youtube:video:<id>` 형식
+ * 이다(실제 YouTube 영상 ID). 혹시 접두사 없는 순수 videoId가 들어와도 대응할 수 있도록, 접두사가
+ * 없으면 원본 문자열을 그대로 videoId로 취급한다(안전한 폴백).
  *
  * NOTE: 현재 데모 시드 플레이리스트(`mockSessionSeed.ts`)는 YouTube 세션이어도 여전히
  * `spotify:track:demoN` 형식을 쓴다(서비스 무관 공통 시드 — 이번 라운드 범위 밖). 이 경우 폴백

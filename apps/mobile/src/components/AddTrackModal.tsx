@@ -3,16 +3,20 @@ import {ActivityIndicator, FlatList, Modal, StyleSheet, Text, TextInput, Touchab
 import BackButton from './BackButton';
 import {useTheme} from '../theme/ThemeContext';
 import {searchSpotifyTracks, type SpotifySearchTrack} from '../services/spotify/spotifyWebApi';
-import {searchYoutubeTracksMock} from '../services/youtube/youtubeMockSearch';
+import {searchYoutubeTracks} from '../services/youtube/youtubeSearch';
 import type {MusicService, Track} from '../types/domain';
 
 /**
  * 곡 검색 및 추가 바텀시트 (US-301, 00-ux-flow.md 2번 흐름 "곡 검색 및 추가 바텀시트").
  * Spotify 세션은 실제 Spotify Web API 검색(`GET /v1/search`)을 그대로 호출한다 — accessToken만
  * 있으면 되므로 Firebase 연동 여부와 무관하게 실제로 동작한다.
- * YouTube 세션은 실제 YouTube Data API 연동이 이번 라운드 범위 밖이라 목업 검색
- * (`services/youtube/youtubeMockSearch.ts`)으로 UI 흐름만 완성했다 — TODO(다음 라운드): YouTube
- * Data API v3 `search` 엔드포인트로 교체.
+ * YouTube 세션도 (2026-07-27부터) 실제 YouTube Data API v3 `search.list`/`videos.list` 호출로
+ * 검색한다(`services/youtube/youtubeSearch.ts`) — accessToken 없이 API 키만으로 동작.
+ *
+ * 디바운스 관련 판단(2026-07-27): 두 서비스 모두 타이핑마다 자동 검색하는 구조가 아니라 검색
+ * 버튼 클릭/키보드 "검색" 제출(`onSubmitEditing`)로만 `handleSearch`가 호출된다 — 이미 사용자
+ * 액션 1회당 API 호출 1회로 제한돼 있어 디바운스를 추가할 필요가 없다(Spotify 쪽과 동일한 트리거
+ * 방식을 그대로 따름 — 서비스별로 동작이 달라지면 UX 일관성이 깨진다는 판단).
  *
  * (2026-07-27, PB-06 — docs/design/06-ui-polish-audit.md) 닫기 UI를 우상단 "닫기" 텍스트 링크에서
  * 좌상단 "←" 아이콘(`BackButton` 공통 컴포넌트)으로 바꿨다 — 전체 화면 오버레이류(이 모달,
@@ -57,7 +61,7 @@ export default function AddTrackModal({
     try {
       const items =
         service === 'youtube'
-          ? await searchYoutubeTracksMock(query)
+          ? await searchYoutubeTracks(query)
           : await searchSpotifyTracks(query, accessToken as string);
       setResults(items);
     } catch (err) {

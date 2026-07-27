@@ -115,8 +115,8 @@ export function buildDemoPlaylist(participants: ParticipantInfo[]): PlaylistEntr
 
 /**
  * `demoTracks`와 같은 곡을 YouTube에서 찾았다고 가정한 플레이스홀더 매칭 결과(제목에 편집 표기가
- * 붙은 형태 — `services/youtube/youtubeMockSearch.ts`의 목업 카탈로그와 같은 톤으로 맞춤,
- * 다만 결합도를 낮추기 위해 그 파일을 직접 import하지는 않았다).
+ * 붙은 형태 — 실제 YouTube 검색 결과 제목 톤(예: "(Official Video)")에 맞춰 흉내낸 것일 뿐, 결합도를
+ * 낮추기 위해 실제 검색 모듈(`services/youtube/youtubeSearch.ts`)을 직접 import하지는 않았다).
  */
 const demoYoutubeVariants: Array<{titleSuffix: string; durationMs: number}> = [
   {titleSuffix: ' (Official Video)', durationMs: 231000},

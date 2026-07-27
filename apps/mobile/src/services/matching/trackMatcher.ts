@@ -1,5 +1,5 @@
 import {searchSpotifyTracks, type SpotifySearchTrack} from '../spotify/spotifyWebApi';
-import {searchYoutubeTracksMock} from '../youtube/youtubeMockSearch';
+import {searchYoutubeTracks} from '../youtube/youtubeSearch';
 import type {MatchConfidenceLevel, MatchedTrackCandidate, MixedParticipantPlatform} from '../../types/domain';
 
 /**
@@ -184,7 +184,7 @@ export function shouldShowDurationMismatchNotice(common: CommonTrackIdentity, tr
 /**
  * 특정 플랫폼에서 공통 식별자(제목/아티스트)로 검색해 랭킹된 후보 목록을 얻는다.
  * Spotify는 accessToken이 필요하다(없으면 빈 배열 — "이 참여자는 검색을 수행할 수 없음"으로 취급,
- * 아래 sessionService.ts의 스코프 판단 주석 참고). YouTube는 목업 검색이라 토큰이 필요 없다.
+ * 아래 sessionService.ts의 스코프 판단 주석 참고). YouTube는 API 키 기반 검색이라 토큰이 필요 없다.
  */
 export async function findMatchesOnPlatform(
   common: CommonTrackIdentity,
@@ -197,7 +197,7 @@ export async function findMatchesOnPlatform(
   }
   let raw: SpotifySearchTrack[] = [];
   if (platform === 'youtube') {
-    raw = await searchYoutubeTracksMock(query);
+    raw = await searchYoutubeTracks(query);
   } else if (accessToken) {
     raw = await searchSpotifyTracks(query, accessToken);
   }

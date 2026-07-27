@@ -10,15 +10,14 @@
 
 1. **RTDB 보안 규칙 배포 (2026-07-27 신규)** — 저장소 루트의 `database.rules.json`(1라운드에서 작성, 아직 미배포)을 Firebase 콘솔 Realtime Database → 규칙 탭에 직접 붙여넣거나 `firebase deploy --only database`(Firebase CLI 프로젝트 초기화 필요)로 배포해야 함. 배포 전까지는 RTDB가 여전히 기본 잠금 상태(`.read`/`.write` 모두 `false`)라 세션 생성/조회/참여 시도가 전부 거부됨(회귀 아님, 의도된 순서). 익명 인증 활성화는 완료됨(2026-07-27) — 이것만 되면 세션 생성이 실제로 되는지 바로 확인 가능.
 2. **Spotify Developer 앱 — Extended Quota Mode, 필요 여부 재검토 중 (2026-07-27 진단 정정)** (developer.spotify.com/dashboard) — (2026-07-26) User Management에 테스트 계정 추가 후 **로그인 자체는 실기기에서 성공 확인됨**. (2026-07-27 실기기 확인) 곡 검색 시도 시 `{"error": {"status": 400, "message": "Invalid limit"}}` 오류 발생. **이전 진단("Development Mode 앱은 `/v1/search` 자체에 접근 불가, 2024-11-27 정책 변경")은 낡은 정보에 기반한 오진이었다** — 같은 날(2026-07-27) 리더가 Spotify 공식 문서(https://developer.spotify.com/documentation/web-api/reference/search, https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide)를 WebFetch로 직접 재확인한 결과, **2026년 2월 정책 변경으로 Development Mode 앱도 `/v1/search`에 여전히 접근 가능**하며 단지 `limit` 파라미터의 허용 범위가 0~50(기본 20)에서 **0~10(기본 5)으로 축소**됐을 뿐이다. 실제 원인은 코드의 하드코딩된 `limit=15`가 이 새 상한(10)을 초과해 발생한 **순수 파라미터 검증 오류**였다 — Extended Quota Mode와는 무관. 구현 에이전트가 `apps/mobile/src/services/spotify/spotifyWebApi.ts`의 `limit`을 10으로 수정 완료(커밋 예정, 리더 diff 리뷰 대기). **다음 단계**: 리더가 실기기에서 곡 검색이 정상 동작하는지 재확인 필요 — 정상 확인되면 이 항목 자체를 삭제(Extended Quota Mode 신청 불필요로 결론). 혹시 다른 원인이 남아있다면 그때 Extended Quota Mode 신청을 재검토한다.
-3. **YouTube Data API v3 활성화** (Google Cloud Console) — YouTube 곡 검색·메타데이터 조회를 실제로 붙이려면 필요. 현재는 `apps/mobile/src/services/youtube/youtubeMockSearch.ts` 정적 목업으로 대체되어 있음.
 
 ## 추후 논의로 보류된 항목 (해결 전까지 계속 유지)
 
-4. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
+3. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
 
 ## 다음 라운드 예정 — 구현 후 실기기 확인 필요 (지금 당장 사용자가 할 일 아님, 참고용)
 
-5. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.**
+4. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.** (2026-07-27 갱신: 검색은 실제 API로 교체 완료됐으나, 이 항목은 IFrame Player 재생 자체의 실기기 검증을 다룬다 — 여전히 유효.)
    - (a) **광고 노출 확인**: 실제 임베드 환경에서 영상 재생 시 프리롤/미드롤 광고가 뜨는지 육안 확인 — Premium이어도 서드파티 WebView 임베드에서 무광고가 보장되는지 공식 문서로 확답을 못 찾았기 때문(`docs/specs/03-youtube-integration.md` 7절).
    - (b) **명령 응답 지연 실측**: 재생/일시정지/탐색 명령을 내린 뒤 실제 화면 반영까지 걸리는 시간 측정 — 동기화 드리프트 보정 설계(`05-sync-architecture.md`)에 반영할 참고 수치를 얻기 위함.
    - 목적은 "YouTube를 포함할지 말지 판단"이 아니라(이미 포함하기로 결정됨) "제품 카피·사용자 기대치 문구를 정확히 쓰기 위한 실측"이다(`docs/specs/06-mvp-scope-and-tech-stack.md` 참고).

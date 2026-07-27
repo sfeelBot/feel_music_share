@@ -45,4 +45,15 @@ export const ENV = {
   FIREBASE_API_KEY: 'TODO_FIREBASE_API_KEY',
   FIREBASE_APP_ID: 'TODO_FIREBASE_APP_ID',
   FIREBASE_DATABASE_URL: 'https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/',
+
+  /**
+   * YouTube Data API v3 키 (`services/youtube/youtubeSearch.ts`가 `search.list`/`videos.list` 호출에
+   * 사용). Google Cloud Console에서 "API 제한: YouTube Data API v3만" 체크로 제한돼 있고
+   * "애플리케이션 제한"은 걸려 있지 않다(RN이 REST를 직접 호출하는 방식이라 앱 제한을 걸면 정상
+   * 요청까지 막힐 수 있어 의도적으로 비워둠, `docs/external-service-setup-guide.md` 참고).
+   * PKCE 공개 클라이언트 식별자인 `SPOTIFY_CLIENT_ID`, Firebase 클라이언트 설정 값들과 같은
+   * 성격의 "클라이언트 임베드 전제 키"라 저장소에 커밋해도 안전하다 — API 스코프 제한이 실질적
+   * 방어선이다(2026-07-27, 리더 안내).
+   */
+  YOUTUBE_API_KEY: 'AIzaSyDf6Y7iMR0qMXnERoBRBueNB46jr_KZY3U',
 } as const;

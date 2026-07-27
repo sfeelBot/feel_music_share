@@ -11,8 +11,8 @@ import type {ParticipantInfo, ParticipantMatch} from '../types/domain';
  * Spotify 계정(accessToken)이 없으므로, 이 함수는 platform === 'spotify'인 비-본인 참여자에 대해
  * 실제 Spotify Web API를 호출하지 않고 곧바로 매칭 실패로 처리한다(가짜 매칭 결과를 지어내지
  * 않는다는 원칙 — 09문서가 요구하는 "불완전함을 감추지 않는다"는 태도와도 일치). platform ===
- * 'youtube'인 참여자는 목업 검색(services/youtube/youtubeMockSearch.ts)에 토큰이 필요 없으므로
- * 실제로 검색·랭킹까지 수행한다.
+ * 'youtube'인 참여자는 API 키 기반 검색(services/youtube/youtubeSearch.ts, 2026-07-27 실연동)에
+ * accessToken이 필요 없으므로 실제로 검색·랭킹까지 수행한다.
  */
 export async function resolveParticipantMatch(
   common: CommonTrackIdentity,
