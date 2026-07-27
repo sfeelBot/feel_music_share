@@ -17,7 +17,7 @@
 ### 예상 리스크 및 해결할 문제
 
 1. **Spotify 검색 기능 막힘**: Development Mode 앱이라 `/v1/search` 등 카탈로그 엔드포인트 접근 자체가 Spotify 정책(2024-11-27 변경)으로 차단됨 — Extended Quota Mode 신청 필요(`docs/decisions-needed.md`). 로그인 자체는 실기기에서 정상 동작 확인됨.
-2. **Firebase — 이제 DB 선택만 남음**: 패키지명 재등록 + `google-services.json` 배치 + Gradle 플러그인 연결까지 전부 완료(Round 16 통과). Realtime Database vs Firestore 결정만 남음(`docs/spikes/firebase-rtdb-vs-firestore.md` 참고자료 있음) — 결정되면 `@react-native-firebase` SDK 설치+`firebaseClient.ts` 실제 초기화로 이어짐.
+2. **Firebase — DB 선택 완료(RTDB), 콘솔 활성화만 남음**: RTDB vs Firestore 결정 완료(`docs/decision-log.md` 2026-07-27, RTDB 확정). `@react-native-firebase/app`+`/database` SDK 설치 + `firebaseClient.ts` 실제 초기화(모듈러 API)까지 완료(리더 검증 후 커밋 `58317c2`) — 단 RTDB read/write는 아직 코드에 없고, Firebase 콘솔에서 RTDB 자체가 비활성 상태라 시도해도 실패하는 게 정상. **남은 것은 사용자의 콘솔 "데이터베이스 만들기" 활성화뿐** — 되면 `sessionService.ts` 실제 연동(다음 라운드) 착수 가능.
 3. **YouTube Data API v3 미완료** — YouTube 검색이 여전히 목업 상태.
 4. **iOS**: macOS 부재로 빌드/실행 구조적으로 불가능(Docker로도 확인 — 컨테이너가 다른 커널을 못 담는 원리적 한계 + Apple SLA 라이선스 제약 이중으로 막힘, `docs/spikes/docker-virtualization-for-mobile-verification.md`). 배포 방향도 사용자가 두 차례 "추후 논의"로 보류 중.
 5. **Android 실기기급 검증 역량 확보**: Docker+KVM으로 이 머신에서는 실제 설치/실행/화면 검증까지 가능함을 실측 확인(Round 15) — 정책상 "주요 기능 추가 시에만" 적용(CLAUDE.md 명문화).
@@ -26,8 +26,8 @@
 ### 현재 진행중인 task
 
 1. **완료(2026-07-26~27)**: YouTube 재생 연동, 혼합 세션 모드, 코드로 참여하기+세션 설정 화면, 초대코드/서비스칩 연결, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원, 스플래시/엣지상태/적응형아이콘 — Round 5~16 전부 검증 통과. 상세는 `docs/roadmap.md`와 `docs/qa/spotify-mvp-round1-checklist.md` 참고.
-2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가 — 둘 다 로그인 벽 없이/실제로 화면을 검증할 수 있는 인프라. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료.
-3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase RTDB vs Firestore 결정 — 논의 중, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보.
+2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료 + RTDB vs Firestore 결정(RTDB, `docs/decision-log.md`) + SDK 설치/`firebaseClient.ts` 실제 초기화 완료(커밋 `58317c2`).
+3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase 콘솔 RTDB 활성화(사용자 액션, 유일한 남은 블로커) → 되는 대로 `sessionService.ts` 실제 RTDB 연동 착수, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보. verifier에게 이번 SDK 설치 라운드 검증 위임 여부 판단 필요(빌드 성공 확인은 리더가 이미 독립 재현 완료, 런타임 동작 변화 없어 build-only로 충분하다고 잠정 판단 — 아래 로그 참고).
 4. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태.
 
 - 요청: 사용자가 "RTDB로 구축해줘" + "위 rtdb 결정 관련 내용은 회의록 형식으로 정리해서 docs 폴더에 하나 만들도 넣어놔".
@@ -92,6 +92,12 @@
 - 후속 분배: verifier에게 Round 16(Firebase Gradle 연결, 좁은 범위) 위임(백그라운드) — clean 재빌드+패키지명 매칭 재확인 지시.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
+
+- 요청: 사용자가 "RTDB 로 구축해줘" — RTDB로 결정 확정 후 실제 구축 진행 지시. (앞서 "db 선택 각 옵션별 장단점 설명해줘" → "금액을 알려줘" 순으로 RTDB vs Firestore 비교/비용 설명 후 나온 결정.)
+- 분배: implementer에게 RTDB SDK 설치+`firebaseClient.ts` 실제 초기화 위임(백그라운드) — `sessionService.ts` 실 연동은 명시적으로 범위 밖(다음 라운드), RTDB 콘솔 미활성 상태에서도 병행 가능한 코드 준비까지만 지시. 새 네이티브 의존성 2개라 androidx.browser류 빌드 충돌 리스크를 사전 고지, 발생 시 근본 원인 추적 지시.
+- 결과(implementer 완료): `@react-native-firebase/app`+`/database` `25.1.0` 정확히 고정 설치, `firebaseClient.ts` STUB → 모듈러 API(`getApps`/`getDatabase`) 기반 실제 초기화로 교체, `getFirebaseDatabase()` 헬퍼 신규(인스턴스만, read/write 없음), `getFirebaseConnectionStatus()`를 `isAppInitialized`/`isDatabaseVerified`/`isConfigured` 세 필드로 재설계(단 `isDatabaseVerified`는 아직 `isAppInitialized`와 동일 로직 — 실제 RTDB 활성화는 read/write 응답 전까진 알 수 없다는 한계를 주석에 명시, 다음 라운드에서 `sessionService.ts` 실연동 시 자연히 해소될 예정). `.env.example`/`jest.config.js`/`firebase-integration-guide.md` 체크리스트도 함께 갱신.
+- 리더 검증: diff 리뷰(scope 준수 확인) + `tsc`/`eslint`(0 errors, 23 pre-existing warnings)/`jest`(9 suites/48 tests) 독립 재현 일치 + Android 빌드 독립 재현(증분 BUILD SUCCESSFUL + **clean 재빌드도 별도 수행** BUILD SUCCESSFUL in 2m 2s, androidx.browser류 네이티브 버전 충돌 이번엔 없음) 후 커밋 `58317c2`.
+- 후속 분배: verifier에게 Round 17(SDK 설치+초기화, 런타임 동작 변화 없어 build-only 범위로 한정 — CLAUDE.md 정책상 Docker 실기기 검증은 "주요 기능 추가"에만 적용, 이번 라운드는 해당 안 된다고 판단) 위임(백그라운드) — 코드 리뷰(모듈러 API 사용, `isDatabaseVerified` 한계 주석 일치)+정적 검증 3종+Android 증분/clean 빌드 교차 재현+회귀(diff 범위 밖 영향 없음) 확인 지시.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
