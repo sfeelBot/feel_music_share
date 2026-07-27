@@ -14,6 +14,25 @@
 
 > 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). **화면별 상세 현황·다음 순서는 `docs/roadmap.md`(살아있는 문서, CLAUDE.md 리더 규칙 9번)가 전담한다.** 마지막 갱신: 2026-07-27.
 
+### ⚠️ 세션 한도 복구 진행 중 (2026-07-27, session-limit-recovery 적용) — 병합 작업의 정확한 재개 지점
+
+**무슨 일이 있었는가**: 두 백그라운드 implementer 에이전트(worktree 격리)가 각자 최종 정적 검증(tsc/eslint/jest) 직전 단계에서 **계정 API 세션 한도**로 동시에 죽었다(`resets 7:50pm Asia/Seoul`). 둘 다 파일은 이미 디스크에 다 써진 상태(텍스트 응답만 끊김) — 리더가 직접 두 worktree에서 `tsc`/`eslint`/`jest`를 재현한 결과 **둘 다 0 errors로 통과** 확인 완료. 에이전트를 재개하지 않고(이미 검증 끝났으므로 불필요) 리더가 직접 diff 리뷰 후 병합하는 방식으로 진행 중.
+
+**worktree 1 — UI 폴리시** (`E:\music share\.claude\worktrees\agent-a9f943707e4ead493`, 브랜치 `worktree-agent-a9f943707e4ead493`): 스와이프 삭제(`react-native-gesture-handler` 신규) + PB-01/02/03/05/06/07/08/09/13/14/15/16/17. 15개 파일 변경(810 insertions/373 deletions). `tsc`/`eslint`(0 errors, 25 warnings)/`jest`(9/9, 48/48) 전부 리더가 독립 재현해 통과 확인. **Android 빌드는 이 worktree 경로(`.claude/worktrees/...`)에서 MAX_PATH(260자) 초과로 실패** — 이전에도 있었던 전례(worktree 경로가 너무 깊음, 코드 문제 아님) — **머지 후 기본 체크아웃 경로에서 반드시 재시도 필요**.
+
+**worktree 2 — Firebase Auth + sessionService.ts 1라운드** (`E:\music share\.claude\worktrees\agent-a31d804c06c21014b`, 브랜치 `worktree-agent-a31d804c06c21014b`): `@react-native-firebase/auth` 신규 설치 + `participantId`=`auth.uid` 통일 + 세션 생성/조회/참여 RTDB 연동 + `database.rules.json` 신규(배포 안 함). `tsc`/`eslint`(0 errors, 23 warnings)/`jest`(9/9, 48/48) 리더가 독립 재현해 통과 확인. Android 빌드는 아직 시도 안 함(worktree 1과 동일하게 MAX_PATH 문제 예상, 병합 후 기본 경로에서 시도 예정).
+
+**충돌 지점(둘 다 건드림, 수동 스플라이스 필요 — SessionContext.tsx 선례와 동일 패턴)**: `apps/mobile/App.tsx`(worktree1=GestureHandlerRootView 래핑, worktree2=FirebaseAuthContext 프로바이더 추가로 추정 — 둘 다 반영 필요), `apps/mobile/package.json`/`package-lock.json`(worktree1=`react-native-gesture-handler`, worktree2=`@react-native-firebase/auth` — 둘 다 반영 필요).
+
+**재개 절차(다음 세션/한도 해제 후에도 그대로 적용 가능)**:
+1. 두 worktree의 diff를 각각 `git diff`로 리뷰(App.tsx/package.json 제외 파일은 서로 안 겹치므로 `git apply`로 순서대로 적용 가능할 가능성 높음).
+2. App.tsx/package.json/package-lock.json 3개 파일은 두 worktree의 변경을 수동으로 스플라이스(양쪽 다 반영, 삭제 없이).
+3. 기본 체크아웃 경로(`E:\music share\apps\mobile`)에서 `tsc`/`eslint`/`jest` + Android `assembleDebug`(증분+clean 둘 다, 신규 네이티브 의존성 2개 — `gesture-handler`, `firebase/auth`) 독립 재검증.
+4. 통과하면 커밋(2개 기능이 섞여 있으니 논리 단위로 분리 커밋 고려 — 예: "UI 폴리시" 커밋과 "Firebase Auth+세션 RTDB" 커밋을 따로).
+5. worktree 정리(`EnterWorktree`/`ExitWorktree` 또는 `git worktree remove`).
+6. `database.rules.json`을 사용자에게 Firebase 콘솔에 붙여넣어달라고 안내 필요(decisions-needed.md에 신규 항목).
+7. `docs/qa/spotify-mvp-round1-checklist.md`의 "Round 18 검증" — **중요 버그 발견**: `apps/mobile/android/app/build.gradle`의 `debuggableVariants = []` 설정 때문에 모든 `assembleDebug` 빌드가 `--dev false`로 번들링되어 `__DEV__`가 항상 `false` → 데모 로그인 바이패스 버튼이 영구히 렌더링 안 됨. 이 라운드들과 별개로 수정 필요(다음 우선순위 후보).
+
 ### 예상 리스크 및 해결할 문제
 
 1. **Spotify 검색 기능 막힘**: Development Mode 앱이라 `/v1/search` 등 카탈로그 엔드포인트 접근 자체가 Spotify 정책(2024-11-27 변경)으로 차단됨 — Extended Quota Mode 신청 필요(`docs/decisions-needed.md`). 로그인 자체는 실기기에서 정상 동작 확인됨.
