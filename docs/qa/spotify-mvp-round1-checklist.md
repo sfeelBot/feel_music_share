@@ -1246,3 +1246,73 @@ Round 13에서 발견된 비차단 갭(R13.19) 하나만 좁게 고치는 커밋
 **결론: 통과.** `firebaseClient.ts`가 실제로 모듈러 API(`getApps`/`getDatabase`)만 사용하고 레거시 네임스페이스드 API를 쓰지 않음을 확인했다(R17.4). `isDatabaseVerified` 필드는 지시 내용대로 아직 `isAppInitialized`와 동일 로직이며, 코드 주석이 "DB 활성화를 확인했다"가 아니라 "아직 반증되지 않았다"로 정직하게 한계를 설명하고 있어 과장이 없다(R17.5). `getFirebaseDatabase()`는 인스턴스 생성만 하고 네트워크 요청을 보내지 않는다(R17.6). `sessionService.ts`/`SessionContext.tsx`는 여전히 인메모리 목업 그대로이고, `firebaseClient.ts`를 실제로 import해 호출하는 코드는 어디에도 없음을 확인했다(R17.2, R17.3) — "코드 준비만" 했다는 범위 주장과 일치. 정적 검증(tsc 0 errors, eslint 0 errors/23 warnings, jest 9 suites/48 tests)을 독립 재현해 리더 보고와 정확히 일치함을 확인했다(R17.8~R17.10). Android는 `clean` → `assembleDebug` 순서의 완전 재빌드로 BUILD SUCCESSFUL을 재확인했고, 새 네이티브 의존성 2개가 기존 네이티브 모듈들과 충돌하지 않음을 로그에서 직접 확인했다(R17.12, R17.13). 이번 라운드가 건드리지 않은 화면/서비스 코드에 대한 회귀도 없다(R17.14). iOS는 이번 커밋이 건드리지 않았고(R17.15), `GoogleService-Info.plist` 부재로 인한 구조적 미검증 상태는 회귀가 아니라 기존부터의 제약 그대로다.
 
 이번 라운드는 "런타임 동작 변화가 없는 SDK 설치+초기화 라운드"라는 리더의 사전 판단이 코드 리뷰 결과와도 일치했다 — Docker/에뮬레이터 실기기 검증 없이도 "설치는 됐지만 아직 아무것도 실제로 호출하지 않는다"는 상태를 충분히 확인할 수 있었다. 다음 라운드(`sessionService.ts`를 실제 RTDB 호출로 교체)부터는 실제 read/write가 시작되므로, RTDB 콘솔 활성화 여부에 따라 검증 성격이 달라질 것 — 예를 들어 콘솔에서 RTDB가 여전히 비활성 상태라면 실패하는 게 "정상"이고, 활성화된 후에는 실제 read/write 성공 여부가 검증 대상이 된다는 점을 다음 라운드 지시에 명시해두는 것이 좋겠다.
+
+---
+
+## Round 18 검증 (로그인 벽 이후 화면 — `__DEV__` 데모 바이패스로 시도, 구조적 차단 발견)
+
+> 검증 대상: `apps/mobile` 소스는 커밋 `c43ceb6`(마지막으로 `apps/mobile`를 건드린 커밋) 기준, 로컬에서 직접 재빌드. 검증 세션 도중 `main` HEAD가 `c94bbf5`까지 진행됐지만 그 사이 커밋 3개(`cca5049`/`fb080d9`/`c94bbf5`)는 전부 `docs/`만 건드려(각 커밋 `--stat`으로 확인) `apps/mobile` 트리에는 영향이 없었다 — 이번 검증에 사용한 빌드 산출물과 현재 `main` HEAD 사이에 실질적 드리프트 없음.
+> 검증일: 2026-07-27
+> 검증 담당: 검증(Verification) 서브에이전트
+> 지시자: 리더 — Round 15가 "로그인 벽 이후" 전체를 검증 공백으로 명시적으로 남겼고, 그 직후 구현 에이전트가 이 공백을 메우기 위한 `__DEV__` 전용 데모 로그인 바이패스(`loginAsDemo()`, 커밋 `8f3b9cd`)를 추가한 맥락에서, 그 바이패스를 실제로 써서 세션 생성/참여/메인 화면/곡 검색/세션 설정을 Docker+KVM 실기기급으로 검증하라는 명시적 요청.
+> 참고 문서: `docs/spikes/docker-virtualization-for-mobile-verification.md`, Round 15(로그인 벽 이전 전용 검증).
+> 환경: Windows 11 Pro (10.0.26200), Docker Desktop 29.2.0(WSL2 backend), `budtmo/docker-android:emulator_11.0`(로컬 캐시 재사용) 컨테이너 위 Android 11 에뮬레이터(Samsung Galaxy S10 프로필, 1440x3040, KVM 가속 확인: `CPU Acceleration status: KVM (version 12) is installed and usable.`, `Boot completed in 82645 ms`). Android 빌드: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`.
+> **결론 먼저**: 이번 라운드는 지시받은 1~6번 항목(세션 생성/참여/메인 화면/곡 검색/세션 설정/다크모드+뒤로가기+logcat) 중 **1~5번을 전혀 검증하지 못했다** — `__DEV__` 데모 바이패스 버튼 자체가 실제 빌드에서 렌더링되지 않는 구조적 결함을 발견했기 때문이다(아래 1절). 6번(다크모드/뒤로가기/logcat)은 로그인 벽 이전 화면 한정으로 재확인했다.
+
+### 0. 빌드 + 설치 준비 (R15와 동일 절차 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R18.0a | 현재 `apps/mobile` 소스로 로컬 직접 재빌드 (`assembleDebug --no-daemon`) | 통과 | **BUILD SUCCESSFUL in 55s**(262 actionable tasks: 23 executed, 239 up-to-date). |
+| R18.0b | APK 무결성 — 스크래치 사본과 컨테이너 전송본의 SHA256 일치 확인 | 통과 | 로컬 원본(`eead0cad...`) → 스크래치 사본(동일 해시, 2회 연속 확인) → `unzip -tq`(zip 무결성 이상 없음) → `docker cp`로 컨테이너 전송 후 컨테이너 내부 `sha256sum` 재확인(`eead0cad...`, **완전 일치**) — Round 15에서 한 차례 발생했던 전송 중 체크섬 불일치 현상은 이번엔 재현되지 않았다(참고 사례로만 남긴다). |
+| R18.0c | `docker run` 컨테이너 기동 (`--device /dev/kvm`) | 통과 | 스파이크/Round 15와 동일 커맨드로 기동, `MSYS_NO_PATHCONV=1`로 Git Bash 경로 변환 문제 우회(Round 15가 기록해둔 절차 그대로). `adb devices` → `emulator-5554 device`. |
+| R18.0d | `adb install -r` | 통과 | `Performing Streamed Install / Success`. `pm list packages`로 `com.mobile` 설치 확인. |
+| R18.0e | (절차 메모) `device.stdout.log` 경로가 스파이크 문서 기록과 달랐음 | 📝 관찰 | 스파이크 문서는 `device.stdout.log`를 컨테이너 루트 기준 경로로 암묵 가정했으나, 실제로는 `/home/androidusr/logs/device.stdout.log`에 있었다(`find` 전수 검색으로 확인) — 다음 검증자를 위해 정확한 경로를 기록해둔다. |
+
+### 1. **핵심 발견 — `__DEV__` 데모 바이패스가 실제로는 렌더링되지 않는다 (구조적 차단)**
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R18.1 | 온보딩 3컷 → "Spotify로 시작하기" 탭 → SpotifyConnect 화면 도달(`uiautomator dump` 좌표 기반 `input tap`, Round 15와 동일 방식) | 통과 | 스플래시 → 온보딩 1/2/3컷 → SpotifyConnect까지 정상 도달, 텍스트/레이아웃 전부 Round 15와 동일하게 정상 렌더링(재확인, 회귀 없음). |
+| R18.2 | **SpotifyConnect 화면에 `__DEV__` 전용 "데모로 둘러보기" 섹션이 실제로 렌더링되는가** | ❌ **실패** | 스크린샷과 `uiautomator dump` 양쪽으로 확인한 결과, "Spotify로 로그인" 버튼과 "Premium이 없으신가요? →" 링크 아래로 **완전히 빈 공간만 있고 "⚠ 개발자 전용" 라벨이나 "데모로 둘러보기" 링크가 전혀 존재하지 않는다.** `uiautomator dump`의 접근성 트리에 `devSection`/`데모로 둘러보기` 관련 노드가 단 하나도 없음(`SpotifyConnectScreen.tsx`의 `{__DEV__ && (<View style={styles.devSection}>...)}` 블록이 `false`로 평가되어 아예 렌더링되지 않을 때 나오는 정확한 증상 — 리액트가 `false`를 렌더링하면 트리에 노드 자체가 안 생긴다). 정량적으로도 확인: `content`가 `flex:1, justifyContent:'center'`라 전체 자식 블록이 화면 중앙에 위치하는데, "Spotify로 로그인" 버튼~"Premium이 없으신가요?" 링크까지의 블록 높이(1268px)와 화면 상단 여백(838px, 96~934)이 "devSection 없이 정확히 가운데 정렬됐을 때"의 계산값과 정확히 일치 — devSection이 아예 트리에 없다는 것을 이중으로 확증했다. |
+| R18.3 | **근본 원인 규명** — 왜 `__DEV__`가 `assembleDebug` 빌드에서 `false`로 평가되는가 | 원인 확정 | `apps/mobile/android/app/build.gradle`의 `react { debuggableVariants = [] }` 설정(커밋 `4f5c32a` "Embed JS bundle in debug builds for standalone sideload installs", 커밋 로그 코멘트: "우리 CI가 배포하는 debug APK는 사용자가 Metro 없이 그냥 설치해서 실행하는 독립 실행형 사이드로드 용도")이 원인이다. React Native Gradle Plugin 소스(`node_modules/@react-native/gradle-plugin/.../TaskConfiguration.kt` 49~71행)를 직접 읽어 확인: `isDebuggableVariant = config.debuggableVariants.get().any { it.equals(variant.name, ...) }` → `debuggableVariants=[]`이므로 `debug` variant도 `isDebuggableVariant=false` → `if (!isDebuggableVariant) { ... it.devEnabled.set(false) ... }` 분기를 타서 **JS 번들이 `--dev false`로(즉 release 빌드와 동일한 방식으로) 번들링된다.** 실제 설치된 APK의 `assets/index.android.bundle`을 직접 추출해 Hermes 매직 바이트(`c61fbc03`)로 Hermes 바이트코드 파일임을 확인했고, 그 바이너리 안에 `loginAsDemo`/`devSection`/`signed_in`/`signed_out` 문자열이 실제로 존재함(`grep -a`로 확인)도 재확인했다 — 즉 **코드 자체는 번들에 포함돼 있다**(dead-code elimination으로 지워진 게 아니다). 문제는 코드가 없는 게 아니라, `__DEV__` 값이 런타임에 `false`로 주입되어 `{__DEV__ && (...)}` 조건이 항상 거짓이 되는 것이다. |
+| R18.4 | 이 문제가 이번 검증에 쓰인 로컬 빌드만의 우연이 아니라 이 프로젝트의 모든 `assembleDebug` 산출물(Round 15가 쓴 로컬 빌드, GitHub Release `android-debug-latest` CI 빌드 포함)에 구조적으로 적용되는지 | 확정 | `debuggableVariants=[]`는 `app/build.gradle`에 정적으로 박혀있는 프로젝트 설정이라 빌드 주체(로컬/CI)나 시점과 무관하게 **모든 `assembleDebug` 산출물에 동일하게 적용된다.** 즉 이 문제는 "이번에 우연히 잘못 빌드해서"가 아니라, **`8f3b9cd`(데모 바이패스 추가)가 `4f5c32a`(사이드로드용 번들 내장 설정)와 애초부터 양립 불가능한 상태로 커밋됐다**는 뜻이다 — 두 결정 모두 각자 문맥에서는 합리적이었지만(사이드로드는 Metro 없이 동작해야 하고, 데모 바이패스는 릴리즈에서 제외돼야 함) 서로를 무효화하는 조합이라는 것을 지금까지 아무도 실측하지 않았다. |
+
+### 2. 이번 라운드가 검증하지 못한 항목 (지시받은 1~6번 중 1~5번, 구조적 차단으로 인한 불가)
+
+위 R18.2~R18.4의 구조적 차단으로 로그인 벽을 넘을 방법이 없어(실제 Spotify 계정 로그인은 지시 사항상 금지, 코드 수정은 이번 라운드 범위 밖) 아래 항목은 **전혀 실행하지 못했다** — 가짜로 채우지 않고 정직하게 "불가능했음"으로 기록한다:
+
+| 지시 항목 | 상태 | 비고 |
+|---|---|---|
+| 1. 세션 생성 플로우(`CreateSessionScreen.tsx`) | 미검증 | 로그인 벽 통과 불가로 화면 자체에 도달 못함. 코드 리뷰는 사전에 수행(아래 3절 참고). |
+| 2. 세션 참여 플로우(`HomeScreen.tsx`, 코드로 참여하기) | 미검증 | 동일 사유. 코드 리뷰 결과, 설령 로그인 벽을 넘더라도 **구조적으로 완전한 검증은 어차피 불가능**했을 것이라는 점도 함께 기록해둔다 — `loginAsDemo()`가 항상 고정된 `participantId: 'demo-user'`를 반환하므로(`AuthContext.tsx` 77행), 같은 기기에서 "호스트로 세션을 만든 뒤 그 코드로 다시 참여를 시도"해도 `joinSessionByCode`(`sessionService.ts` 160~163행)가 "이미 참여 중인 본인"으로 처리해 즉시 `ok:true`를 반환할 뿐, 진짜 새 참여자가 추가되는 경로(`capacity_full` 거부 포함)는 단일 데모 계정으로는 애초에 재현 불가능하다. 이는 이번 라운드의 실패가 아니라 데모 바이패스 설계 자체의 알려진 한계이므로, 데모 바이패스가 렌더링되게 고치더라도 이 항목만은 추가 장치(예: 여러 데모 프로필 지원) 없이는 여전히 부분적으로만 검증 가능하다는 점을 미리 남겨둔다. |
+| 3. 세션 메인 화면(`RoomScreen.tsx` 탭 컨테이너) | 미검증 | 동일 사유. |
+| 4. 곡 검색/추가(`AddTrackModal.tsx`) | 미검증(코드 리뷰만) | 동일 사유로 실기기 확인은 못했으나, 코드를 읽어 지시받은 "정상적으로 실패하는지"에 대한 사전 판단은 남겨둔다: `service==='spotify'`인데 `accessToken`이 없으면(`accessToken: null`인 데모 프로필의 경우) `handleSearch`가 네트워크 호출 자체를 시도하지 않고 즉시 `"로그인이 필요해요."` 에러 문구를 보여주는 방어 코드가 이미 있다(`AddTrackModal.tsx` 44~47행) — 크래시 가능성은 코드상 낮아 보이나, **실제 화면에서의 렌더링은 이번에도 확인하지 못했다.** YouTube 경로(`searchYoutubeTracksMock`)는 토큰 없이도 목업이라 정상 동작할 코드로 보이나 이 역시 미실측. |
+| 5. 세션 설정 화면(`SessionSettingsView.tsx`) | 미검증 | 동일 사유. |
+
+### 3. 로그인 벽 이전 화면 재확인 (지시 6번 — 이번 라운드에서 실제로 가능했던 범위)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R18.5 | 온보딩 3컷 재확인(최신 소스 기준) | 통과 | Round 15와 완전히 동일한 텍스트/레이아웃, 회귀 없음. |
+| R18.6 | Premium 안내 모달 열기(탭) | 통과 | "Free 계정이어도 괜찮아요" 타이틀, 본문, 버튼 2개, "닫기" 링크 전부 정상 렌더링 — Round 15와 동일. |
+| R18.7 | Premium 모달을 Android 뒤로가기(`keyevent 4`)로 닫기 | 통과 | 크래시 없이 SpotifyConnect 화면으로 정확히 복귀. |
+| R18.8 | 다크모드 전환(`cmd uimode night yes`) 후 SpotifyConnect 화면 재확인 | 통과 | 다크 배경(네이비)에 흰 텍스트, 초록 Spotify 버튼 대비 유지 — Round 15와 동일. 다크모드에서도 devSection 여전히 렌더링 안 됨(R18.2와 동일 증상, 테마 문제 아님을 재확인). |
+| R18.9 | 연속 뒤로가기 4회로 앱 종료까지 | 통과 | 크래시 없이 순차 전환, 최종적으로 홈 런처로 정확히 빠져나감. `pidof com.mobile`로 프로세스 정상 유지 확인, 종료 후 `dumpsys window`의 `mCurrentFocus`가 런처 액티비티로 전환됨을 확인. |
+| R18.10 | 전체 세션 `adb logcat` 전수 캡처 후 크래시 마커 검색 | 통과(크래시 없음) | 세션 시작 시 `logcat -c`로 초기화 후 전체 캡처(1,435줄) — `FATAL EXCEPTION`/`ANR in`/`com.mobile` 관련 에러 레벨(` E `) 로그 전부 0건. Round 15와 동일하게 `ReactNoCrashSoftException`(콜드 스타트 시 1회, 소프트 경고로 이름 자체에 명시됨) 1건만 관찰 — 실패 아님. |
+
+### Round 18 종합
+
+| 구분 | 개수 |
+|---|---|
+| 통과 (빌드/설치/로그인 벽 이전 재확인) | 10 (R18.0a~R18.0d, R18.5~R18.10) |
+| **실패 (핵심 차단 발견)** | **1 (R18.2 — 데모 바이패스 미렌더링)** |
+| 원인 규명(실패의 근거, 별도 판정 아님) | 2 (R18.3, R18.4) |
+| 지시받았으나 구조적으로 미검증 | 5 항목(위 지시 1~5번) |
+
+**결론: 부분 통과 — 이번 라운드의 본래 목표(로그인 벽 이후 화면 검증)는 달성하지 못했다.** 빌드·설치·로그인 벽 이전 화면(온보딩/Spotify 연동/Premium 모달/다크모드/뒤로가기/logcat)은 Round 15와 동일하게 전부 정상 재확인됐고 회귀도 없다. 그러나 이번 라운드의 핵심 목표였던 "`__DEV__` 데모 바이패스로 로그인 벽을 넘어 세션 생성~참여~Now Playing~플레이리스트~세션 설정을 실기기 검증"은 **바이패스 버튼 자체가 화면에 나타나지 않아 첫 단계부터 막혔다.** 근본 원인은 코드 로직 버그가 아니라 두 개의 서로 다른 라운드에서 내려진, 개별적으로는 합리적이었던 결정의 충돌이다: (1) `4f5c32a`가 "Metro 없는 독립 사이드로드"를 위해 `debuggableVariants=[]`로 debug 빌드도 `--dev false`로 번들링하게 만들었고, (2) `8f3b9cd`가 그 사실을 모른 채 `__DEV__`(런타임에 이미 `false`로 고정됨)로 데모 바이패스를 게이팅했다. React Native Gradle Plugin 소스를 직접 읽어(`TaskConfiguration.kt` 49~71행) 이 인과관계를 코드 수준에서 확정했다(R18.3). 이 발견은 이번 라운드 범위 밖의 코드 수정을 필요로 하므로 구현 에이전트에게 되돌려야 한다 — 아래 "리더/구현 에이전트에게 전달" 참고. 부가적으로, 설령 이 문제를 고치더라도 `loginAsDemo()`가 항상 고정 ID를 반환해 "코드로 참여하기"의 진짜 신규 참여자 경로는 단일 기기·단일 데모 계정으로는 구조적으로 검증 불가능하다는 한계도 함께 남겨(위 2절 "2." 항목), 다음 수정 라운드가 두 문제를 한 번에 고려할 수 있게 했다.
+
+**리더/구현 에이전트에게 전달 (버그 리포트, 코드 수정 없이 보고만 함):**
+1. **핵심 버그**: `apps/mobile/android/app/build.gradle`의 `react { debuggableVariants = [] }` 설정 때문에 `assembleDebug`로 만든 모든 APK에서 `__DEV__`가 런타임에 `false`로 평가된다 — `SpotifyConnectScreen.tsx`의 `{__DEV__ && (...)}` 데모 바이패스 버튼(커밋 `8f3b9cd`)이 이 빌드 구성에서는 영구적으로 렌더링되지 않는다. 재현: `cd apps/mobile/android && ./gradlew.bat assembleDebug` → 설치 → SpotifyConnect 화면까지 진행 → "Premium이 없으신가요?" 링크 아래에 "데모로 둘러보기" 섹션이 없음을 확인(`uiautomator dump`로 재확인 가능).
+2. **제안(결정은 구현/리더 몫, 검증자는 강제하지 않음)**: (a) `__DEV__` 대신 별도의 명시적 플래그(예: `BuildConfig.DEBUG`를 네이티브에서 JS로 브릿지하거나, `react-native-config` 등으로 별도 `ENABLE_DEMO_LOGIN` 환경변수를 두는 방법)로 게이팅을 바꾸거나, (b) 데모 바이패스가 필요한 QA 빌드에 한해서만 `debuggableVariants`에 `debug`를 포함하는 별도 그레이들 variant/flavor를 만들거나, (c) `metro.config.js`/CI 스크립트에서 QA용 빌드일 때만 `--dev true`로 강제 번들링하는 방법 등이 있다 — 어느 쪽이든 "사이드로드 배포용 debug APK는 Metro 없이 동작해야 한다"(`4f5c32a`의 원래 요구사항)와 "데모 바이패스는 릴리즈에 노출되면 안 된다"(`8f3b9cd`의 원래 요구사항)를 **동시에** 만족시켜야 한다.
+3. **부가 사항**: 위 버그가 고쳐진 뒤 재검증할 때도, `loginAsDemo()`의 고정 ID 문제(2절 참고) 때문에 "코드로 참여하기"의 신규 참여자 경로는 여전히 부분적으로만 검증 가능하다는 점을 다음 라운드 지시에 미리 반영해두면 좋겠다.

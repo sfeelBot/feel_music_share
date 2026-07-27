@@ -253,3 +253,15 @@
   - **iOS**: 변경 파일 7개 중 `apps/mobile/ios/` 경로 전무 — 무영향. `GoogleService-Info.plist` 부재 상태 그대로(회귀 아님, Round 1부터 동일 구조적 제약).
   - 전체 항목: 통과 15(R17.1~R17.15) / 실패 0. **"완료"로 간주한다.**
   - **다음 라운드 참고 사항(발견된 문제 아님)**: 다음 라운드에서 `sessionService.ts`를 실제 RTDB 호출로 교체하면 검증 성격이 "코드 준비 확인"에서 "실제 read/write 성공/실패 확인"으로 바뀐다 — RTDB가 콘솔에서 여전히 비활성 상태라면 실패가 "정상"인 시점과, 활성화 후 실제로 성공해야 하는 시점을 리더가 다음 지시에서 구분해줄 필요가 있다는 점을 미리 기록해둔다.
+
+## 2026-07-27 (Round 18, 로그인 벽 이후 화면 — `__DEV__` 데모 바이패스 시도, 구조적 차단 발견)
+- 검증 대상: Round 15가 "로그인 벽 이후 전부 미검증"으로 명시적으로 남긴 공백을, 그 직후 추가된 `__DEV__` 전용 데모 로그인 바이패스(`loginAsDemo()`, 커밋 `8f3b9cd`)로 메우려는 시도. `apps/mobile` 소스 기준 커밋 `c43ceb6`(검증 세션 도중 `main` HEAD가 `c94bbf5`까지 진행됐으나 그 사이 커밋은 전부 `docs/`만 건드려 `apps/mobile`엔 영향 없음). `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 18 검증" 절 추가.
+- 플랫폼: Android (Docker+KVM 실기기급, `budtmo/docker-android:emulator_11.0`). iOS는 이번 라운드 지시 범위 자체가 Android Docker 실기기 검증이라 대상 아님(기존 macOS 부재 구조적 제약 동일).
+- 결과: **부분 통과 — 핵심 목표(로그인 벽 이후 화면 검증) 미달성, 구조적 버그 1건 발견.**
+- 상세:
+  - 빌드/설치/전송 절차는 Round 15와 동일하게 전부 정상(로컬 `assembleDebug` BUILD SUCCESSFUL, `docker cp` 전송 후 SHA256 완전 일치로 무결성 확인, KVM 가속 부팅 82.6초, `adb install -r Success`).
+  - **핵심 발견**: SpotifyConnect 화면까지는 정상 도달했으나, `__DEV__` 전용 "데모로 둘러보기" 섹션이 화면에 전혀 렌더링되지 않음(스크린샷 + `uiautomator dump` 접근성 트리 양쪽으로 확인, 트리에 관련 노드 자체가 없음 — `{__DEV__ && (...)}`가 `false`로 평가될 때 정확히 나오는 증상). 원인을 React Native Gradle Plugin 소스(`node_modules/@react-native/gradle-plugin/.../TaskConfiguration.kt` 49~71행)까지 직접 추적해 확정: `app/build.gradle`의 `react { debuggableVariants = [] }`(커밋 `4f5c32a`, "Metro 없는 독립 사이드로드" 목적으로 debug 빌드도 JS 번들을 내장하게 만든 설정) 때문에 debug variant도 `--dev false`로 번들링되어 `__DEV__`가 런타임에 항상 `false`다. 설치된 APK의 `assets/index.android.bundle`(Hermes 바이트코드, 매직바이트로 확인)에 `loginAsDemo`/`devSection` 문자열이 실제로 포함돼 있음도 확인해 "코드가 빠진 게 아니라 조건이 항상 거짓"임을 이중 확증.
+  - 이 문제는 이번 로컬 빌드만의 우연이 아니라 `debuggableVariants=[]`가 정적 설정이라 이 프로젝트의 **모든** `assembleDebug` 산출물(Round 15가 쓴 빌드, GitHub Release CI 빌드 포함)에 구조적으로 적용됨 — 두 개의 개별적으로 합리적이었던 커밋(`4f5c32a`/`8f3b9cd`)이 서로 양립 불가능한 조합이라는 것을 이번에 처음 실측으로 발견했다.
+  - 결과적으로 지시받은 6개 항목 중 1~5번(세션 생성/참여/메인 화면/곡 검색/세션 설정)은 로그인 벽을 넘을 방법이 없어(실제 계정 로그인은 지시상 금지, 코드 수정은 이번 라운드 범위 밖) **전혀 검증하지 못했다** — 가짜로 채우지 않고 정직하게 "구조적으로 불가능했음"으로 기록. 6번(다크모드/뒤로가기/logcat)은 로그인 벽 이전 화면 한정으로 재확인해 전부 통과(회귀 없음, 크래시 0건).
+  - 부가 발견(코드 리뷰): 설령 이 버그를 고치더라도 `loginAsDemo()`가 항상 고정 `participantId: 'demo-user'`를 반환해 "코드로 참여하기"의 진짜 신규 참여자 경로(특히 `capacity_full` 거부)는 단일 데모 계정으로는 구조적으로 검증 불가능하다는 한계도 함께 기록해 다음 수정 라운드에 전달.
+  - **버그 리포트를 구현 에이전트로 반려 필요** — 코드 수정 없이 원인·재현 경로·수정 방향 제안(3가지 옵션) 세 가지를 `docs/qa/spotify-mvp-round1-checklist.md` Round 18 절 말미에 남겨뒀다. 이번 라운드에서는 코드를 직접 고치지 않았다(검증 라운드 범위 준수).
