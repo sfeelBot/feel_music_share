@@ -69,7 +69,7 @@
 - [ ] 매칭 신뢰도 가중치/임계값 실측 스파이크(`09-cross-platform-mixed-mode.md` 결정 4)
 - [ ] RTDB vs Firestore 실측 스파이크 후속(`docs/spikes/firebase-rtdb-vs-firestore.md`, DB 활성화 후 가능)
 - [x] 서비스별 플레이리스트 독립 보존을 데이터 수준까지 구현 — `SessionState.playlist` 단일 배열을 `playlists: {spotify, youtube}`(서비스별 entries + lastPlayback 재생 위치 기억)로 분리, `switchService`가 전환 시 스냅샷 저장/복원까지 수행하도록 구현 완료(커밋 `e29c1ec`, Round 13 검증 19/19 통과). Firebase 실제 연동(Firestore 구조 설계)은 여전히 TODO로 남음.
-  - **후속 갭 발견(Round 13, 비차단)**: 복원된 `positionMs`가 YouTube IFrame Player의 실제 시크에 반영되지 않는다 — `YouTubeNowPlayingView.tsx`/`youtubePlayerHtml.ts`가 `loadVideoById`/`cueVideoById` 호출 시 `startSeconds` 파라미터를 쓰지 않아, YouTube 세션으로 복귀하면 저장된 재생 위치 데이터는 정확한데 영상은 항상 0:00부터 재생된다(진행 바 UI가 없어 시각적으로 드러나지 않을 뿐). 다음 라운드 후보.
+  - [x] **후속 갭 수정(Round 13 발견 → 2026-07-27 수정)**: 복원된 `positionMs`가 YouTube IFrame Player의 실제 시크에 반영되지 않던 문제 해결 — 원인은 `loadVideoById`/`cueVideoById`(곡 전환 경로, 이미 `startSeconds` 지원 중이라 그대로 유지)가 아니라 컴포넌트 최초 마운트 시 굽는 `initialHtml`이었다. `buildYoutubePlayerHtml`에 `startSeconds` 옵션(정수 초, `playerVars.start`에 반영)을 추가하고, `YouTubeNowPlayingView.tsx`의 `initialHtml`이 Spotify/YouTube 전용 세션(`!isMixed`)에 한해 `session.playback.positionMs`(ms→초 내림)를 전달하도록 배선했다. 혼합 세션은 `positionMs` 의미가 달라(참여자별 매칭 재생 추적용) 대상에서 제외. 단위 테스트(`__tests__/youtubePlayerHtml.test.ts`) + tsc/eslint/jest(9 suites/48 tests)/Android `assembleDebug` 통과 확인. 실기기 없이는 실제 시크 반영을 시각적으로 확인 불가 — 코드 트레이스+단위 테스트 수준까지만 검증됨(다음 실기기 검증 라운드 후보). 상세는 implementation-log.md "2026-07-27" 참고.
 
 ## 완료된 것 (요약, 상세는 화면별 현황 표 참고)
 

@@ -24,11 +24,24 @@ export interface BuildYoutubePlayerHtmlOptions {
   initialVideoId: string;
   /** 최초 로드 시 바로 재생할지(true) 큐잉만 할지(false) — 세션의 `playback.isPlaying` 반영. */
   autoplay: boolean;
+  /**
+   * 최초 재생 시작 위치(초, 정수) — Spotify↔YouTube 서비스 전환 후 YouTube로 복귀했을 때
+   * `session.playlists.youtube.lastPlayback.positionMs`로부터 복원된 값을 여기로 전달한다
+   * (`YouTubeNowPlayingView.tsx`의 `initialHtml` 참고). 방금 세션에 참여/생성해 복원할 위치가
+   * 없으면 0(또는 undefined) — IFrame Player API의 `start` playerVar와 동일한 의미/단위이며,
+   * 공식 문서상 정수 초만 허용한다(소수점은 지원되지 않음) — 호출측이 이미 정수를 넘겨야 하지만
+   * 방어적으로 여기서도 내림(Math.floor) 처리한다.
+   */
+  startSeconds?: number;
 }
 
-export function buildYoutubePlayerHtml({initialVideoId, autoplay}: BuildYoutubePlayerHtmlOptions): string {
+export function buildYoutubePlayerHtml({initialVideoId, autoplay, startSeconds}: BuildYoutubePlayerHtmlOptions): string {
   const safeVideoId = JSON.stringify(initialVideoId);
   const autoplayFlag = autoplay ? 1 : 0;
+  const safeStartSeconds =
+    typeof startSeconds === 'number' && Number.isFinite(startSeconds) && startSeconds > 0
+      ? Math.floor(startSeconds)
+      : 0;
 
   return `<!DOCTYPE html>
 <html>
@@ -91,6 +104,7 @@ export function buildYoutubePlayerHtml({initialVideoId, autoplay}: BuildYoutubeP
             controls: 1,
             rel: 0,
             modestbranding: 1,
+            start: ${safeStartSeconds},
           },
           events: {
             onReady: onPlayerReady,

@@ -515,3 +515,20 @@
 - 상태: 완료(검증 대기)
 - 변경 파일: 수정 — `apps/mobile/src/types/domain.ts`, `apps/mobile/src/services/session/sessionService.ts`, `apps/mobile/src/state/SessionContext.tsx`, `apps/mobile/src/state/playlistSequencing.ts`(주석만), `apps/mobile/src/screens/room/PlaylistView.tsx`, `apps/mobile/src/screens/room/NowPlayingView.tsx`, `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`, `apps/mobile/__tests__/mixedTrackView.test.ts`, `docs/roadmap.md`. 신규 — `apps/mobile/src/state/activeServicePlaylist.ts`, `apps/mobile/__tests__/serviceSwitchPlaylistIsolation.test.ts`.
 - 비고(검증 시 주의): (1) `mockSessionSeed.ts`는 실제로는 수정하지 않았다 — `buildDemoPlaylist`는 여전히 "곡 목록 하나"만 생성하는 순수 함수 그대로 두고, "어느 서비스에 넣을지"는 `sessionService.createSession`에서 조립 시점에 결정하도록 했다(위 1번 판단 참고, 데모 곡은 항상 세션 생성 시점의 활성 서비스에만 들어감 — 비활성 서비스는 빈 채로 시작). (2) `SessionContext.requestServiceSwitch`가 이제 "positionMs를 0으로 강제 리셋"하지 않으므로, 세션 설정 화면에서 서비스를 전환한 뒤 재생 화면의 진행 바가 즉시 0%가 아니라 이전에 그 서비스에서 멈췄던 위치(또는 처음이면 0)로 보이는 게 의도된 동작이다 — 검증 시 "전환하면 항상 0초부터 시작해야 한다"고 오해하지 않도록 주의. (3) Free 계정/정원/역할 관련 기존 QA 체크리스트 항목들은 이번 변경과 무관하지만, 플레이리스트 탭/Now Playing 탭에서 서비스 전환 왕복(Spotify→YouTube→Spotify) 후 곡 목록과 재생 위치가 각각 올바르게 복원되는지는 신규 검증 항목으로 QA 체크리스트에 추가하는 것을 제안한다. (4) 커밋은 하지 않았다 — 리더 검토 후 처리.
+
+## 2026-07-27
+- 작업: Round 13 검증에서 발견된 비차단 갭 수정 — "복원된 `positionMs`가 YouTube IFrame Player의 실제 시크에 반영되지 않는다"(직전 라운드 서비스별 플레이리스트 독립 보존 구현, 커밋 `e29c1ec`의 후속 갭).
+- 원인 재확인: 갭 리포트가 처음 지목한 `loadVideoById`/`cueVideoById`(곡 전환 경로, `youtubePlayerStub.ts`)는 이미 `startSeconds`를 지원하고 있어 손댈 필요가 없었다 — 실제 원인은 `YouTubeNowPlayingView.tsx`의 `initialHtml` useMemo(컴포넌트 최초 마운트 시 굽는 HTML, 곡 전환과 무관)가 `session.playback.positionMs`를 전혀 참조하지 않았고, `buildYoutubePlayerHtml`이 애초에 `startSeconds` 옵션 자체를 받지 않았다는 점이었다.
+- 수정 내용:
+  1. `apps/mobile/src/services/youtube/youtubePlayerHtml.ts`: `BuildYoutubePlayerHtmlOptions`에 `startSeconds?: number` 추가. IFrame Player API의 `start` playerVar는 정수 초만 허용(공식 스펙 확인)하므로 `Math.floor`로 방어적 내림 처리하고, 음수/0/미제공은 모두 0으로 클램프. `YT.Player` 생성 시 `playerVars.start`에 반영.
+  2. `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`: `initialHtml`이 `startSeconds: !isMixed && session ? Math.floor(session.playback.positionMs / 1000) : 0`을 전달하도록 배선. 혼합 세션(`isMixed`)은 명시적으로 제외 — `session.playback.positionMs`가 `switchService`의 서비스별 스냅샷 복원 대상이 아니라 참여자별 매칭 트랙 재생을 따라가는 다른 의미의 값이기 때문(`sessionService.switchService`가 `session.service === 'mixed'`이면 조기 반환하는 것으로 재확인). 최초 참여/생성 직후(`positionMs === 0`)와 전환 후 복귀 케이스가 동일한 마운트 경로/로직으로 자연스럽게 커버됨 — 별도 분기 불필요(지시대로).
+  3. 신규 단위 테스트 `apps/mobile/__tests__/youtubePlayerHtml.test.ts` — `buildYoutubePlayerHtml`(순수 함수)의 `startSeconds` 처리(미제공 시 0, 정수 그대로 반영, 소수점 내림, 음수 클램프, videoId/autoplay와 공존)를 생성된 HTML 문자열 포함 여부로 검증(5 tests).
+- 검증:
+  - `npx tsc --noEmit` — 0 errors.
+  - `npx eslint .` — 0 errors, 23 warnings(전부 기존 `react-native/no-inline-styles` 관용 경고, 신규 경고 없음).
+  - `npx jest` — **9 suites / 48 tests 전부 통과**(기존 8 suites/43 tests + 신규 `youtubePlayerHtml.test.ts` 5개, 회귀 없음).
+  - Android: `cd apps/mobile/android && ./gradlew.bat assembleDebug --no-daemon`(JAVA_HOME=`D:\Android Studio\jbr`, ANDROID_HOME/ANDROID_SDK_ROOT=`E:\Android\Sdk`, GRADLE_USER_HOME=`E:\gradle-home`) — **BUILD SUCCESSFUL in 23s**(203 actionable tasks: 27 executed, 176 up-to-date).
+  - `docs/roadmap.md`의 해당 갭 항목을 미완료 → 완료로 갱신(원인/수정 내용 요약 포함).
+- 상태: 완료(검증 대기)
+- 변경 파일: 수정 — `apps/mobile/src/services/youtube/youtubePlayerHtml.ts`, `apps/mobile/src/screens/room/YouTubeNowPlayingView.tsx`, `docs/roadmap.md`. 신규 — `apps/mobile/__tests__/youtubePlayerHtml.test.ts`.
+- 비고(검증 시 주의): (1) 실기기가 없어 실제 YouTube 영상이 복원된 지점부터 시각적으로 재생되는지는 확인 불가 — 이번 검증은 코드 트레이스 + `playerVars.start`에 값이 올바르게 굽히는지 단위 테스트 수준까지만 이뤄졌다. 실기기/에뮬레이터 검증 시 "Spotify→YouTube 전환 후 다시 YouTube로 복귀 → 이전에 멈췄던 지점 근처(±수 초, 네트워크/버퍼링 오차 허용)부터 재생 시작"을 새 체크리스트 항목으로 추가하는 것을 제안한다. (2) 혼합 세션 쪽은 의도적으로 건드리지 않았다 — 혼합 세션에서 YouTube 참여자의 영상이 항상 0초부터 시작하는 기존 동작은 이번 수정 범위 밖이며 회귀도 아니다(애초에 그 케이스의 `positionMs`는 다른 의미이므로 적용 대상이 아니었음). (3) 커밋은 하지 않았다 — 리더 검토 후 처리.

@@ -88,11 +88,22 @@ export default function YouTubeNowPlayingView({onOpenParticipants}: YouTubeNowPl
   const loadedEntryIdRef = useRef<string | null>(currentVideoId ? (currentEntryId ?? null) : null);
 
   // Rules of Hooks 준수: 아래 `if (!session) return null;` 가드보다 모든 훅 호출이 앞서야 한다.
+  //
+  // startSeconds(Round 13 갭 수정, 2026-07-27): Spotify↔YouTube 서비스 전환 후 YouTube로 복귀하면
+  // `sessionService.switchService`가 `session.playlists.youtube.lastPlayback.positionMs`로부터
+  // `session.playback.positionMs`를 복원해둔다(domain.ts ServicePlaybackMemory 주석 참고) — 이
+  // 컴포넌트가 마운트되는 시점(=WebView가 처음 생기는 시점)에 그 값을 IFrame Player의 `start`
+  // playerVar로 넘겨야 실제로 그 지점부터 재생된다. 혼합 세션(`isMixed`)은 제외한다 — 혼합 세션의
+  // `session.playback.positionMs`는 `switchService`가 다루는 서비스별 스냅샷 복원 대상이 아니라
+  // 참여자별 매칭 트랙 재생을 따라가는 값이라 의미가 다르고(위 mixedView 관련 주석 참고), 이번
+  // 갭은 Spotify/YouTube 전용 세션의 "전환 후 복귀" 케이스만 대상이다. 방금 참여/생성한 세션은
+  // positionMs가 0이라 자연스럽게 0초부터 시작한다 — 별도 분기가 필요 없다.
   const initialHtml = useMemo(
     () =>
       buildYoutubePlayerHtml({
         initialVideoId: currentVideoId ?? '',
         autoplay: session?.playback.isPlaying ?? false,
+        startSeconds: !isMixed && session ? Math.floor(session.playback.positionMs / 1000) : 0,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적으로 최초 1회만 빌드한다(재마운트 방지, 위 주석 참고).
     [],
