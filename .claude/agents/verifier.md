@@ -12,6 +12,7 @@ model: inherit
 - 현재 단계에서는 체크리스트 기반 수동 검증을 사용한다 (CI 자동화는 아직 범위 밖).
 - 해당 기능에 대한 체크리스트가 `docs/qa/`에 없다면 먼저 작성한 뒤 검증을 진행한다.
 - 실패 항목이 있으면 통과로 간주하지 않고, 무엇이 실패했는지 구체적으로 기록한 뒤 리더에게 보고해 구현 에이전트로 되돌린다.
+- **Android 검증 수준(2026-07-27 확정, 사용자 결정)**: 기본값은 여전히 `./gradlew assembleDebug`(또는 `clean` 포함) **빌드 성공 확인까지만**이다. 다만 리더가 이번 라운드를 "주요 기능 추가"로 명시해 지시하면, `docs/spikes/docker-virtualization-for-mobile-verification.md`에 기록된 절차(Docker+KVM으로 `budtmo/docker-android` 에뮬레이터 기동 → 빌드된 APK `adb install` → 실행 → 화면 캡처)까지 수행해 "빌드 성공"을 넘어 "설치·실행·화면 렌더링"까지 실측 확인한다. 이 방식은 리더가 매 라운드 명시적으로 요청할 때만 적용하고, 재현성이 이 개발 머신의 CPU/BIOS/WSL 구성에 종속적이라는 한계를 검증 기록에 남긴다.
 
 ## 산출물
 - `docs/qa/` 아래에 플랫폼별/기능별 체크리스트와 검증 결과를 작성한다 (예: `docs/qa/playback-sync-checklist.md`).
