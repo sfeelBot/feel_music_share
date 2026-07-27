@@ -1,7 +1,7 @@
 # 스파이크: Firebase Realtime Database vs Firestore (재생 동기화 백엔드 선택)
 
-> 상태: 초안(v1) — 2026-07-26, spiker 서브에이전트 작성
-> 결정 문서 아님 — 이 문서는 조사/실측 결과를 정리한 참고 자료이며, 최종 선택은 사용자/리더의 몫이다.
+> 상태: v2 — 2026-07-26 초안 작성, 2026-07-27 RTDB 활성화 후 실측 절 추가(spiker 서브에이전트)
+> 결정 문서 아님 — 이 문서는 조사/실측 결과를 정리한 참고 자료이며, 최종 선택은 사용자/리더의 몫이다. (2026-07-27 기준 이미 `docs/decision-log.md`에서 RTDB로 결정됨 — 아래 후속 절은 그 결정을 사후 실측으로 검증/보완하는 목적)
 
 ## 배경 / 질문
 
@@ -82,6 +82,87 @@ GET https://feel-music-share-default-rtdb.firebaseio.com/.json
 3. 따라서 "RTDB 아니면 Firestore" 양자택일보다, **재생 동기화 상태 = RTDB, 플레이리스트/세션 메타데이터 = Firestore로 역할을 나눠 병행 사용하는 하이브리드 구성도 고려할 만하다.** 다만 이 경우 두 서비스를 동시에 콘솔에서 활성화·연동해야 해서 초기 설정 복잡도와 SDK 의존성(`@react-native-firebase/database` + `@react-native-firebase/firestore` 둘 다 설치)이 늘어난다는 점은 트레이드오프다.
 4. **단일 서비스로 단순하게 가야 한다면**, 이 앱의 최우선순위가 "저지연 동기화"라는 CLAUDE.md의 명시적 요구사항과 가장 직접적으로 부합하는 쪽은 RTDB다. Firestore를 단일 선택할 경우에도 공식 수치상(30ms) 심각하게 부적합하진 않으므로, "구현 단순성·쿼리 편의성"을 더 우선한다면 Firestore 단일 구성도 현실적 대안이다.
 5. **가장 중요한 다음 단계**: 위 권고는 모두 문서 조사 기반 추정이다. 이 프로젝트의 실제 리전·네트워크 조건에서 두 서비스 중 최소 하나(가능하면 둘 다)를 콘솔에서 활성화한 뒤, spiker가 후속 스파이크로 write→read round-trip 실측을 진행할 것을 강력히 권고한다 — `docs/specs/06-mvp-scope-and-tech-stack.md`가 이미 이 항목을 "후속 조치 제안"으로 명시해뒀다.
+
+## 2026-07-27 후속 — RTDB 활성화 후 실측
+
+> `docs/decision-log.md`(2026-07-27)에서 RTDB 단일 구성으로 이미 결정이 내려진 뒤, 후속 조치 항목("DB 활성화 후 실제 write→read round-trip 지연시간 실측")을 수행한 결과다. 이 절은 **결정을 재검토하지 않는다** — 이미 내려진 결정을 사후에 실측으로 검증/보완하는 목적이며, 새로운 데이터가 있어도 "권고"로만 기록한다.
+
+### 배경
+
+사용자가 오늘 Firebase 콘솔에서 RTDB를 실제로 활성화했다. 데이터베이스 URL: `https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/` (리전: `asia-southeast1`, 즉 싱가포르). 이번 스파이크는 이 URL에 대해 REST API(`GET`/`PUT` + `.json` 경로)로 실제 write→read round-trip 지연시간을 curl로 직접 측정하는 것이 목표였다.
+
+### 측정 방법(시도)
+
+- 도구: curl (`-w "%{time_total}"`로 요청 전송~응답 완료까지의 총 소요시간 측정), 이 머신(Windows, `E:\music share`)에서 직접 실행.
+- 대상 경로: `https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/spikeTest.json`
+- 계획: `PUT`으로 타임스탬프 값을 쓴 뒤 곧바로 `GET`으로 같은 경로를 읽어, 두 요청의 왕복 시간을 각각/합산으로 10회 이상 반복 측정할 계획이었다.
+
+### 실제 결과: 보안 규칙에 막혀 실측 불가 (예상된 정상 동작)
+
+```
+$ curl -s -o /dev/null -w "HTTP:%{http_code} time_total:%{time_total}\n" \
+    "https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/spikeTest.json"
+HTTP:401 time_total:0.211164
+
+$ curl -s "https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/spikeTest.json"
+{
+  "error" : "Permission denied"
+}
+
+$ curl -s -X PUT -d '{"ts": 1234567890}' -w "\nHTTP:%{http_code} time_total:%{time_total}\n" \
+    "https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/spikeTest.json"
+{
+  "error" : "Permission denied"
+}
+HTTP:401 time_total:0.171024
+```
+
+GET/PUT 둘 다 `HTTP 401` + `"Permission denied"`로 거부됐다. 이는 새로 생성된 RTDB 인스턴스의 **기본 잠금 보안 규칙**(`{"rules": {".read": false, ".write": false}}`)이 그대로 적용되어 있기 때문으로 보이며, 실패가 아니라 **예상된 정상 동작**이다(작업 지시에서 미리 언급된 시나리오와 정확히 일치). 이 프로젝트에 서비스 계정 키나 Firebase Admin SDK 인증 토큰이 없어(저장소 내 검색 결과 `serviceAccount*.json` 등 자격 증명 파일 없음 확인) 익명 REST 호출을 인증된 요청으로 우회할 방법도 없었다.
+
+**따라서 실제 write→read round-trip(데이터가 실제로 저장/조회되는 왕복시간)은 이번에도 실측하지 못했다.** 보안 규칙을 직접 열어달라는 요청이 이번 스파이크의 지시 범위 밖이라(사용자/리더의 결정 사항) 규칙을 수정하려는 시도는 하지 않았다.
+
+**진짜 write→read round-trip을 실측하려면 다음 중 하나가 필요하다:**
+1. Firebase 콘솔에서 RTDB 보안 규칙을 임시로 테스트 모드(`{"rules": {".read": true, ".write": true}}`)로 완화 — 측정 후 반드시 원복 필요. 또는
+2. 서비스 계정 키(Admin SDK)를 발급받아 REST 요청에 `?access_token=<OAuth2 토큰>`으로 인증을 실어 보내는 방식. 또는
+3. 유효한 Firebase Auth 사용자 ID 토큰을 발급받아 `?auth=<ID_TOKEN>`으로 인증된 요청을 보내는 방식(단, 이 경우 규칙이 인증된 사용자에게 read/write를 허용하도록 이미 구성돼 있어야 함).
+
+### 참고용 보조 측정 — "인증 거부 응답"의 네트워크 왕복시간 (실제 read/write 아님, 명확히 구분할 것)
+
+실제 write/read는 못 했지만, 401 오류 응답 자체도 이 머신에서 `asia-southeast1` 리전 엣지까지 TCP+TLS 왕복 후 응답을 돌려받는 데 걸리는 시간을 반영한다는 점에서 **순수 네트워크 왕복시간(RTT)의 하한선**으로는 참고할 수 있다. 이는 **RTDB의 실제 데이터 read/write 처리 지연을 포함하지 않는다** — Firebase 프론트엔드가 보안 규칙 검사에서 조기에 거부하고 응답하는 경로이므로, 실제 값보다 오히려 더 빠를 가능성도, 인증 검사 오버헤드 때문에 다를 가능성도 있다(어느 쪽인지는 확인 불가). 참고 수치로만 취급해야 한다.
+
+GET 요청을 동일 경로에 10회 연속 보내 `time_total`을 기록했다(위 "측정 방법"과 동일 curl 커맨드, 매 요청 새 TCP 연결):
+
+| # | time_total (ms) |
+|---|---|
+| 1 | 176.9 |
+| 2 | 173.8 |
+| 3 | 159.3 |
+| 4 | 172.5 |
+| 5 | 158.7 |
+| 6 | 170.5 |
+| 7 | 160.8 |
+| 8 | 166.9 |
+| 9 | 155.8 |
+| 10 | 170.4 |
+
+- 평균: **약 166.6ms**
+- 중앙값: **약 168.6ms**
+- 최소: 155.8ms / 최대: 176.9ms
+
+### 해석 — 공식 문서 수치와의 관계 (과장 금지)
+
+- 이전 절(2026-07-26)이 인용한 공식 문서 수치 "RTDB typical response times no greater than 10ms"는 **Firebase 서버 인프라 내부에서 요청을 처리하는 데 걸리는 시간**을 가리키는 것으로 보이며, **클라이언트(이 머신)에서 서버까지의 네트워크 왕복시간(RTT)은 포함하지 않는 것**으로 보인다. 이는 정확히 작업 지시에서 미리 짚었던 우려와 일치한다.
+- 이번에 측정된 약 155~177ms(평균 166.6ms)는 이 머신에서 `asia-southeast1`(싱가포르) 리전까지의 **네트워크 왕복시간 하한선**으로 해석하는 것이 타당하며, "RTDB 처리 자체가 10ms가 아니라 166ms 걸린다"는 뜻으로 잘못 해석해서는 안 된다 — 애초에 이번 측정은 실제 데이터 read/write가 아니라 보안 규칙에 의해 조기 거부된 응답의 왕복시간이다.
+- 결론적으로 **"공식 문서의 ≤10ms가 이 프로젝트의 실제 클라이언트-서버 종단간(end-to-end) 체감 지연과는 다른 종류의 수치"라는 우려가 이번 실측(비록 완전한 실측은 아니지만)으로 뒷받침된다.** 실제 앱에서 참여자가 체감할 동기화 지연은 "네트워크 RTT(대략 150~180ms대, 사용자의 실제 모바일 네트워크 환경에 따라 더 나쁠 수 있음) + RTDB 서버 처리(공식 수치상 ~10ms 이하)"의 합에 가까울 것으로 추정되며, 이는 05 문서(`docs/specs/05-sync-architecture.md`)의 "서버 기준 시계 + 드리프트 보정" 설계가 RTDB 자체의 처리 속도보다 **네트워크 RTT 변동을 흡수하는 방향으로 설계되어야 함**을 시사한다(다만 이는 spiker의 해석이며, 05 문서의 설계 방향을 바꿀지는 리더/기획의 판단 영역이다).
+- **진짜 write→read round-trip 실측치(데이터가 실제로 RTDB에 저장되고 다시 읽히는 데 걸리는 시간)는 여전히 확보하지 못했다** — 위 "실제 결과" 절 참고. 이 값이 네트워크 RTT(155~177ms)보다 유의미하게 커지는지(즉 RTDB 처리 자체가 체감 가능한 추가 지연을 더하는지)는 보안 규칙을 열거나 인증 토큰을 확보해야 확인 가능하다.
+
+### 이 프로젝트 맥락에서의 참고용 권고 (결정 아님, 추가분)
+
+1. 이전 절의 "RTDB가 이 앱의 저지연 요구사항에 구조적으로 더 잘 맞는다"는 권고는 이번 실측으로 **뒤집히지 않았다** — 다만 근거가 "공식 문서 비교"에서 "공식 문서 비교 + 실제 네트워크 RTT가 지배적 변수라는 확인"으로 보강됐다.
+2. **진짜 write→read round-trip 실측은 여전히 남은 과제다.** 필요하면 아래 중 하나를 사용자/리더에게 요청할 것을 권고한다.
+   - RTDB 보안 규칙을 짧은 시간만 테스트 모드로 완화(측정 즉시 원복) — 가장 간단하지만 보안 노출 시간이 생김.
+   - 서비스 계정 키를 발급받아 spiker가 인증된 요청으로 측정 — 노출 없이 반복 측정 가능하지만 키 발급/보관 절차가 필요.
+3. 네트워크 RTT(155~177ms대)가 이미 상당히 크다는 점을 감안하면, "RTDB vs Firestore" 선택 자체보다 **참여자의 실제 모바일 네트워크 환경(Wi-Fi/LTE/5G, 이동통신사 라우팅 등)에 따른 RTT 변동성**이 체감 동기화 품질에 더 큰 영향을 줄 가능성이 있다 — 05 문서의 드리프트 보정 로직이 이 변동성을 흡수하도록 설계·검증되었는지 확인하는 것이 이번 실측이 시사하는 다음 우선순위로 보인다(권고, 결정 아님).
 
 ## 참고 자료
 
