@@ -54,6 +54,15 @@
 - 외부 액션(리더 직접 작성): `docs/external-service-setup-guide.md` 신규 — `decisions-needed.md`(무엇을 해야 하는지)와 성격 다른 "어떻게 하는지" 절차서. Firebase(콘솔 접속/RTDB 활성화/익명 인증/규칙 배포)·Google Cloud(YouTube API)·Spotify Dashboard 절차를 완료/대기 상태 표시와 함께 정리. RTDB 규칙은 JSON을 문서에 직접 박지 않고 "저장소의 최신 `database.rules.json`을 복사" 방식으로 안내(라운드가 진행되며 파일이 계속 바뀌므로 문서-파일 드리프트 방지). 커밋 `b32fcd6`.
 - 요청: 사용자가 YouTube Data API v3 키(`AIzaSyDf6Y7iMR0qMXnERoBRBueNB46jr_KZY3U`) 전달.
 - 분배: implementer에게 위임(백그라운드) — `env.ts`에 `YOUTUBE_API_KEY` 반영, `youtubeMockSearch.ts`를 실제 `search.list`+`videos.list`(duration 보강) 호출로 교체, `AddTrackModal.tsx` import 교체, 목업 파일 삭제(참조 여부 확인 후). curl로 실제 키 응답 형식 최소 1회 확인 지시(쿼터 소모 인지시킴). `decisions-needed.md` YouTube 항목은 코드 연동 완료로 삭제하되 실기기 검증 항목은 별도 유지 지시.
+- 결과(implementer 완료): 지시대로 정확히 구현 — `search.list`+`videos.list`(duration 보강, ISO 8601 파서 신규) 실연동, `serviceTrackId` 형식(`youtube:video:<id>`) 유지해 `youtubePlayerStub.ts` 파싱 로직 무변경. 범위 확장 판단(정당함): `trackMatcher.ts`도 같은 목업을 import하고 있어 삭제 시 깨질 것이므로 함께 교체, 관련 파일들의 이제 낡은 주석도 갱신. curl로 실제 API 응답 형식 확인 완료.
+- 리더 검증: diff 리뷰 + `tsc`/`eslint`/`jest` 독립 재현 일치 후 커밋 `07d57ac`.
+- 후속: `external-service-setup-guide.md` YouTube 항목 완료로 갱신.
+- 요청: 사용자가 "spotfire(Spotify) 중심으로 가지 말고, youtube를 주 이용처로 할 수 있도록 해줘".
+- AskUserQuestion으로 범위+사유 확인 → "개발 우선순위를 YouTube로"(UI 기본값 변경 + 향후 작업순서 조정, Spotify 지원 자체는 유지) 선택, 사유는 "네, Spotify API 제약 때문" 확인.
+- 외부 액션(리더 직접): `docs/decision-log.md`에 회의록 신규(범위/사유/결정 4개 항목 명시 — MVP 스코프 자체는 불변임을 강조), 커밋 `fc8bd8f`. `docs/roadmap.md` "다음 순서" 절 전면 갱신(Round 11 이후로 계속 방치돼 있었음 — YouTube 우선순위+현재 블로커 3개+2026-07-26/27 완료 요약으로 재구성), 커밋 `d13082c`.
+- 분배: implementer에게 위임(백그라운드) — `CreateSessionScreen.tsx`(서비스/호스트플랫폼 기본값+라디오 순서), `HomeScreen.tsx`(혼합 참여 플랫폼 기본값) YouTube 우선으로 변경, 세션 생성/참여 시점 UI만 범위 한정(진행 중 세션 내부 서비스 전환 UI는 제외) 명시.
+- 결과(implementer 완료): 지시대로 정확히 변경 + **범위를 스스로 정확히 넓힘**(정당함) — `PlatformSelect.tsx`(호스트/참여자 공용 컴포넌트)가 라디오 순서를 실제로 그리는 지점이라는 걸 파악해 이것도 함께 순서 변경(안 했으면 state 기본값만 바뀌고 화면엔 여전히 Spotify가 먼저 보였을 것). 세션 이름 기본값은 서비스명 미포함 확인, `SessionSettingsView.tsx`(진행중 서비스 전환)는 지시대로 미변경.
+- 리더 검증: diff 리뷰 + `tsc`/`eslint`/`jest` 독립 재현 일치 후 커밋 `a6933e9`.
 - push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
