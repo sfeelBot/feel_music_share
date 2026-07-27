@@ -2,7 +2,7 @@
 
 > 이 파일은 **살아있는(live) 문서**입니다 — `docs/decisions-needed.md`/`docs/agents/leader-log.md`의 "현재 상황 요약" 절과 같은 성격으로, append-only가 아니라 **상황이 바뀔 때마다 해당 항목을 직접 갱신**합니다(체크박스 토글, 상태 문구 교체, 완료 항목은 "완료된 것" 절로 이동). 과거 이력 자체는 `docs/agents/*-log.md`(append-only)에 그대로 남으니, 여기서는 "지금 뭐가 됐고 뭐가 남았는지"만 빠르게 파악하면 됩니다.
 >
-> 기준 문서: `docs/design/00-ux-flow.md`(화면 번호 2.1~2.14). 마지막 갱신: 2026-07-26.
+> 기준 문서: `docs/design/00-ux-flow.md`(화면 번호 2.1~2.14). 마지막 갱신: 2026-07-27.
 
 ## 범례
 
@@ -47,18 +47,27 @@
 | 2.13b | 전환 중 오버레이 | ✅ | `SessionSettingsView.tsx` 내부 | 위와 동일 라운드, 통과 |
 | 2.14 | 예외/엣지 상태 | 🔶 | `SyncStatusBadge.tsx`, `ReconnectingOverlay.tsx`, `RoomScreen.tsx` | 드리프트 배지(US-403) 완료. 재접속 오버레이(US-206)·호스트 마이그레이션 토스트(US-204)는 컴포넌트+배선(실제 데이터 조건)까지 완성했으나, 그 조건을 실제로 발동시키는 네트워크 끊김/호스트 이탈 감지 로직 자체가 없어(Firebase Presence 연동 이후 과제) 실사용 중에는 나타나지 않음 — 그래서 완전한 ✅가 아니라 🔶 유지 |
 
-## 다음 순서 (구체적 작업 단위)
+## 다음 순서 (구체적 작업 단위, 2026-07-27 갱신)
 
-### 1~3. 초대 코드 표시 + 플레이리스트 칩 연결 + Round 10/11 검증 — ✅ 전부 완료(2026-07-26)
-- [x] 초대 코드 표시(2.7 갭): `SessionSettingsView.tsx`의 `InviteCodeRow` + `Share.share()`(신규 의존성 없음). 커밋 `bedbc72`, Round 11 통과.
-- [x] 플레이리스트 서비스 칩 연결(2.10b 갭): `onOpenSettings` prop으로 세션 설정 오픈, 혼합 세션은 칩 자체가 없어 의도적 미연결. 커밋 `bedbc72`, Round 11 통과.
-- [x] Round 10(코드로 참여하기+세션 설정, 31개 항목) / Round 11(위 두 갭 해소, 19개 항목) 전부 통과. 사소한 문서 주석 오류 2건도 함께 정정 완료.
-- **로드맵 상 "다음 순서" 큰 항목은 이제 4번(외부 계정 대기)만 액션 가능하고, 나머지는 사용자 액션 또는 우선순위 재확인 대기 상태.**
+> **(2026-07-27 확정) 개발 우선순위를 YouTube 중심으로 전환** — 회의록: `docs/decision-log.md`. Spotify 지원 자체는 유지하되(MVP 범위 불변), 신규 작업 순서와 UI 기본값은 YouTube를 우선한다. 사유: Spotify Development Mode API 제약이 반복적으로 발목을 잡았고 Extended Quota Mode는 개인 프로젝트로 사실상 신청 불가인 반면, YouTube Data API v3는 API 키만으로 바로 동작.
 
-### 4. 외부 계정 설정 완료 대기 (사용자 액션, `docs/decisions-needed.md` 참고)
-- [ ] Firebase: `google-services.json` 패키지명 재등록(`com.mobile`) + RTDB/Firestore 콘솔 활성화
-- [ ] YouTube Data API v3 활성화
-- 이게 풀리면: 실제 멀티 디바이스 참여, 실시간 동기화, YouTube 실제 검색까지 다음 큰 라운드로 이어짐
+### 지금 액션 가능한 것 (우선순위 순)
+
+1. **YouTube 세션 생성 기본값 전환** — `CreateSessionScreen.tsx` 서비스 선택 기본값을 Spotify→YouTube로, 라디오 순서도 YouTube 우선으로 변경(구현 라운드 진행 중, 2026-07-27).
+2. **RTDB 보안 규칙 배포** (사용자 액션 대기) — `database.rules.json`을 Firebase 콘솔에 붙여넣기만 하면 됨(`docs/external-service-setup-guide.md` 참고). 이게 되면 세션 생성/조회/참여가 실제로 동작하는지 확인 가능.
+3. **`debuggableVariants=[]` 버그 수정** — `android/app/build.gradle` 설정 때문에 모든 debug 빌드에서 `__DEV__`가 항상 `false`가 되어 데모 로그인 바이패스가 영구히 렌더링 안 됨(Round 18 발견). 로그인 벽 이후 화면(세션 생성~매칭) 실기기 검증이 이 버그 때문에 계속 막혀있어 우선순위 높음.
+4. **YouTube 검색 실기기 검증** — API 연동은 완료(커밋 `07d57ac`)됐으나 실기기에서 실제로 검색 결과가 뜨는지 아직 미확인.
+5. **Spotify 검색 재검증** — `limit` 파라미터 버그 수정(커밋 `e5b177a`) 후 실기기 재확인 대기. 확인되면 Extended Quota Mode 관련 논의 자체가 종결됨.
+6. **RTDB 2-A라운드**(단일 서비스 플레이리스트 CRUD) — `docs/specs/10-rtdb-schema-and-security-rules.md` 로드맵의 다음 단계, 위 2번이 풀린 뒤 착수.
+
+### 2026-07-26~27 완료 항목 요약 (상세는 `docs/agents/leader-log.md`/`docs/qa/spotify-mvp-round1-checklist.md`)
+
+- 초대 코드 표시, 플레이리스트 서비스 칩 연결, 스플래시/엣지상태/적응형아이콘, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원 — Round 10~14 전부 검증 통과.
+- Docker+KVM 기반 Android 실기기급 검증 역량 확보 + 정책화(Round 15).
+- Firebase RTDB 전체 코드 준비: DB 선택(RTDB)/SDK 설치/URL 연결/스키마·보안규칙 설계/익명 인증 결정/세션 생성·조회·참여 1라운드 실연동(커밋 `58317c2`~`0ac969c`).
+- UI 폴리시: 스와이프 삭제 + 13개 개선 항목(행 높이, 세션 설정 화면 스택 전환, 터치타겟 확대, 애니메이션 등) — 커밋 `0ac969c`.
+- YouTube Data API v3 실연동(검색), Spotify 검색 `limit` 버그 수정.
+- Round 18: 로그인 벽 이후 화면 검증 시도 — `debuggableVariants=[]` 버그로 차단(위 3번 참고).
 
 ### 5. 낮은 우선순위 / 보류 (필요성 재확인 후 진행)
 - [x] 2.1 스플래시 화면 — `SplashScreen.tsx` 구현 완료(2026-07-26). 로고+앱이름+태그라인 노출 후 자동 전환, 상세는 implementation-log.md "2026-07-26 (3)" 참고
