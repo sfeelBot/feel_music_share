@@ -102,6 +102,10 @@
 - 리더 검토: 산출물(`docs/qa/spotify-mvp-round1-checklist.md` "Round 17 검증" 절, `docs/agents/verification-log.md`) diff 리뷰 후 그대로 커밋 `eeb47d5` — 리더의 독립 재현 결과와 정확히 일치해 추가 재검증 없이 신뢰.
 - **이것으로 "RTDB로 구축해줘" 요청 중 코드 준비 단계는 완전히 종료.** 다음 단계(`sessionService.ts` 실제 RTDB 연동)는 사용자의 Firebase 콘솔 RTDB 활성화가 선행돼야 하므로 현재는 대기 상태 — 활성화되면 즉시 착수 가능.
 
+- 요청: 사용자가 RTDB 데이터베이스 URL 공유(`https://feel-music-share-default-rtdb.asia-southeast1.firebasedatabase.app/`) — Firebase 콘솔에서 직접 RTDB를 활성화 완료했다는 뜻.
+- 확인(리더 직접): 현재 `google-services.json`에 databaseURL 필드가 없음을 확인(재다운로드 필요할 수 있는 상태). 다만 `asia-southeast1`은 RNFB 기본 리전(`us-central1`)이 아니므로, 재다운로드를 기다리기보다 `getDatabase(app, url)`로 URL을 코드에서 직접 명시하는 방식이 더 빠르고 정확하다고 판단(RNFB 공식 문서상 비기본 리전은 URL 명시가 필수). `docs/decisions-needed.md` Firebase 항목 완전 삭제, `decision-log.md` 후속조치 체크박스 갱신, `firebase-integration-guide.md` 체크리스트 갱신 — 커밋 `c5f992e`.
+- 분배: 병렬 위임(백그라운드, 파일 겹침 없음) — (1) implementer: `env.ts`의 `FIREBASE_DATABASE_URL` placeholder를 실제 URL로 교체 + `firebaseClient.ts`의 `getFirebaseDatabase()`가 `getDatabase(getApp(), url)` 형태로 URL을 명시 전달하도록 수정(작은 범위, `isDatabaseVerified`/실제 read-write 코드는 여전히 다음 라운드로 명확히 한정). (2) spiker: RTDB REST API로 실제 write→read round-trip 지연시간 실측 시도(`docs/spikes/firebase-rtdb-vs-firestore.md`에 후속 절 추가) — 보안 규칙이 잠겨있어 실패할 가능성을 사전 고지하고, 그 경우 규칙을 직접 바꾸지 말고 정직하게 "실측 불가, 이유"로 기록하도록 지시. `apps/mobile/` 코드는 건드리지 말라고 명시(implementer와 충돌 방지).
+
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
 > 이 항목은 `docs/agents/leader-log.md` 규칙이 CLAUDE.md에 추가되기 전 진행된 작업을 다른 서브에이전트 로그(`planning-log.md`, `design-log.md`)와 git log를 근거로 사후 재구성한 것이다. 리더의 실제 판단 근거·대화 맥락까지는 복원하지 못했으므로 세부 뉘앙스는 각 서브에이전트 로그 원본을 참고할 것.
