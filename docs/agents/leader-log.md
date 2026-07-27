@@ -44,6 +44,11 @@
 - 요청: 사용자가 Spotify Extended Quota Mode 관련 기존 진단을 인용하며 "개인은 사용할 수 없어?" 질문.
 - **진단 정정(리더 직접, WebFetch로 Spotify 공식 문서 재확인)**: 기존 진단(2024-11-27 정책 변경으로 Development Mode가 카탈로그 엔드포인트 접근 자체가 막혔다는 것)이 **낡은 정보에 기반한 오진이었음을 발견**. Spotify가 2026년 2월에 정책을 다시 바꿔 Development Mode도 `/v1/search` 접근 자체는 여전히 가능하고, 다만 `limit` 파라미터 허용 범위가 0~10(기본 5)으로 축소됐을 뿐임을 공식 문서(`search` 레퍼런스, `february-2026-migration-guide`)로 확인. `spotifyWebApi.ts`의 하드코딩된 `limit=15`가 새 상한(10)을 초과해 진짜(오해 소지 없는) 400 검증 오류를 유발한 것 — Extended Quota Mode(개인 프로젝트는 2025-03 기준 등록사업자+MAU 25만 요건상 사실상 신청 불가)와는 무관한 순수 코드 버그였음을 사용자에게 정정 설명.
 - 분배: implementer에게 위임(백그라운드) — `limit=15`→`10` 수정, 근처 다른 엔드포인트의 유사 문제 여부 확인, `AddTrackModal.tsx`의 결과 개수 가정 로직 확인. `decisions-needed.md` Spotify 항목은 실기기 재검증 전까지 삭제하지 말고 정정 내용만 반영하도록 지시.
+- 결과(implementer 완료): 지시대로 정확히 수정 — `SPOTIFY_SEARCH_LIMIT = 10` 상수화(근거 주석 포함), 다른 `limit` 파라미터 호출 없음 확인, `AddTrackModal.tsx`는 결과 개수 가정 없이 그대로 동작. `tsc`/`eslint`/`jest` 통과(Android 빌드는 순수 JS 값 변경이라 생략 판단, 근거 명시).
+- 리더 검증: diff 리뷰 + `tsc`/`eslint`/`jest` 독립 재현 일치 후 커밋 `e5b177a`.
+- 요청: 사용자가 "YouTube Data API v3 활성화, 진행 방식 알려줘" → Google Cloud Console 단계(프로젝트는 Firebase와 동일한 것 재사용, API 활성화, API 키 발급+제한 설정 — RN이 REST 직접 호출이라 앱 제한은 걸지 말 것을 권고) 안내, 쿼터 참고사항(하루 10,000유닛, 검색 1회 100유닛) 설명. 사용자 액션(키 발급) 대기 중, 아직 구현 미착수.
+- 요청: 사용자가 "firebase가 하는 역할과 전체 환경/데이터 관리/서버 위치를 알 수 있는 md 파일 하나 만들어줘".
+- 외부 액션(리더 직접 작성 — 기존 결정/설계 문서 종합, 새 결정/설계 아님): `docs/infrastructure-overview.md` 신규 — Firebase 역할(RTDB+Auth, Cloud Functions 미도입), 전체 구조(Spotify/YouTube는 Firebase를 거치지 않고 클라이언트가 직접 연결), 데이터 저장 위치(`asia-southeast1`), 현재 진행 상태 표, 결정 이력 요약, mermaid 다이어그램 포함. 커밋 `d5e0f86`.
 - push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
