@@ -239,3 +239,17 @@
   - **정적 검증 독립 재현**: `npx tsc --noEmit` 0 errors / `npx eslint .` 0 errors, 23 warnings(Round 14/15와 동일 목록, 신규 경고 없음) / `npx jest` 9 suites, 48 tests 전부 통과 — Android 네이티브 설정뿐인 커밋답게 JS/TS 회귀 없음.
   - **iOS**: `git show --name-only`로 변경 파일 4개가 전부 `apps/mobile/android/...` 또는 `docs/...`뿐임을 확인, `apps/mobile/ios/`에 `GoogleService-Info.plist`도 아직 없음 — iOS 무영향. 실제 iOS 빌드/런타임은 이번에도 macOS 부재로 미검증(구조적 제약).
   - 전체 항목: 통과 11(R16.1~R16.11) / 실패 0. **"완료"로 간주한다.**
+
+## 2026-07-27 (Round 17, Firebase RTDB SDK 설치 + firebaseClient.ts 실제 초기화)
+- 검증 대상: 커밋 `58317c2` ("Add Firebase RTDB SDK (app + database), initialize firebaseClient.ts") — `@react-native-firebase/app@25.1.0` + `/database@25.1.0`(exact-pinned) 설치, `firebaseClient.ts` STUB을 모듈러 API(`getApps`/`getDatabase`) 기반 실제 초기화 코드로 교체, `getFirebaseDatabase()` 신규 노출(인스턴스 생성만), `.env.example`/`jest.config.js`/가이드 문서 갱신. `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 17 검증" 절 추가(append, 15개 항목).
+- 플랫폼: 둘 다 (Android는 clean 재빌드로 실측 검증, iOS는 이번 커밋이 iOS 파일을 전혀 건드리지 않았음을 diff로 확인한 코드 리뷰 수준 — macOS 부재로 인한 구조적 제약은 Round 1부터 동일).
+- 결과: 통과
+- 상세:
+  - **범위/런타임 영향 판단(리더의 사전 판단 검증)**: 리더가 "런타임 동작 변화가 없는 SDK 설치+초기화 라운드"라 Docker/에뮬레이터 실기기 검증 불필요로 판단한 것을 코드 리뷰로 재확인 — `sessionService.ts`/`SessionContext.tsx`는 여전히 인메모리 목업(TODO 주석 4곳뿐, 실제 Firebase 호출 없음), 어떤 화면/서비스 코드도 `firebaseClient.ts`를 import하지 않음(`grep -rn "firebaseClient"` 결과 자기 자신 파일뿐) — "설치는 됐지만 아직 아무것도 실제로 호출하지 않는다"는 주장과 일치.
+  - **코드 리뷰**: `firebaseClient.ts`가 모듈러 API(`getApps()`, `getDatabase()`)만 사용하고 레거시 네임스페이스드 API(`firebase.app()`, `database().ref()`)를 쓰지 않음을 확인(import문 + 프로젝트 전역 grep). `isDatabaseVerified` 필드는 실제로 아직 `isAppInitialized`와 동일 로직(`isDatabaseVerified: isAppInitialized`)이며, JSDoc이 "DB 활성화를 확인했다가 아니라 아직 반증되지 않았다로 읽어야 한다"고 정직하게 한계를 설명 — 코드와 주석이 정확히 일치, 과장 없음. `getFirebaseDatabase()`는 `return getDatabase();` 한 줄뿐으로 실제 read/write(`ref`/`get`/`set`) 호출 없음, 네트워크 요청을 보내지 않는다는 JSDoc과 일치. `getApps()` 호출은 try/catch로 감싸 네이티브 브릿지 미로딩 환경에서 안전하게 "초기화 안 됨"으로 폴백.
+  - **정적 검증 독립 재현**: `npx tsc --noEmit` 0 errors / `npx eslint .` 0 errors, 23 warnings(Round 12~16과 동일한 기존 경고, 신규 없음) / `npx jest` 9 suites, 48 tests 전부 통과 — 리더 사전 보고와 정확히 일치. `jest.config.js`의 `transformIgnorePatterns`에 `@react-native-firebase` 추가 확인(테스트 통과로 효과도 간접 확인).
+  - **Android clean 재빌드**: `./gradlew.bat clean --no-daemon`(BUILD SUCCESSFUL in 11s) → `./gradlew.bat assembleDebug --no-daemon`(BUILD SUCCESSFUL in 2m 1s, 262 tasks: 222 executed/40 up-to-date) — 새 네이티브 의존성 2개(`react-native-firebase_app`, `react-native-firebase_database`)가 기존 `react-native-screens`/`react-native-webview`/`react-native-safe-area-context`/`react-native-app-auth`와 충돌 없이 함께 빌드됨을 로그에서 직접 확인. 리더가 이미 확인한 것을 독립 재현.
+  - **회귀 확인**: `git show 58317c2 --stat`으로 변경 파일 7개가 지시 목록과 정확히 일치함을 확인(화면/서비스 코드, `android/`, `ios/` 네이티브 프로젝트 파일 미등장). `npx jest`가 `mixedTrackView`/`serviceSwitchPlaylistIsolation`/`matchQueueNavigation`/`playlistSequencing` 등 기존 스위트 포함 48/48 통과로 회귀 없음.
+  - **iOS**: 변경 파일 7개 중 `apps/mobile/ios/` 경로 전무 — 무영향. `GoogleService-Info.plist` 부재 상태 그대로(회귀 아님, Round 1부터 동일 구조적 제약).
+  - 전체 항목: 통과 15(R17.1~R17.15) / 실패 0. **"완료"로 간주한다.**
+  - **다음 라운드 참고 사항(발견된 문제 아님)**: 다음 라운드에서 `sessionService.ts`를 실제 RTDB 호출로 교체하면 검증 성격이 "코드 준비 확인"에서 "실제 read/write 성공/실패 확인"으로 바뀐다 — RTDB가 콘솔에서 여전히 비활성 상태라면 실패가 "정상"인 시점과, 활성화 후 실제로 성공해야 하는 시점을 리더가 다음 지시에서 구분해줄 필요가 있다는 점을 미리 기록해둔다.

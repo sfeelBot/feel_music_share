@@ -1183,3 +1183,66 @@ Round 13에서 발견된 비차단 갭(R13.19) 하나만 좁게 고치는 커밋
 **결론: 통과.** 리더가 증분 빌드만 확인했던 것과 달리, 이번 검증은 `./gradlew.bat clean` 이후 완전 재빌드(204개 태스크 중 174개 실제 실행)로 처음부터 다시 확인했고 여전히 BUILD SUCCESSFUL이었다(R16.5). 이번 라운드의 핵심 성공 기준 — google-services.json에 남아있는 `come.mobile` 오타 항목이 있어도 플러그인이 `applicationId`(`com.mobile`)와 정확히 일치하는 client를 골라 리소스를 생성하는지 — 를 clean 빌드로 새로 생성된 `values.xml`을 직접 읽어 `google_app_id`가 `com.mobile` client의 `mobilesdk_app_id`와 문자열 단위로 정확히 일치함을 실측 확인했다(R16.6). 기존 `apply plugin:` 나열형 스타일과의 일관성(R16.4), 지시받은 좁은 범위를 지켰는지(`@react-native-firebase` 미설치, `firebaseClient.ts` STUB 유지, RTDB/Firestore 코드 없음 — R16.7)도 모두 확인했다. 정적 검증(tsc 0 errors, eslint 0 errors/23 warnings, jest 9 suites/48 tests)도 회귀 없이 독립 재현했다(R16.8~R16.10). 이번 커밋은 Android 네이티브 설정 파일과 문서만 건드렸고 iOS 파일은 전혀 건드리지 않았다(R16.11). 다음 라운드(`@react-native-firebase` SDK 설치 및 실제 초기화)로 넘어가도 무방하다.
 
 이 공백은 이번 라운드의 의도된 범위 제한이지 새로 발견된 결함이 아니지만, "완료"로 간주할 수 있는 범위는 어디까지나 로그인 벽 이전으로 한정된다는 점을 리더/사용자에게 명확히 전달해야 한다.
+
+## Round 17 검증 (Firebase RTDB SDK 설치 + firebaseClient.ts 실제 초기화)
+
+> 검증 대상 커밋: `58317c2` ("Add Firebase RTDB SDK (app + database), initialize firebaseClient.ts")
+> 검증일: 2026-07-27
+> 검증 담당: 검증(Verification) 서브에이전트
+> 참고 문서: `docs/agents/implementation-log.md`(2026-07-27 항목), `docs/decision-log.md`(RTDB 확정), `docs/firebase-integration-guide.md`
+> 환경: Windows 11 Pro (10.0.26200). Android: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`. iOS는 macOS 부재로 코드 리뷰 수준까지만.
+
+이번 라운드는 `@react-native-firebase/app@25.1.0` + `/database@25.1.0`(exact-pinned) 설치와 `firebaseClient.ts` STUB → 모듈러 API(`getApps`/`getDatabase`) 기반 실제 초기화 코드 교체다. **런타임 동작 변화가 없는 SDK 설치+초기화 라운드**로 판단해(CLAUDE.md 2026-07-27 정책) Docker/에뮬레이터 실기기 검증은 수행하지 않고, 코드 리뷰 + 정적 검증 + Android clean 빌드로 범위를 한정했다.
+
+### 1. 범위 확인 (diff 대조)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R17.1 | `git show 58317c2 --stat`로 변경 파일이 지시 내용과 정확히 일치하는가 | 통과 | 변경 파일 7개: `apps/mobile/.env.example`, `apps/mobile/jest.config.js`, `apps/mobile/package-lock.json`, `apps/mobile/package.json`, `apps/mobile/src/services/firebase/firebaseClient.ts`, `docs/agents/implementation-log.md`, `docs/firebase-integration-guide.md`. 지시받은 목록(SDK 설치, firebaseClient.ts 교체, `.env.example`/`jest.config.js`/가이드 문서 갱신)과 정확히 일치. `android/`, `ios/` 네이티브 프로젝트 파일, `sessionService.ts`, 화면 코드는 diff에 전혀 등장하지 않음. |
+| R17.2 | `sessionService.ts`/`SessionContext.tsx`가 여전히 인메모리 목업인지, RTDB read/write 호출 코드가 몰래 추가되지 않았는지 | 통과 | `sessionService.ts`에서 `firebase` 관련 언급은 TODO 주석 4곳뿐(28, 113, 134, 280행) — 실제 호출 코드 없음. 지시받은 "의도적으로 하지 않은 것"과 일치. |
+| R17.3 | 어떤 화면/서비스 코드도 `firebaseClient.ts`를 아직 import하지 않는지 | 통과 | `grep -rn "firebaseClient" apps/mobile/src`로 검색한 결과 `firebaseClient.ts` 자기 자신 외에는 아무 파일도 이를 import하지 않음(`env.ts`, `spotifyWebApi.ts`의 매치는 `firebase`라는 문자열이 다른 맥락(주석, `FIREBASE_*` 상수)에서 우연히 매치된 것으로, `firebaseClient` 모듈 자체를 import하는 코드는 없음). 즉 `getFirebaseDatabase()`를 실제로 호출해 read/write를 시도하는 코드는 어디에도 없다 — 지시받은 확인 포인트 충족. |
+
+### 2. 코드 리뷰 — `firebaseClient.ts`
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R17.4 | 모듈러 API(`getApps()`, `getDatabase()`)를 사용하고 레거시 네임스페이스드 API(`firebase.app()`, `database().ref()`)를 안 쓰는가 | 통과 | `import {getApps} from '@react-native-firebase/app'`, `import {getDatabase, type Database} from '@react-native-firebase/database'` — 모듈러 API만 사용. 프로젝트 전체(`apps/mobile/src`)를 `firebase\(\)|database\(\)\.ref` 패턴으로 검색한 결과 실제 코드에서의 레거시 API 호출은 없고, `firebaseClient.ts` 33행 주석에서 "왜 모듈러 API를 쓰는지" 설명하며 레거시 API 이름을 언급한 것뿐(코드가 아님). |
+| R17.5 | `isDatabaseVerified`가 실제로 아직 `isAppInitialized`와 동일 로직인지, 코드 주석의 한계 설명과 코드가 일치하는지 | 통과 | `getFirebaseConnectionStatus()` 구현(79~92행)에서 `isDatabaseVerified: isAppInitialized`로 명시적으로 동일 값 반환. 54~61행 JSDoc이 "RTDB 활성화 여부는 실제 네트워크 요청 전까지 알 수 없다 — 이 필드는 아직 `isAppInitialized`와 동일 값을 반영하며 'DB 활성화를 확인했다'가 아니라 '아직 반증되지 않았다'로 읽어야 한다"고 정직하게 명시 — 주석과 코드가 정확히 일치, 과장 없음. |
+| R17.6 | `getFirebaseDatabase()`가 인스턴스 생성만 하고 네트워크 요청을 보내지 않는지 | 통과 | 구현이 `return getDatabase();` 한 줄뿐 — `ref()`/`get()`/`set()` 등 실제 read/write 호출이 없음. 함수 상단 JSDoc도 "인스턴스 생성만 하며 네트워크 요청을 보내지 않는다"고 명시, 코드와 일치. |
+| R17.7 | `getApps()` 호출부의 예외 처리(네이티브 브릿지 미로딩 환경 대응)가 안전하게 폴백하는가 | 통과 | `try { isAppInitialized = getApps().length > 0; } catch { isAppInitialized = false; }` — 예외 시 "초기화 안 됨"으로 안전하게 폴백. Jest 환경(네이티브 모듈 미링크)에서 이 경로가 실제로 타는지는 별도 유닛테스트로 검증되진 않았으나(신규 테스트 파일 없음), 최소한 `npx jest` 스위트 전체가 여전히 통과하는 것으로 회귀가 없음을 간접 확인(R17.10). |
+
+### 3. 정적 검증 (독립 재현)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R17.8 | `npx tsc --noEmit` (apps/mobile) | 통과 | 0 errors, 출력 없음. 리더 보고와 일치. |
+| R17.9 | `npx eslint .` (apps/mobile) | 통과 | 0 errors, 23 warnings — 전부 Round 12~16과 동일한 기존(pre-existing) `react-native/no-inline-styles` 경고, 신규 경고 없음. 리더 보고와 일치. |
+| R17.10 | `npx jest` (apps/mobile) | 통과 | **9 suites / 48 tests 전부 통과**. 리더 보고와 정확히 일치. |
+| R17.11 | `jest.config.js`의 `transformIgnorePatterns`에 `@react-native-firebase` 추가 확인 | 통과 | `transformIgnorePatterns` 정규식에 `@react-native-firebase`가 다른 네이티브 패키지들과 함께 포함됨을 확인 — 위 R17.10에서 테스트가 실제로 통과했으므로(신규 import 경로가 있었다면 여기서 transform 실패가 났을 것) 효과도 간접 확인됨. |
+
+### 4. Android 빌드 (clean 재빌드로 교차 확인)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R17.12 | `./gradlew.bat clean --no-daemon` | 통과 | **BUILD SUCCESSFUL in 11s**(24 actionable tasks: 14 executed, 10 up-to-date). `react-native-firebase_app`, `react-native-firebase_database` 모듈의 clean 태스크가 정상 실행됨을 로그에서 확인. |
+| R17.13 | `./gradlew.bat assembleDebug --no-daemon` (clean 직후 완전 재빌드) | 통과 | **BUILD SUCCESSFUL in 2m 1s**(262 actionable tasks: 222 executed, 40 up-to-date). 로그에서 `react-native-firebase_database:compileSdk/targetSdk/minSdk using custom value` 항목과 `:react-native-firebase_database:assembleDebug`, `:react-native-firebase_app` 관련 태스크가 정상 실행됨을 확인 — 새 네이티브 의존성 2개가 기존 `react-native-screens`/`react-native-webview`/`react-native-safe-area-context`/`react-native-app-auth`와 충돌 없이 함께 빌드됨. `:app:assembleDebug`까지 정상 완료. Deprecation 경고(Gradle 9.0 비호환 관련)는 기존부터 있던 것과 동일한 성격(경고일 뿐 빌드 실패 아님). |
+
+리더가 이미 증분+clean 둘 다 확인했다고 보고한 것과 별개로, 이번 검증에서 독립적으로 `clean` → `assembleDebug` 순서로 완전 재빌드를 재현해 동일하게 BUILD SUCCESSFUL을 확인했다 — 신뢰할 수 있음.
+
+### 5. 회귀 확인
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R17.14 | 이번 라운드가 건드리지 않은 기존 기능(Spotify/YouTube 화면, 서비스별 플레이리스트 등)에 의도치 않은 영향이 없는가 | 통과 | R17.1에서 diff 범위가 화면/서비스 코드를 전혀 건드리지 않음을 확인했고, `npx jest`(R17.10)가 `mixedTrackView`, `serviceSwitchPlaylistIsolation`, `matchQueueNavigation`, `playlistSequencing` 등 기존 스위트를 포함해 48/48 전부 통과 — 회귀 없음. |
+| R17.15 | iOS — 이번 커밋이 iOS 파일을 건드렸는가 | 통과(리뷰 수준) | R17.1의 변경 파일 7개 중 `apps/mobile/ios/` 경로는 전혀 없음 — 예상대로 iOS 무영향. `GoogleService-Info.plist` 부재 상태도 그대로(구조적 미검증, Round 1부터 동일). |
+
+### Round 17 종합
+
+| 구분 | 개수 |
+|---|---|
+| 통과 | 15 (R17.1~R17.15) |
+| 실패 | 없음 |
+
+**결론: 통과.** `firebaseClient.ts`가 실제로 모듈러 API(`getApps`/`getDatabase`)만 사용하고 레거시 네임스페이스드 API를 쓰지 않음을 확인했다(R17.4). `isDatabaseVerified` 필드는 지시 내용대로 아직 `isAppInitialized`와 동일 로직이며, 코드 주석이 "DB 활성화를 확인했다"가 아니라 "아직 반증되지 않았다"로 정직하게 한계를 설명하고 있어 과장이 없다(R17.5). `getFirebaseDatabase()`는 인스턴스 생성만 하고 네트워크 요청을 보내지 않는다(R17.6). `sessionService.ts`/`SessionContext.tsx`는 여전히 인메모리 목업 그대로이고, `firebaseClient.ts`를 실제로 import해 호출하는 코드는 어디에도 없음을 확인했다(R17.2, R17.3) — "코드 준비만" 했다는 범위 주장과 일치. 정적 검증(tsc 0 errors, eslint 0 errors/23 warnings, jest 9 suites/48 tests)을 독립 재현해 리더 보고와 정확히 일치함을 확인했다(R17.8~R17.10). Android는 `clean` → `assembleDebug` 순서의 완전 재빌드로 BUILD SUCCESSFUL을 재확인했고, 새 네이티브 의존성 2개가 기존 네이티브 모듈들과 충돌하지 않음을 로그에서 직접 확인했다(R17.12, R17.13). 이번 라운드가 건드리지 않은 화면/서비스 코드에 대한 회귀도 없다(R17.14). iOS는 이번 커밋이 건드리지 않았고(R17.15), `GoogleService-Info.plist` 부재로 인한 구조적 미검증 상태는 회귀가 아니라 기존부터의 제약 그대로다.
+
+이번 라운드는 "런타임 동작 변화가 없는 SDK 설치+초기화 라운드"라는 리더의 사전 판단이 코드 리뷰 결과와도 일치했다 — Docker/에뮬레이터 실기기 검증 없이도 "설치는 됐지만 아직 아무것도 실제로 호출하지 않는다"는 상태를 충분히 확인할 수 있었다. 다음 라운드(`sessionService.ts`를 실제 RTDB 호출로 교체)부터는 실제 read/write가 시작되므로, RTDB 콘솔 활성화 여부에 따라 검증 성격이 달라질 것 — 예를 들어 콘솔에서 RTDB가 여전히 비활성 상태라면 실패하는 게 "정상"이고, 활성화된 후에는 실제 read/write 성공 여부가 검증 대상이 된다는 점을 다음 라운드 지시에 명시해두는 것이 좋겠다.
