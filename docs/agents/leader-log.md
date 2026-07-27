@@ -119,6 +119,10 @@
 - 요청: 사용자가 "현재 유튜브 검색이 안되네. 확인해봐" + "곡들 선택하고 삭제할때 슬라이드해서 삭제할 수 있도록 해. 전체적인 ui가 굉장히 마음에 들지않아. UI는 기본적으로 사용자 편의성을 중요하게 만들어. 유튜브, 아이폰 어플들의 방식으로 UI를 만들 수 있도록해줘".
 - 진단(리더 직접 수행): `youtubeMockSearch.ts` 확인 — YouTube 검색은 처음부터 목업(고정된 가짜 곡 5개, `docs/specs/03-youtube-integration.md` 범위 밖 결정)이라 실제 곡명으로 검색하면 매칭되는 게 없어 결과가 안 나오는 게 정상 동작(버그 아님). `decisions-needed.md` 항목 2(YouTube Data API v3 활성화, Google Cloud Console)로 이미 추적 중인 사용자 액션 대기 항목과 동일 원인 — 신규 발견 아님. 사용자에게 이 원인과 필요한 액션을 설명 예정.
 - 분배: designer에게 위임(백그라운드) — (A) 스와이프 삭제 UX 명세(`PlaylistView.tsx` 기존 위/아래 이동 버튼과의 공존 여부 검토 포함, `react-native-gesture-handler` 설치 여부 확인) + (B) 앱 전체 UI/UX 감사(iOS/YouTube 관행 기준, 화면별 우선순위 매긴 구체적 개선 목록 — 감사 결과 정리만, 결정/구현은 안 함). 산출물 `docs/design/06-ui-polish-audit.md`. 결과 확인 후 사용자에게 우선순위 확인받고 구현 라운드로 이어갈 예정.
+- 결과(designer 완료): 파트 A — `Swipeable`(gesture-handler, reanimated 불필요) 채택, 즉시삭제+4초 Undo 스낵바(지연삭제 패턴)+기존 롱프레스 확인 경로 유지(접근성 대체)로 구체적 명세 완료. 파트 B — 17개 항목(PB-01~17) 우선순위 없이 발견. 주요 발견: `theme/tokens.ts`의 `spacing`/`radius` 토큰이 앱 전체에서 한 번도 안 쓰임(스타일가이드 드리프트), `LayoutAnimation`/`Animated` 사용 전무, `SessionSettingsView`가 fullScreen Modal이라 iOS 엣지 스와이프백 불가, 뒤로가기 버튼들이 44×44 HIG 기준 미달+화면마다 중복 구현.
+- 외부 액션: 커밋 `fb080d9`(리뷰 후).
+- 사용자 확인(AskUserQuestion): UI 개선 구현 범위 — **"전체 개선 목록 거의 다"**(파트A + PB-01/02/03/05/06/07/08/09/13/14/15/16/17, PB-04/10/11/12는 제외) 선택.
+- 분배(병렬, worktree 격리 — 파일 겹침 회피): (1) implementer: 스와이프 삭제+선택된 UI 개선 항목 전체 구현. (2) implementer: Firebase Auth 익명 인증 도입(`participantId`=`auth.uid` 통일) + `sessionService.ts` 1라운드(세션 생성/조회/참여, `docs/specs/10-rtdb-schema-and-security-rules.md` 스키마 그대로, 다중 경로 원자적 update·`ServerValue.TIMESTAMP` 강제) + `database.rules.json` 파일 작성(배포는 하지 않음 — Firebase CLI 인증 불가, 사용자 콘솔 반영 필요를 명시). 두 라운드 모두 서로 다른 영역(UI 화면 vs 세션/Firebase 서비스 레이어) 건드리지 말라고 상호 명시.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
