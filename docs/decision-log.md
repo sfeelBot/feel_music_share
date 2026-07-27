@@ -43,3 +43,40 @@
 - [`docs/firebase-integration-guide.md`](firebase-integration-guide.md) — 연동 진행 상태·다음 단계
 - [`docs/decisions-needed.md`](decisions-needed.md) — 이 결정으로 해소된 대기 항목
 - `docs/specs/05-sync-architecture.md`, `docs/specs/06-mvp-scope-and-tech-stack.md`
+
+---
+
+## 2026-07-27 — RTDB 보안 규칙 인증 방식 + 호스트 마이그레이션 선출 규칙
+
+**참석**: 사용자(제품 오너), 리더(오케스트레이터)
+**안건**: `docs/specs/10-rtdb-schema-and-security-rules.md`(planner 산출물)가 "결정 아님"으로 남겨둔 인증 방식 선택 + `docs/specs/04-playlist.md`가 2026-07-25부터 미확정으로 남겨둔 호스트 마이그레이션 선출 규칙, 두 건을 함께 확정.
+
+### 배경
+
+- `sessionService.ts`를 실제 RTDB 호출로 교체하기 전에 반드시 정해야 하는 두 가지 결정 사항이 planner의 RTDB 스키마 설계 라운드에서 확인됐다(RTDB 트리 스키마 자체는 이미 설계 완료, `docs/specs/10-rtdb-schema-and-security-rules.md`).
+- 인증 방식: Cloud Functions가 없는 이 아키텍처에서는 RTDB 보안 규칙이 사실상 유일한 서버측 검증 계층이다. `auth` 객체 없이는 "이 쓰기가 진짜 방장/본인이 보낸 것인지" 규칙 언어로 검증할 방법이 원천적으로 없다는 게 설계 문서의 핵심 논거.
+- 호스트 마이그레이션 선출 규칙: "승계 후 기존 관리자 목록이 유지된다"는 이미 2026-07-25에 확정됐으나, "누가" 승계되는지 자체는 미정 상태로 남아있었고, RTDB 로드맵 4라운드(참여자/역할)가 이 규칙에 의존해 다시 필요해졌다.
+
+### 논의 내용
+
+1. **인증 방식**: 시나리오 A(익명 인증)는 04문서가 이미 확정한 3단계 권한 체계(방장만 관리자 임명 등)를 서버 측에서 실제로 강제할 수 있는 유일한 방법. 시나리오 B(무인증)는 추가 비용이 없지만 방장 사칭·타인 매칭 상태 조작을 막을 수 없어 권한 체계가 클라이언트 신뢰 수준에 머무른다. "장거리 연인·친구 소규모 세션"이라는 이 앱의 실사용 맥락상 B도 당장 큰 사고로 이어질 가능성은 낮다는 게 planner의 참고 의견이었으나, 04문서가 이미 명시적으로 확정한 권한 체계를 실질적으로 무력화하는 선택이기도 하다.
+2. **호스트 마이그레이션 선출 규칙**: 기존 관리자 우선 승계 vs 참여 순서 최고참 승계 두 옵션을 비교. 관리자는 방장이 신뢰해 임명한 사람이라는 점에서 "이미 검증된 신뢰"를 우선하는 쪽이 더 안전하다는 논리로 관리자 우선 승계 쪽에 무게가 실림.
+
+### 결정
+
+1. **RTDB 보안 규칙 인증 방식: 시나리오 A(Firebase Auth 익명 인증) 채택.** `@react-native-firebase/auth` 신규 설치, `participantId`를 `auth.uid`로 통일하는 설계 변경을 포함해 진행한다.
+2. **호스트 마이그레이션 선출 규칙: 기존 관리자 우선 승계.** 세부 타이브레이크(관리자가 여러 명일 때 누가, 관리자가 없을 때 대체 규칙)는 사용자 결정 범위에 포함되지 않아 리더가 합리적 기본값을 제안해 `04-playlist.md`에 반영: **관리자가 여러 명이면 가장 먼저 임명된 관리자**, **관리자가 없으면 세션 참여 순서 기준 최고참**. 이 기본값은 확정 필요 항목이 아니라 구현 단계에서 조정 가능한 세부 규칙으로 취급한다.
+
+### 후속 조치
+
+- [x] `docs/specs/04-playlist.md` "호스트 마이그레이션 시 권한 승계" 절에 선출 규칙 확정 사실 반영, "확인 필요" 목록에서 해당 항목 해소 처리.
+- [x] `docs/decisions-needed.md`에서 두 항목(인증 방식, 선출 규칙) 삭제.
+- [ ] 구현 라운드: `@react-native-firebase/auth` 설치, 앱 시작 시 `signInAnonymously()` 호출 배선, `participantId` 생성 방식을 `auth.uid` 기준으로 전환(`utils/id.ts`/`ParticipantInfo` 소비 화면 영향 범위 조사 포함).
+- [ ] `docs/specs/10-rtdb-schema-and-security-rules.md`의 시나리오 A 규칙 JSON을 기준으로 실제 RTDB 규칙 배포(Firebase 콘솔 또는 `firebase deploy --only database` — 아직 Firebase CLI 프로젝트 초기화가 안 되어 있다면 그것도 필요).
+- [ ] 4라운드(참여자/역할) 구현 시 위 선출 규칙(관리자 우선, 타이브레이크 기본값)을 반영.
+
+### 관련 문서
+
+- [`docs/specs/10-rtdb-schema-and-security-rules.md`](specs/10-rtdb-schema-and-security-rules.md) — 인증 시나리오 A/B 비교 전체
+- [`docs/specs/04-playlist.md`](specs/04-playlist.md) — 권한 체계, 호스트 마이그레이션 선출 규칙
+- [`docs/decisions-needed.md`](decisions-needed.md) — 이 결정으로 해소된 대기 항목
