@@ -1,0 +1,41 @@
+{
+  "rules": {
+    "inviteCodes": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists() && newData.isString() && newData.val().length > 0",
+        ".validate": "root.child('sessions').child(newData.val()).child('meta/hostParticipantId').val() === auth.uid"
+      }
+    },
+    "sessions": {
+      "$sessionId": {
+        "meta": {
+          ".read": "auth != null",
+          ".write": "auth != null && (!data.exists() || data.child('hostParticipantId').val() === auth.uid)",
+          "hostParticipantId": {
+            ".validate": "newData.val() === auth.uid"
+          },
+          "createdAt": {
+            ".validate": "newData.val() === now"
+          },
+          "capacity": {
+            ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 12 && !data.exists()"
+          }
+        },
+        "participants": {
+          ".read": "auth != null",
+          "$participantId": {
+            ".write": "auth != null && auth.uid === $participantId && (!root.child('sessions').child($sessionId).child('participants').exists() || root.child('sessions').child($sessionId).child('participants').numChildren() < root.child('sessions').child($sessionId).child('meta/capacity').val() || data.exists())",
+            ".validate": "newData.hasChildren(['displayName', 'role', 'accountTier'])",
+            "role": {
+              ".write": "auth != null && (root.child('sessions').child($sessionId).child('meta/hostParticipantId').val() === auth.uid || (auth.uid === $participantId && data.val() === 'admin' && newData.val() === 'regular'))"
+            },
+            "joinedAt": {
+              ".validate": "newData.val() === now"
+            }
+          }
+        }
+      }
+    }
+  }
+}
