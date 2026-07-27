@@ -116,6 +116,10 @@
 - 분배: planner에게 RTDB 트리 스키마 + 보안 규칙 설계 위임(백그라운드) — `sessionService.ts` 실연동(다음 큰 라운드)의 선행 설계 단계. 05-sync-architecture.md(서버기준시계/host-follower)·04-playlist.md·09-cross-platform-mixed-mode.md·현재 `domain.ts`/`sessionService.ts`를 근거로 (1) 경로별 스키마+read/write 권한 표, (2) 보안 규칙 초안(Firebase Auth 익명 인증 vs 세션코드 기반 두 시나리오 비교, 인증 방식 자체는 결정하지 말고 권고만), (3) `sessionService.ts` 교체를 몇 단계로 나눌지 로드맵, (4) 동시쓰기 충돌/마이그레이션 리스크를 요청. 산출물은 `docs/specs/10-rtdb-schema-and-security-rules.md` 신규.
 - 분배(병렬): verifier에게 Round 18(Round 15가 남긴 공백 — 로그인 벽 이후 화면을 데모 바이패스로 채우는 후속 검증) 위임(백그라운드, planner와 파일 겹침 없음) — Docker+KVM 실기기 검증으로 세션 생성/참여/메인화면/곡검색(실패 UI 확인)/설정화면을 데모 계정으로 실행. 데모 계정은 실제 Spotify API 호출이 안 되니 "정상적으로 실패하는지"만 확인하라고 명시, 혼합모드는 단일기기 한계를 정직하게 구분해 보고하라고 지시. 코드 변경 없이 순수 검증만.
 
+- 요청: 사용자가 "현재 유튜브 검색이 안되네. 확인해봐" + "곡들 선택하고 삭제할때 슬라이드해서 삭제할 수 있도록 해. 전체적인 ui가 굉장히 마음에 들지않아. UI는 기본적으로 사용자 편의성을 중요하게 만들어. 유튜브, 아이폰 어플들의 방식으로 UI를 만들 수 있도록해줘".
+- 진단(리더 직접 수행): `youtubeMockSearch.ts` 확인 — YouTube 검색은 처음부터 목업(고정된 가짜 곡 5개, `docs/specs/03-youtube-integration.md` 범위 밖 결정)이라 실제 곡명으로 검색하면 매칭되는 게 없어 결과가 안 나오는 게 정상 동작(버그 아님). `decisions-needed.md` 항목 2(YouTube Data API v3 활성화, Google Cloud Console)로 이미 추적 중인 사용자 액션 대기 항목과 동일 원인 — 신규 발견 아님. 사용자에게 이 원인과 필요한 액션을 설명 예정.
+- 분배: designer에게 위임(백그라운드) — (A) 스와이프 삭제 UX 명세(`PlaylistView.tsx` 기존 위/아래 이동 버튼과의 공존 여부 검토 포함, `react-native-gesture-handler` 설치 여부 확인) + (B) 앱 전체 UI/UX 감사(iOS/YouTube 관행 기준, 화면별 우선순위 매긴 구체적 개선 목록 — 감사 결과 정리만, 결정/구현은 안 함). 산출물 `docs/design/06-ui-polish-audit.md`. 결과 확인 후 사용자에게 우선순위 확인받고 구현 라운드로 이어갈 예정.
+
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
 > 이 항목은 `docs/agents/leader-log.md` 규칙이 CLAUDE.md에 추가되기 전 진행된 작업을 다른 서브에이전트 로그(`planning-log.md`, `design-log.md`)와 git log를 근거로 사후 재구성한 것이다. 리더의 실제 판단 근거·대화 맥락까지는 복원하지 못했으므로 세부 뉘앙스는 각 서브에이전트 로그 원본을 참고할 것.
