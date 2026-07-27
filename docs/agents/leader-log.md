@@ -75,6 +75,18 @@
 - 요청: 사용자가 "로그인 없이 화면 점검할 수 있게 만들거나, Spotify 계정 정보를 주면 진행 가능한지" 질문.
 - 판단(리더 직접): 계정 정보 공유는 권장하지 않음(비밀번호가 대화/로그에 평문 노출, 봇 탐지로 계정 잠김 위험, 이미 실기기 로그인이 검증된 상태라 실익도 낮음) — 사용자에게 명확히 설명. 대신 디버그 전용 데모 바이패스 추가를 제안, AskUserQuestion으로 확인 → 승인받음.
 - 분배: implementer에게 위임(백그라운드) — `AuthContext.tsx`에 `loginAsDemo()` 신규(가짜 프로필, 실제 토큰 없음, Spotify API 호출 지점은 목업으로 대체하지 말고 자연스럽게 실패하도록 유지), `SpotifyConnectScreen.tsx`에 `__DEV__`로 감싼 "데모로 둘러보기" 버튼 추가(릴리즈 빌드 제외 필수 강조).
+- 결과(implementer 완료): `loginAsDemo()` + `__DEV__` 감싼 버튼 정확히 지시대로 구현. 리더 검증(diff+tsc/eslint/jest/Android 빌드) 후 커밋 `8f3b9cd`.
+
+- 결과(verifier Round 15 완료 — 최초 실제 설치/실행 검증): Docker+KVM으로 최신 소스 직접 빌드한 APK 설치, 스플래시/온보딩 3컷/Spotify 연동 화면/Premium 모달까지 실제 `input tap`+스크린샷으로 확인, 다크모드·뒤로가기 내비게이션·전체 logcat 크래시 스캔(0건) 전부 통과. `docker cp` 중 체크섬이 한 번 흔들린 이상 현상을 스스로 재검증(재빌드+2회 체크섬 비교)해서 무해함을 확인하는 등 검증 절차가 견고했음. 로그인 벽 이후(세션 생성~매칭 등)는 지시대로 실행 미검증 상태로 정직하게 남기고 실기기 후속 확인 목록 작성.
+- 외부 액션: 커밋 `954ae62`(Round 15 QA), push 안 함.
+
+- 요청: 사용자가 새 `google-services.json`(패키지명 `com.mobile`로 정정 등록됨) 공유.
+- 확인(리더 직접): 새 파일에 `com.mobile`(신규, 정정됨)과 `come.mobile`(기존 오타, 무해하게 방치) 두 client가 함께 들어있음 확인 — Google Services 플러그인은 매칭되는 것만 쓰므로 문제없음.
+- 분배: implementer에게 위임(백그라운드) — 파일을 `apps/mobile/android/app/`에 배치, 저장소 루트의 낡은 파일 삭제, Google Services Gradle 플러그인(classpath+apply) 연결까지만(범위 명확히 한정 — `@react-native-firebase` 설치, `firebaseClient.ts` 실초기화, RTDB/Firestore 코드는 전부 다음 라운드로 명시).
+- 결과: 정확히 지시 범위대로 완료 — `google_app_id` 생성 리소스가 `com.mobile` client의 값과 정확히 일치함을 빌드 산출물로 확인(패키지명 매칭 성공 실증).
+- 리더 검증: diff 리뷰+`tsc`/`eslint`/`jest`/Android 빌드 독립 재현 후 커밋 `2a6f51d`.
+- 외부 액션: `docs/decisions-needed.md` Firebase 항목에서 패키지명 재등록 하위 항목 제거(DB 선택만 남김). 커밋 예정.
+- 후속 분배: verifier에게 Round 16(Firebase Gradle 연결, 좁은 범위) 위임(백그라운드) — clean 재빌드+패키지명 매칭 재확인 지시.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
