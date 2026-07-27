@@ -14,42 +14,31 @@
 
 > 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). **화면별 상세 현황·다음 순서는 `docs/roadmap.md`(살아있는 문서, CLAUDE.md 리더 규칙 9번)가 전담한다.** 마지막 갱신: 2026-07-27.
 
-### ⚠️ 세션 한도 복구 진행 중 (2026-07-27, session-limit-recovery 적용) — 병합 작업의 정확한 재개 지점
+### 세션 한도 복구 완료 (2026-07-27) — 참고용, 더 이상 진행 중 아님
 
-**무슨 일이 있었는가**: 두 백그라운드 implementer 에이전트(worktree 격리)가 각자 최종 정적 검증(tsc/eslint/jest) 직전 단계에서 **계정 API 세션 한도**로 동시에 죽었다(`resets 7:50pm Asia/Seoul`). 둘 다 파일은 이미 디스크에 다 써진 상태(텍스트 응답만 끊김) — 리더가 직접 두 worktree에서 `tsc`/`eslint`/`jest`를 재현한 결과 **둘 다 0 errors로 통과** 확인 완료. 에이전트를 재개하지 않고(이미 검증 끝났으므로 불필요) 리더가 직접 diff 리뷰 후 병합하는 방식으로 진행 중.
-
-**worktree 1 — UI 폴리시** (`E:\music share\.claude\worktrees\agent-a9f943707e4ead493`, 브랜치 `worktree-agent-a9f943707e4ead493`): 스와이프 삭제(`react-native-gesture-handler` 신규) + PB-01/02/03/05/06/07/08/09/13/14/15/16/17. 15개 파일 변경(810 insertions/373 deletions). `tsc`/`eslint`(0 errors, 25 warnings)/`jest`(9/9, 48/48) 전부 리더가 독립 재현해 통과 확인. **Android 빌드는 이 worktree 경로(`.claude/worktrees/...`)에서 MAX_PATH(260자) 초과로 실패** — 이전에도 있었던 전례(worktree 경로가 너무 깊음, 코드 문제 아님) — **머지 후 기본 체크아웃 경로에서 반드시 재시도 필요**.
-
-**worktree 2 — Firebase Auth + sessionService.ts 1라운드** (`E:\music share\.claude\worktrees\agent-a31d804c06c21014b`, 브랜치 `worktree-agent-a31d804c06c21014b`): `@react-native-firebase/auth` 신규 설치 + `participantId`=`auth.uid` 통일 + 세션 생성/조회/참여 RTDB 연동 + `database.rules.json` 신규(배포 안 함). `tsc`/`eslint`(0 errors, 23 warnings)/`jest`(9/9, 48/48) 리더가 독립 재현해 통과 확인. Android 빌드는 아직 시도 안 함(worktree 1과 동일하게 MAX_PATH 문제 예상, 병합 후 기본 경로에서 시도 예정).
-
-**충돌 지점(둘 다 건드림, 수동 스플라이스 필요 — SessionContext.tsx 선례와 동일 패턴)**: `apps/mobile/App.tsx`(worktree1=GestureHandlerRootView 래핑, worktree2=FirebaseAuthContext 프로바이더 추가로 추정 — 둘 다 반영 필요), `apps/mobile/package.json`/`package-lock.json`(worktree1=`react-native-gesture-handler`, worktree2=`@react-native-firebase/auth` — 둘 다 반영 필요).
-
-**재개 절차(다음 세션/한도 해제 후에도 그대로 적용 가능)**:
-1. 두 worktree의 diff를 각각 `git diff`로 리뷰(App.tsx/package.json 제외 파일은 서로 안 겹치므로 `git apply`로 순서대로 적용 가능할 가능성 높음).
-2. App.tsx/package.json/package-lock.json 3개 파일은 두 worktree의 변경을 수동으로 스플라이스(양쪽 다 반영, 삭제 없이).
-3. 기본 체크아웃 경로(`E:\music share\apps\mobile`)에서 `tsc`/`eslint`/`jest` + Android `assembleDebug`(증분+clean 둘 다, 신규 네이티브 의존성 2개 — `gesture-handler`, `firebase/auth`) 독립 재검증.
-4. 통과하면 커밋(2개 기능이 섞여 있으니 논리 단위로 분리 커밋 고려 — 예: "UI 폴리시" 커밋과 "Firebase Auth+세션 RTDB" 커밋을 따로).
-5. worktree 정리(`EnterWorktree`/`ExitWorktree` 또는 `git worktree remove`).
-6. `database.rules.json`을 사용자에게 Firebase 콘솔에 붙여넣어달라고 안내 필요(decisions-needed.md에 신규 항목).
-7. `docs/qa/spotify-mvp-round1-checklist.md`의 "Round 18 검증" — **중요 버그 발견**: `apps/mobile/android/app/build.gradle`의 `debuggableVariants = []` 설정 때문에 모든 `assembleDebug` 빌드가 `--dev false`로 번들링되어 `__DEV__`가 항상 `false` → 데모 로그인 바이패스 버튼이 영구히 렌더링 안 됨. 이 라운드들과 별개로 수정 필요(다음 우선순위 후보).
+두 백그라운드 implementer 에이전트(worktree 격리 — UI 폴리시, Firebase Auth+세션 RTDB 1라운드)가 각자 최종 정적 검증 직전에 계정 API 세션 한도로 죽었으나, 리더가 직접 두 worktree를 diff 리뷰 → 수동 스플라이스(`App.tsx`/`package.json`/`package-lock.json` 3개 파일이 양쪽 다 건드려 충돌) → 병합 → 독립 재검증까지 전부 완료했다. **병합 과정에서 리더가 직접 진단·해결한 이슈**: `react-native-gesture-handler ^2.24.0`(및 `^2.32.0`)이 이 프로젝트의 정확한 RN 0.76.9+New Architecture+Kotlin 1.9.25 조합에서 `ReactPointerEventsView` 오버라이드 관련 Kotlin 컴파일 에러로 빌드가 깨짐을 발견 — 의존성 검사(react-android 버전 치환 정상, 캐시 중복 없음)와 버전 이분 탐색(2.20.2에는 문제의 인터페이스 구현 자체가 없음을 확인)으로 근본 원인을 특정하고, `2.20.2`로 정확히 고정해 해결(clean 빌드까지 통과 확인). 커밋 `8ffefa9`(database.rules.json 단독 — 앞선 `git add`의 잘못된 pathspec으로 나머지가 누락된 실수)+`0ac969c`(실제 코드 29개 파일). worktree 정리 완료(`git worktree remove`+long-path PowerShell 삭제+`git worktree prune`). `decisions-needed.md`에 Firebase 콘솔 액션 2건(익명 인증 활성화, RTDB 규칙 배포) 추가 완료(커밋 `d5acf37`).
 
 ### 예상 리스크 및 해결할 문제
 
 1. **Spotify 검색 기능 막힘**: Development Mode 앱이라 `/v1/search` 등 카탈로그 엔드포인트 접근 자체가 Spotify 정책(2024-11-27 변경)으로 차단됨 — Extended Quota Mode 신청 필요(`docs/decisions-needed.md`). 로그인 자체는 실기기에서 정상 동작 확인됨.
-2. **Firebase — DB 선택 완료(RTDB), 콘솔 활성화만 남음**: RTDB vs Firestore 결정 완료(`docs/decision-log.md` 2026-07-27, RTDB 확정). `@react-native-firebase/app`+`/database` SDK 설치 + `firebaseClient.ts` 실제 초기화(모듈러 API)까지 완료(리더 검증 후 커밋 `58317c2`) — 단 RTDB read/write는 아직 코드에 없고, Firebase 콘솔에서 RTDB 자체가 비활성 상태라 시도해도 실패하는 게 정상. **남은 것은 사용자의 콘솔 "데이터베이스 만들기" 활성화뿐** — 되면 `sessionService.ts` 실제 연동(다음 라운드) 착수 가능.
-3. **YouTube Data API v3 미완료** — YouTube 검색이 여전히 목업 상태.
+2. **Firebase RTDB — 코드는 다 됐고, 콘솔 액션 2개만 남음**: RTDB 결정+SDK+URL+스키마+보안규칙 설계+인증방식 결정(익명 인증)+`sessionService.ts` 1라운드(세션 생성/조회/참여) 실연동까지 코드 레벨은 전부 완료(커밋 `0ac969c`). **남은 것은 사용자의 Firebase 콘솔 액션 2개뿐**: (a) Authentication → 익명 로그인 제공업체 활성화, (b) `database.rules.json`을 콘솔 규칙 탭에 붙여넣기(또는 CLI 배포). 이게 되기 전까지 세션 생성/참여는 정직하게 실패함(회귀 아님, 의도된 순서).
+3. **YouTube Data API v3 미완료** — YouTube 검색이 여전히 목업 상태(고정된 가짜 곡 5개만 매칭) — 실제 곡명 검색 시 "안 된다"고 느껴지는 게 정상, 사용자에게 이미 설명함.
 4. **iOS**: macOS 부재로 빌드/실행 구조적으로 불가능(Docker로도 확인 — 컨테이너가 다른 커널을 못 담는 원리적 한계 + Apple SLA 라이선스 제약 이중으로 막힘, `docs/spikes/docker-virtualization-for-mobile-verification.md`). 배포 방향도 사용자가 두 차례 "추후 논의"로 보류 중.
 5. **Android 실기기급 검증 역량 확보**: Docker+KVM으로 이 머신에서는 실제 설치/실행/화면 검증까지 가능함을 실측 확인(Round 15) — 정책상 "주요 기능 추가 시에만" 적용(CLAUDE.md 명문화).
-6. 화면별 갭 목록은 `docs/roadmap.md`에 정리됨 — 여기 중복 기재하지 않는다.
+6. **(2026-07-27 Round 18 신규 발견, 미해결) 데모 로그인 바이패스가 실제 APK에서 영구히 렌더링 안 됨**: `android/app/build.gradle`의 `debuggableVariants = []`(사이드로드 debug APK가 JS 번들을 내장하게 하려던 의도적 설정) 때문에 모든 `assembleDebug` 빌드가 `--dev false`로 번들링되어 `__DEV__`가 항상 `false`가 됨 — `loginAsDemo()` 버튼 자체가 죽은 코드 상태. 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기 검증이 이 버그 때문에 계속 막혀 있음(Round 15, 18 둘 다 실패) — **다음 우선순위 후보**로 격상.
+7. 화면별 갭 목록은 `docs/roadmap.md`에 정리됨 — 여기 중복 기재하지 않는다.
 
 ### 현재 진행중인 task
 
-1. **완료(2026-07-26~27)**: YouTube 재생 연동, 혼합 세션 모드, 코드로 참여하기+세션 설정 화면, 초대코드/서비스칩 연결, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원, 스플래시/엣지상태/적응형아이콘 — Round 5~16 전부 검증 통과. 상세는 `docs/roadmap.md`와 `docs/qa/spotify-mvp-round1-checklist.md` 참고.
-2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료 + RTDB vs Firestore 결정(RTDB, `docs/decision-log.md`) + SDK 설치/`firebaseClient.ts` 실제 초기화 완료(커밋 `58317c2`).
-3. **다음 우선순위(사용자 확인 필요)**: (a) Spotify Extended Quota Mode 신청(사용자 액션), (b) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보, (c) `sessionService.ts` 실제 RTDB 연동 착수 — RTDB 콘솔 활성화(2026-07-27)+URL 코드 반영(커밋 `c43ceb6`)까지 완료돼 착수 가능하나, **RTDB 보안 규칙이 아직 완전 잠금 상태라 규칙 설계가 선행/동반돼야 함**(스파이크로 발견, `docs/firebase-integration-guide.md` 8~9번 참고) — 이게 이제 Firebase 트랙의 진짜 다음 스텝.
-4. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태.
+1. **완료(2026-07-26~27)**: YouTube 재생 연동, 혼합 세션 모드, 코드로 참여하기+세션 설정 화면, 초대코드/서비스칩 연결, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원, 스플래시/엣지상태/적응형아이콘, UI 폴리시(스와이프 삭제+13개 개선 항목), Firebase RTDB 전체 코드 준비(SDK/URL/스키마/보안규칙/인증/1라운드 세션 연동) — Round 5~18 전부 검증 통과(Round 18은 일부 항목 실패 기록, 위 리스크 6번 참고). 상세는 `docs/roadmap.md`와 `docs/qa/spotify-mvp-round1-checklist.md` 참고.
+2. **다음 우선순위(사용자 확인 필요)**: (a) Firebase 콘솔 액션 2건(익명 인증 활성화, RTDB 규칙 배포) — 되는 대로 세션 생성이 실제로 되는지 확인 가능, (b) `debuggableVariants=[]` 버그 수정 — 로그인 벽 이후 화면 검증의 진짜 선행 조건으로 격상됨, (c) Spotify Extended Quota Mode 신청(사용자 액션), (d) RTDB 2-A라운드(단일 서비스 플레이리스트 CRUD, `docs/specs/10-rtdb-schema-and-security-rules.md` 로드맵 다음 단계).
+3. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태. 다음 세션 시작 시 `docs/roadmap.md` 갱신도 필요(이번 UI 폴리시+RTDB 1라운드 반영 안 됨, 리더가 다음에 처리).
 
-- 요청: 사용자가 "RTDB로 구축해줘" + "위 rtdb 결정 관련 내용은 회의록 형식으로 정리해서 docs 폴더에 하나 만들도 넣어놔".
+- 요청: 사용자가 "push하고 진행할 것들 진행해" 이후 "Claude design 활용할수잇어?"(claude.ai Design 탭 베타 기능 문의, WebSearch로 확인해 답변) → "현재 앱의 실제 화면들을 스크린샷에서 하나의 폴더로 모두 넣어줘"(Round 18이 남긴 4개 스크린샷을 scratchpad에 모아 SendUserFile로 전달) → 두 백그라운드 라운드가 세션 한도로 실패한 task-notification 수신, "이어서 하던것들 진행해".
+- 세션 한도 대응(session-limit-recovery 스킬 적용): 두 worktree(UI 폴리시, Firebase Auth+세션 RTDB 1라운드)가 각자 최종 검증 직전 죽음 — 리더가 재개 대신 직접 두 worktree에서 `tsc`/`eslint`/`jest` 재현(둘 다 통과) 후 병합 계획을 `leader-log.md`에 먼저 기록(재개 지점 확보), 이후 diff 리뷰 → `App.tsx`/`package.json`/`package-lock.json` 3개 파일 수동 스플라이스 → 기본 체크아웃 경로에서 재검증 진행.
+- **병합 중 발견·해결(리더 직접, 두 worktree 어느 쪽 지시에도 없던 신규 이슈)**: `react-native-gesture-handler ^2.24.0`/`^2.32.0`이 이 프로젝트의 정확한 RN 0.76.9+New Architecture+Kotlin 1.9.25 조합에서 Kotlin 컴파일 에러(`ButtonViewGroup`이 `ReactPointerEventsView.getPointerEvents()`를 구현 안 함/오버라이드 안 됨)로 clean 빌드까지 실패. `--check` 의존성 검사로 react-android 버전 치환이 정상(0.76.9 단일, 중복 없음)임을 먼저 배제하고, gesture-handler 버전 이분 탐색(`npm pack`으로 2.20.2 소스 직접 확인)으로 "이 인터페이스 구현 자체가 2.20.2엔 없다"를 근거로 원인을 좁힌 뒤, `2.20.2`로 정확히 고정(캐럿 없음, exact-pin — 프로젝트 관례)해 해결. 증분+clean 빌드 둘 다 재확인.
+- 외부 액션: 커밋 `8ffefa9`(database.rules.json — 앞선 `git add`의 잘못된 pathspec으로 나머지 파일이 누락된 실수, 정직하게 커밋 메시지에 명시) → `0ac969c`(실제 코드 29개 파일, UI 폴리시+Firebase Auth+세션 RTDB 1라운드 전체) → `bffdd70`(Round 18 QA 기록, `debuggableVariants=[]` 버그 발견 — main에서 직접 실행된 verifier가 이미 써둔 것을 커밋만) → `d5acf37`(decisions-needed.md에 Firebase 콘솔 액션 2건 추가). worktree 정리(`git worktree remove` MAX_PATH로 실패 → PowerShell long-path 접두사로 강제 삭제 → `git worktree prune`). 저장소 루트 `.gitignore` 신규(`.claude/worktrees/` 제외, 이번에 처음 노출된 gap).
+- push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
 - 결과: 둘 다 완료. (1) `SplashScreen.tsx` 신규(최소 노출 900ms 후 Home/Onboarding 자동 전환, 토큰 영속화 없어 SpotifyConnect 직행 분기는 의도적으로 생략), `ReconnectingOverlay.tsx` 신규+`RoomScreen.tsx` 호스트 마이그레이션 토스트 배선 — 둘 다 정직하게 "실제 트리거 없음, connectionStatus/hostParticipantId를 바꾸는 코드가 없어 지금은 발동 안 함"을 TODO로 명시(가짜 데모 없음). (2) `mipmap-anydpi-v26` 적응형 아이콘 신규(벡터 드로어블 배경+래스터 전경), legacy 아이콘 유지. 두 에이전트가 같은 res/ 디렉토리를 통한 빌드 과정에서 서로 다른 시점에 동일한 XML 네임스페이스 오타(`.../apis/res/android`)를 겪었으나 아이콘 에이전트가 발견해 수정, 최종적으로 둘 다 정상 빌드됨.
