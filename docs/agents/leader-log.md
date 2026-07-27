@@ -111,6 +111,10 @@
 - 리더 검토: 두 산출물(spike 문서+로그) diff가 정직하고 과장 없음을 확인 후 커밋 `8582a2f`. `docs/firebase-integration-guide.md`에 "RTDB 보안 규칙 미설정" 항목을 다음 라운드 선행조건으로 신규 추가, "현재 상황 요약" 갱신.
 - **Firebase 트랙 현재 상태**: 콘솔 활성화+URL 코드 반영까지 전부 완료. 진짜 다음 스텝은 "RTDB 보안 규칙 설계"(누가 어떤 세션 데이터를 읽고/쓸 수 있는지)와 `sessionService.ts` 실연동을 함께 다루는 라운드 — 사용자 결정이 필요한 새 항목은 아직 없음(규칙 설계 자체는 기술/제품 로직이라 planner/implementer 선에서 가능, 필요시 확인만 받으면 됨).
 
+- 요청: 사용자가 "push하고 진행할 것들 진행해".
+- 외부 액션: `git push origin main`(`20af688..4948db9`, 19개 커밋 — Round 17 검증, RTDB URL 배선, 지연시간 스파이크 등 이번 세션 Firebase 작업 전부 포함) 완료.
+- 분배: planner에게 RTDB 트리 스키마 + 보안 규칙 설계 위임(백그라운드) — `sessionService.ts` 실연동(다음 큰 라운드)의 선행 설계 단계. 05-sync-architecture.md(서버기준시계/host-follower)·04-playlist.md·09-cross-platform-mixed-mode.md·현재 `domain.ts`/`sessionService.ts`를 근거로 (1) 경로별 스키마+read/write 권한 표, (2) 보안 규칙 초안(Firebase Auth 익명 인증 vs 세션코드 기반 두 시나리오 비교, 인증 방식 자체는 결정하지 말고 권고만), (3) `sessionService.ts` 교체를 몇 단계로 나눌지 로드맵, (4) 동시쓰기 충돌/마이그레이션 리스크를 요청. 산출물은 `docs/specs/10-rtdb-schema-and-security-rules.md` 신규.
+
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
 > 이 항목은 `docs/agents/leader-log.md` 규칙이 CLAUDE.md에 추가되기 전 진행된 작업을 다른 서브에이전트 로그(`planning-log.md`, `design-log.md`)와 git log를 근거로 사후 재구성한 것이다. 리더의 실제 판단 근거·대화 맥락까지는 복원하지 못했으므로 세부 뉘앙스는 각 서브에이전트 로그 원본을 참고할 것.
