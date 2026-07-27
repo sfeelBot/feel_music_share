@@ -81,6 +81,12 @@
 - 분배: implementer에게 위임(백그라운드) — Round 20 R20.5(HomeScreen 로딩 스피너 영구 고정) 수정: `attemptJoin`에 try/catch/finally 추가(로딩 상태 복귀 최우선), catch에서 사용자 안내(기존 Alert 패턴 재사용, RTDB 세부 에러 노출 금지). 겸사겸사 R20.4c(CreateSessionScreen 에러 피드백 부재)도 같은 톤으로 catch 추가 지시(로딩 복귀용 finally는 이미 있으니 안 건드림).
 - 결과(implementer 완료): 지시대로 정확히 수정 — 기존 `not_found`/`capacity_full` Alert 톤을 그대로 재사용, RTDB 세부 에러 노출 없음. 리더 검증(diff+tsc/eslint/jest 독립 재현) 후 커밋 `d8f1a46`.
 - 분배: verifier에게 위임(백그라운드) — 이번 버그 수정 실기기 확인 + 사용자가 요청한 "화면별 캡쳐" 작업을 **같은 Docker 세션에서 함께 처리**(에뮬레이터 재기동 낭비 방지). 파트 A: 조인/생성 실패 시 스피너 복귀+Alert 노출 확인. 파트 B: `docs/screenshots/`에 지금 도달 가능한 화면(스플래시~세션생성, RoomScreen 계열은 RTDB 규칙 미배포로 이번에도 불가 — 정직하게 스킵 지시)들을 규칙대로 캡처해 저장.
+
+- 요청: 사용자가 "spotfy 관련된 부분을 모두 삭제한 버젼을 만들어주고 그걸 main 으로 해줘. 삭제하기 전 버젼를 branch 로 빼줘" — 어제(2026-07-27) "Spotify 지원은 유지" 결정을 정면으로 뒤집는 요청임을 리더가 먼저 인지.
+- 확인(리더 직접): 혼합(Mixed) 세션 모드가 "서로 다른 플랫폼 매칭"을 전제로 하므로 Spotify 제거 시 개념 자체가 성립 안 함을 짚어 AskUserQuestion으로 처리 방향 확인 → "혼합 모드도 함께 삭제"(권장), "완료되면 바로 push까지" 확인받음.
+- 외부 액션(리더 직접, 순서대로): (1) `git branch spotify-mixed-legacy`로 현재 HEAD(`477317a`) 보존 + `git push origin spotify-mixed-legacy`로 원격까지 안전하게 백업. (2) `docs/decision-log.md`에 결정 번복 회의록 신규 작성(범위/사유/혼합모드 처리/배포방식 명시, 어제 결정을 삭제하지 않고 "대체됨"으로 이력 유지) — 커밋 `b7ae678`.
+- 판단: 작업 규모가 크고(추정 20~30개 파일) 마침 백그라운드 verifier(Round 20 후속, 스크린샷 캡처 겸 버그수정 확인)가 같은 main 워킹트리에서 Docker 빌드 중이라, 삭제 작업을 곧바로 시작하면 충돌 위험 — 아직 코드를 안 건드리는 planner 단계부터 병렬로 안전하게 시작.
+- 분배: planner에게 위임(백그라운드, 파일 겹침 없음) — 파일 단위 삭제/수정 인벤토리(추측 아닌 실제 코드 확인), 데이터모델 변경(`MusicService` 타입 등), 화면 흐름 변경, 설정/의존성 정리, **인증 흐름 재설계는 선택지만 제시**(Spotify OAuth가 유일한 로그인 수단이었으므로 대체 방안 필요 — 리더가 결정 안 하고 planner에게도 결정 금지, 선택지 비교만 요청), 단계별 구현 로드맵 제안을 요청. 기존 spec 문서(02/06/09)는 삭제 대신 "결정으로 대체됨" 안내만 추가 지시. 산출물 `docs/specs/11-youtube-only-migration-plan.md`.
 - push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
