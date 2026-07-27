@@ -29,6 +29,10 @@
 2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가 — 둘 다 로그인 벽 없이/실제로 화면을 검증할 수 있는 인프라. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료.
 3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase RTDB vs Firestore 결정 — 논의 중, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보.
 4. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태.
+
+- 요청: 사용자가 "RTDB로 구축해줘" + "위 rtdb 결정 관련 내용은 회의록 형식으로 정리해서 docs 폴더에 하나 만들도 넣어놔".
+- 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
+- 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
 - 결과: 둘 다 완료. (1) `SplashScreen.tsx` 신규(최소 노출 900ms 후 Home/Onboarding 자동 전환, 토큰 영속화 없어 SpotifyConnect 직행 분기는 의도적으로 생략), `ReconnectingOverlay.tsx` 신규+`RoomScreen.tsx` 호스트 마이그레이션 토스트 배선 — 둘 다 정직하게 "실제 트리거 없음, connectionStatus/hostParticipantId를 바꾸는 코드가 없어 지금은 발동 안 함"을 TODO로 명시(가짜 데모 없음). (2) `mipmap-anydpi-v26` 적응형 아이콘 신규(벡터 드로어블 배경+래스터 전경), legacy 아이콘 유지. 두 에이전트가 같은 res/ 디렉토리를 통한 빌드 과정에서 서로 다른 시점에 동일한 XML 네임스페이스 오타(`.../apis/res/android`)를 겪었으나 아이콘 에이전트가 발견해 수정, 최종적으로 둘 다 정상 빌드됨.
 - 리더 검증: `tsc`/`eslint`/`jest`/Android 증분 빌드 독립 재현(전부 일치) 후 커밋 `41dab27`.
 - 후속 분배: verifier에게 Round 12(세 기능 통합) 위임(백그라운드) — clean 재빌드 포함, "실제 트리거 없음" 주장의 grep 재확인 지시.
