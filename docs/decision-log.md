@@ -80,3 +80,36 @@
 - [`docs/specs/10-rtdb-schema-and-security-rules.md`](specs/10-rtdb-schema-and-security-rules.md) — 인증 시나리오 A/B 비교 전체
 - [`docs/specs/04-playlist.md`](specs/04-playlist.md) — 권한 체계, 호스트 마이그레이션 선출 규칙
 - [`docs/decisions-needed.md`](decisions-needed.md) — 이 결정으로 해소된 대기 항목
+
+---
+
+## 2026-07-27 — 개발 우선순위를 YouTube 중심으로 전환
+
+**참석**: 사용자(제품 오너), 리더(오케스트레이터)
+**안건**: Spotify와 YouTube 둘 다 지원한다는 기존 MVP 범위 결정(`docs/specs/06-mvp-scope-and-tech-stack.md`)은 유지하되, **앞으로의 개발 작업 순서와 UI 기본값을 YouTube 우선으로 바꿀지** 결정.
+
+### 배경
+
+- 이번 세션에서 Spotify 쪽 API 제약이 반복적으로 발목을 잡았다: (1) Development Mode 앱의 카탈로그 엔드포인트 접근 제한(진단이 한 차례 바뀌었으나 결국 `limit` 파라미터 축소 문제로 확인), (2) Extended Quota Mode는 2025년 3월 기준 "정식 등록 사업자 + MAU 25만 이상" 요건이라 개인 프로젝트로는 사실상 신청 자격 자체가 없음(`docs/decisions-needed.md` 참고).
+- 반면 YouTube Data API v3는 OAuth 없이 API 키 하나로 검색이 바로 동작하고(2026-07-27 실연동 완료, 커밋 `07d57ac`), 쿼터 제약은 있지만 계정 심사 같은 구조적 장벽이 없다.
+- AskUserQuestion으로 변경 범위와 사유를 명확히 확인: (a) 범위는 "개발 우선순위를 YouTube로"(UI 기본값 변경 + 향후 작업 순서 조정, Spotify는 유지하되 적극 개선은 보류) — Spotify 지원 자체를 축소/제거하는 것은 **아님**. (b) 사유는 확인대로 Spotify API 제약 때문.
+
+### 결정
+
+**개발 우선순위를 YouTube 중심으로 전환한다.** 구체적으로:
+1. 세션 생성 화면(`CreateSessionScreen.tsx`)의 서비스 선택 기본값을 Spotify → **YouTube**로 변경.
+2. 앞으로 신규 기능/버그 수정 등 실제 작업 순서는 YouTube 관련 항목을 우선 배치.
+3. Spotify 지원 자체는 유지한다 — 기존 기능을 제거하거나 혼합 모드에서 배제하지 않는다. 다만 Spotify 전용 개선(예: Extended Quota Mode 신청 등)은 적극적으로 진행하지 않고 필요성이 명확해질 때(예: 실사용 중 실제로 막히는 지점이 재확인될 때) 재검토한다.
+4. MVP 범위 자체(Spotify+YouTube+혼합 3종 세션 유형 모두 지원)는 바뀌지 않는다 — 이건 "우선순위/기본값" 조정이지 스코프 축소가 아니다.
+
+### 후속 조치
+
+- [ ] `CreateSessionScreen.tsx` 서비스 선택 기본값 및 라디오 버튼 순서를 YouTube 우선으로 변경(구현 라운드 진행 예정).
+- [ ] `docs/roadmap.md` "다음 순서" 절에 YouTube 우선순위 반영.
+- [x] 이 결정 자체를 회의록으로 기록(이 항목).
+
+### 관련 문서
+
+- `docs/decisions-needed.md` — Spotify Extended Quota Mode 항목(적극 진행 보류로 재해석)
+- `docs/external-service-setup-guide.md` — YouTube API 설정 완료 기록
+- `docs/specs/06-mvp-scope-and-tech-stack.md` — 원래 MVP 범위 결정(Spotify+YouTube 동시 지원, 바뀌지 않음)

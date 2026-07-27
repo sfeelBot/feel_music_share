@@ -35,7 +35,7 @@
 
 ## Google Cloud Console (YouTube Data API v3)
 
-### API 활성화 + 키 발급 (⏳ 대기 중 — 안내만 완료, 사용자 액션 대기)
+### API 활성화 + 키 발급 (완료, 2026-07-27)
 
 Firebase 프로젝트는 내부적으로 같은 이름의 Google Cloud 프로젝트이므로 새로 만들 필요 없이 그대로 쓴다.
 
@@ -46,7 +46,7 @@ Firebase 프로젝트는 내부적으로 같은 이름의 Google Cloud 프로젝
 5. 생성된 키에서 **"키 제한"**(Restrict Key) 설정:
    - **API 제한**: "키 제한" 선택 → **"YouTube Data API v3"만 체크** (유출 시 피해 범위 최소화)
    - **애플리케이션 제한**: **"없음"** 권장 — 이 프로젝트는 앱에서 직접 HTTPS REST 호출을 하는 방식이라, Android/iOS 앱 제한(구글 네이티브 SDK 전용 검증 방식)을 걸면 정상 요청까지 막힐 수 있음
-6. 생성된 키 문자열을 리더(Claude)에게 전달 → `apps/mobile/src/config/env.ts`에 반영 후 `youtubeMockSearch.ts`를 실제 API 호출로 교체하는 구현 라운드 진행
+6. 생성된 키 문자열을 리더(Claude)에게 전달 → `apps/mobile/src/config/env.ts`의 `YOUTUBE_API_KEY`에 반영 완료, `services/youtube/youtubeSearch.ts`(실제 `search.list`+`videos.list` 호출)로 교체 완료(커밋 `07d57ac`) — 앱 내 실기기 검색 동작 확인은 아직 대기 중
 
 **쿼터 참고**: 기본 할당량 하루 10,000유닛, `search.list` 1회 호출당 100유닛 소모 → 하루 최대 약 100회 검색이 무료 한도. 여러 참여자가 자주 검색하면 빨리 소진될 수 있어 디바운스/캐싱 적용 예정(`docs/specs/04-playlist.md` 참고).
 
