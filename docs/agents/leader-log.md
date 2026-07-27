@@ -59,6 +59,10 @@
 - 요청: 사용자가 "개발 에이전트한테 도커같은 가상환경으로도 iOS와 Android 실기기 검증이 불가능한지 확인 요청해줘".
 - 판단: "개발 에이전트"라고 했지만 성격상(결정 없이 기술 실현 가능성만 조사) spiker 역할에 더 맞다고 판단해 spiker로 위임, 사용자에게 이유 설명.
 - 분배: spiker에게 위임(백그라운드) — Android는 Docker 기반 에뮬레이터로 빌드를 넘어 런타임 검증까지 가능한지(HAXM/WHPX 중첩 가상화 문제 포함, 로컬 AVD 대안도 짧게 언급), iOS는 Docker/컨테이너가 원리적으로 왜 안 되는지(컨테이너 vs VM 차이, Apple 라이선스 제약 별도 구분)를 조사하도록 지시. 기존에 조사된 iOS 클라우드 대안(GitHub Actions macOS 러너 등)은 중복 조사하지 말라고 명시.
+
+- 요청: 사용자가 실기기 "곡 추가" 검색 화면 스크린샷 공유 — Spotify 세션에서 "하이" 검색 시 `{"error": {"status": 400, "message": "Invalid limit"}}` 오류.
+- 진단(리더 직접 수행): `spotifyWebApi.ts`의 `limit=15`가 하드코딩 리터럴이라 코드상 문제 소지가 없음을 먼저 확인. Spotify 실 API에 더미 토큰으로 curl 테스트해 "인증이 파라미터 검증보다 먼저 체크된다"(401 우선)는 것을 확인 — 즉 사용자는 유효한 토큰으로 이 오류를 받은 것(로그인 자체는 정상 동작 확인). WebSearch로 원인 규명: **2024-11-27 Spotify API 정책 변경 이후 Development Mode 앱은 `/v1/search` 등 카탈로그 엔드포인트 접근이 아예 막히고, 이때 반환되는 오류 메시지가 실제 원인과 무관하게 "Invalid limit"로 오해의 소지가 있게 나온다는 것이 Spotify 생태계에 알려진 이슈**(출처: music-assistant/support#5360). 클라이언트 코드로 우회 불가 — Extended Quota Mode 신청(Spotify 심사)이 유일한 해결책.
+- 외부 액션: `docs/decisions-needed.md` 항목 1번을 이 진단으로 갱신, 긴급도 상향(검색 기능 자체가 막혀있어 이전 "급하지 않음" 평가를 뒤집음). 커밋 예정.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
