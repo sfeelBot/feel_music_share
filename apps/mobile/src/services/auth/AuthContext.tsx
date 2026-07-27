@@ -31,6 +31,13 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: () => Promise<void>;
   logout: () => void;
+  /**
+   * 개발자/QA 전용 데모 로그인 (실제 OAuth를 거치지 않음).
+   * 호출부(SpotifyConnectScreen)에서 __DEV__로 감싸 릴리즈 빌드에는 노출하지 않는다.
+   * tokens는 null로 남기므로 Spotify Web API를 직접 호출하는 화면(검색 등)은 accessToken이 없어
+   * 자연스럽게 실패/빈 결과로 처리된다 — 이는 의도된 제약이며 목업으로 대체하지 않는다.
+   */
+  loginAsDemo: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -63,7 +70,23 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     setState({status: 'signed_out', tokens: null, profile: null, error: null});
   }, []);
 
-  const value = useMemo(() => ({...state, login, logout}), [state, login, logout]);
+  const loginAsDemo = useCallback(() => {
+    setState({
+      status: 'signed_in',
+      tokens: null,
+      profile: {
+        id: 'demo-user',
+        displayName: '데모 사용자',
+        isPremium: true,
+      },
+      error: null,
+    });
+  }, []);
+
+  const value = useMemo(
+    () => ({...state, login, logout, loginAsDemo}),
+    [state, login, logout, loginAsDemo],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

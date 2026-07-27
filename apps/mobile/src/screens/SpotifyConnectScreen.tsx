@@ -25,7 +25,7 @@ const SPOTIFY_PREMIUM_URL = 'https://www.spotify.com/premium/';
 
 export default function SpotifyConnectScreen({navigation}: Props) {
   const theme = useTheme();
-  const {status, error, login} = useAuth();
+  const {status, error, login, loginAsDemo} = useAuth();
   const [freeInfoVisible, setFreeInfoVisible] = useState(false);
 
   useEffect(() => {
@@ -73,6 +73,15 @@ export default function SpotifyConnectScreen({navigation}: Props) {
         </TouchableOpacity>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {__DEV__ && (
+          <View style={styles.devSection}>
+            <Text style={styles.devLabel}>⚠ 개발자 전용 (릴리즈 빌드에서 제외됨)</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={loginAsDemo}>
+              <Text style={styles.devLink}>데모로 둘러보기 (로그인 건너뛰기)</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <Modal
@@ -130,6 +139,15 @@ const styles = StyleSheet.create({
   loginButton: {marginBottom: 16},
   link: {textAlign: 'center', fontSize: 13, fontWeight: '600'},
   errorText: {marginTop: 16, color: '#E4573D', textAlign: 'center'},
+  devSection: {
+    marginTop: 36,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 128, 128, 0.3)',
+    alignItems: 'center',
+  },
+  devLabel: {fontSize: 11, fontWeight: '600', color: '#E4573D', marginBottom: 6},
+  devLink: {fontSize: 12, fontWeight: '500', color: '#888888', textDecorationLine: 'underline'},
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
