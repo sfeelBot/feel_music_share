@@ -63,6 +63,11 @@
 - 분배: implementer에게 위임(백그라운드) — `CreateSessionScreen.tsx`(서비스/호스트플랫폼 기본값+라디오 순서), `HomeScreen.tsx`(혼합 참여 플랫폼 기본값) YouTube 우선으로 변경, 세션 생성/참여 시점 UI만 범위 한정(진행 중 세션 내부 서비스 전환 UI는 제외) 명시.
 - 결과(implementer 완료): 지시대로 정확히 변경 + **범위를 스스로 정확히 넓힘**(정당함) — `PlatformSelect.tsx`(호스트/참여자 공용 컴포넌트)가 라디오 순서를 실제로 그리는 지점이라는 걸 파악해 이것도 함께 순서 변경(안 했으면 state 기본값만 바뀌고 화면엔 여전히 Spotify가 먼저 보였을 것). 세션 이름 기본값은 서비스명 미포함 확인, `SessionSettingsView.tsx`(진행중 서비스 전환)는 지시대로 미변경.
 - 리더 검증: diff 리뷰 + `tsc`/`eslint`/`jest` 독립 재현 일치 후 커밋 `a6933e9`.
+
+- 요청: (하네스 메타 작업, 프로젝트 작업 아님) 사용자가 `/fewer-permission-prompts`, `/allow-git-cd`, `/__remote-workflow`, `/compact` 연속 실행 → 리더가 각각 처리(전자 둘은 스킬 실행 후 보고, 후자 둘은 리더가 직접 호출 불가한 종류임을 안내) + `decisions-needed.md` 갱신 요청 처리(Spotify 항목에 수정 완료 반영). 프로젝트 오케스트레이션과 무관한 세션이라 상세 생략, 이 한 줄만 기록.
+- 요청: 사용자가 "프로젝트 작업으로 돌아와서 마저 일해".
+- 확인(리더 직접 수행): RN Gradle 플러그인 소스(`node_modules/@react-native/gradle-plugin/.../TaskConfiguration.kt`)를 직접 읽어 `debuggableVariants=[]` 버그의 정확한 메커니즘 확인 — `isDebuggableVariant=false`인 variant의 번들 태스크가 `devEnabled=false`로 하드코딩되는 게 원인, `debuggableVariants` 자체를 되돌리면 "Unable to load script" 원래 문제가 재발하므로 되돌릴 수 없음(플러그인이 "번들 내장 여부"와 "dev 모드 번들링 여부"를 한 스위치에 묶어놓은 설계). 해법: 플러그인이 태스크를 등록한 이후 시점에 `devEnabled`만 다시 `true`로 덮어쓰기(네이티브 쪽 Metro-우선-폴백 동작은 별개 축이라 안전함을 기존 build.gradle 주석으로 재확인).
+- 분배: implementer에게 위임(백그라운드) — 정확한 진단과 해법 방향을 상세히 전달(태스크 이름은 추측하지 말고 실제 빌드에서 재확인 지시), release variant는 절대 건드리지 말 것을 명시, 검증은 Docker+KVM 실기기 설치 후 `uiautomator dump`로 데모 바이패스 섹션이 실제로 렌더링되는지 확인(Round 18과 동일 방법)까지 요구.
 - push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
