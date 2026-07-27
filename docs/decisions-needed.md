@@ -8,16 +8,18 @@
 
 ## 외부 계정 설정 필요 (사용자 액션)
 
-1. **Spotify Developer 앱 — Extended Quota Mode 신청 필요 (긴급도 상향, 2026-07-27)** (developer.spotify.com/dashboard) — (2026-07-26) User Management에 테스트 계정 추가 후 **로그인 자체는 실기기에서 성공 확인됨**. 하지만 (2026-07-27 실기기 확인) 곡 검색 시도 시 `{"error": {"status": 400, "message": "Invalid limit"}}` 오류 발생 — 리더가 코드(`spotifyWebApi.ts`의 `limit=15`)를 직접 검토하고 Spotify 공식 커뮤니티/이슈 트래커로 원인을 확인한 결과 **코드 문제가 아니다**. 2024년 11월 27일 Spotify API 정책 변경 이후, **Development Mode 앱은 `/v1/search`를 포함한 카탈로그 엔드포인트 자체에 접근할 수 없게 됐고**, 이때 반환되는 오류 메시지가 실제 원인(접근 권한 없음)과 무관하게 "Invalid limit"로 오해의 소지가 있게 나온다(Spotify 측의 알려진 오류 메시지 이슈, 출처: [music-assistant/support#5360](https://github.com/music-assistant/support/issues/5360)). **순수 클라이언트 측 우회 방법은 없다** — Spotify Dashboard에서 해당 앱의 **Extended Quota Mode 신청**(앱 정보 제출 후 Spotify 심사)이 필요하다. 심사에 시간이 걸릴 수 있으니 최대한 빨리 신청 권장 — 이게 없으면 Spotify 세션에서 곡 검색 기능 자체가 동작하지 않는다.
-2. **YouTube Data API v3 활성화** (Google Cloud Console) — YouTube 곡 검색·메타데이터 조회를 실제로 붙이려면 필요. 현재는 `apps/mobile/src/services/youtube/youtubeMockSearch.ts` 정적 목업으로 대체되어 있음.
+1. **Firebase 콘솔 → Authentication → Sign-in method → "익명(Anonymous)" 제공업체 활성화 (2026-07-27 신규)** — RTDB 1라운드(`sessionService.ts` 세션 생성/조회/참여 실연동, 커밋 `0ac969c`)에서 도입한 `@react-native-firebase/auth`의 `signInAnonymously()`가 실제로 성공하려면 이 제공업체가 켜져 있어야 함(안 켜져 있으면 `auth/operation-not-allowed` 에러). RTDB 보안 규칙(시나리오 A)이 `auth.uid`에 의존하므로 이게 없으면 세션 생성/참여 자체가 원천적으로 안 됨.
+2. **RTDB 보안 규칙 배포 (2026-07-27 신규)** — 저장소 루트의 `database.rules.json`(1라운드에서 작성, 아직 미배포)을 Firebase 콘솔 Realtime Database → 규칙 탭에 직접 붙여넣거나 `firebase deploy --only database`(Firebase CLI 프로젝트 초기화 필요)로 배포해야 함. 배포 전까지는 RTDB가 여전히 기본 잠금 상태(`.read`/`.write` 모두 `false`)라 세션 생성/조회/참여 시도가 전부 거부됨(회귀 아님, 의도된 순서). 위 1번과 함께 처리하면 그 자리에서 실제 세션 생성이 될지까지 확인 가능.
+3. **Spotify Developer 앱 — Extended Quota Mode 신청 필요 (긴급도 상향, 2026-07-27)** (developer.spotify.com/dashboard) — (2026-07-26) User Management에 테스트 계정 추가 후 **로그인 자체는 실기기에서 성공 확인됨**. 하지만 (2026-07-27 실기기 확인) 곡 검색 시도 시 `{"error": {"status": 400, "message": "Invalid limit"}}` 오류 발생 — 리더가 코드(`spotifyWebApi.ts`의 `limit=15`)를 직접 검토하고 Spotify 공식 커뮤니티/이슈 트래커로 원인을 확인한 결과 **코드 문제가 아니다**. 2024년 11월 27일 Spotify API 정책 변경 이후, **Development Mode 앱은 `/v1/search`를 포함한 카탈로그 엔드포인트 자체에 접근할 수 없게 됐고**, 이때 반환되는 오류 메시지가 실제 원인(접근 권한 없음)과 무관하게 "Invalid limit"로 오해의 소지가 있게 나온다(Spotify 측의 알려진 오류 메시지 이슈, 출처: [music-assistant/support#5360](https://github.com/music-assistant/support/issues/5360)). **순수 클라이언트 측 우회 방법은 없다** — Spotify Dashboard에서 해당 앱의 **Extended Quota Mode 신청**(앱 정보 제출 후 Spotify 심사)이 필요하다. 심사에 시간이 걸릴 수 있으니 최대한 빨리 신청 권장 — 이게 없으면 Spotify 세션에서 곡 검색 기능 자체가 동작하지 않는다.
+4. **YouTube Data API v3 활성화** (Google Cloud Console) — YouTube 곡 검색·메타데이터 조회를 실제로 붙이려면 필요. 현재는 `apps/mobile/src/services/youtube/youtubeMockSearch.ts` 정적 목업으로 대체되어 있음.
 
 ## 추후 논의로 보류된 항목 (해결 전까지 계속 유지)
 
-3. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
+5. **iOS 배포 방향** — TestFlight / Ad Hoc 중 선택, 어느 쪽이든 유료 Apple Developer Program($99/년) 가입이 전제조건. (2026-07-24, 2026-07-25 두 차례 "추후 논의"로 보류 확인 — 아직 실제 결정 아님)
 
 ## 다음 라운드 예정 — 구현 후 실기기 확인 필요 (지금 당장 사용자가 할 일 아님, 참고용)
 
-4. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.**
+6. **YouTube 실기기 검증**: 지금은 `YouTubeNowPlayingView.tsx`/`youtubePlayerStub.ts`가 전부 자리표시자(placeholder)라 실제 재생 자체가 없다. 다음 구현 라운드에서 `react-native-webview` + YouTube IFrame Player를 실제로 붙인 뒤, 아래 순서로 진행될 예정이다 — **지금 사용자가 먼저 조사할 필요는 없고, 구현이 끝나면 실기기(가능하면 사용자 폰) 설치 → 확인 → 보고 순서로 자연스럽게 이어진다.**
    - (a) **광고 노출 확인**: 실제 임베드 환경에서 영상 재생 시 프리롤/미드롤 광고가 뜨는지 육안 확인 — Premium이어도 서드파티 WebView 임베드에서 무광고가 보장되는지 공식 문서로 확답을 못 찾았기 때문(`docs/specs/03-youtube-integration.md` 7절).
    - (b) **명령 응답 지연 실측**: 재생/일시정지/탐색 명령을 내린 뒤 실제 화면 반영까지 걸리는 시간 측정 — 동기화 드리프트 보정 설계(`05-sync-architecture.md`)에 반영할 참고 수치를 얻기 위함.
    - 목적은 "YouTube를 포함할지 말지 판단"이 아니라(이미 포함하기로 결정됨) "제품 카피·사용자 기대치 문구를 정확히 쓰기 위한 실측"이다(`docs/specs/06-mvp-scope-and-tech-stack.md` 참고).
