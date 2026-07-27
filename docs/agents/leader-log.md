@@ -12,24 +12,23 @@
 
 ## 현재 상황 요약 (수시 갱신 — 아래 절과 달리 append 아님, 매번 덮어씀)
 
-> 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). **화면별 상세 현황·다음 순서는 이제 `docs/roadmap.md`(살아있는 문서, CLAUDE.md 리더 규칙 9번)가 전담한다 — 여기서는 그 문서를 갱신했다는 사실과 그 외 오케스트레이션 이슈만 요약한다.** 마지막 갱신: 2026-07-26.
+> 이 섹션은 아래 날짜별 append-only 로그와 다르다 — **현재 시점의 스냅샷**만 담으며, 리더가 상황이 바뀔 때마다 이 섹션 전체를 최신 내용으로 덮어쓴다(과거 이력은 아래 append-only 로그에 그대로 남아있으니 여기서는 "지금 뭐가 문제고 뭐가 진행 중인가"만 빠르게 파악하면 된다). **화면별 상세 현황·다음 순서는 `docs/roadmap.md`(살아있는 문서, CLAUDE.md 리더 규칙 9번)가 전담한다.** 마지막 갱신: 2026-07-27.
 
 ### 예상 리스크 및 해결할 문제
 
-1. **실기기 런타임 검증 한계**: 이 개발 환경(Windows)은 Android 빌드까지만 확인 가능. 갤럭시폰을 USB로 연결하면(USB 디버깅 활성화) `adb install`/`run-android`/`adb logcat`으로 실기기 검증 가능(안내 완료, 연결 여부 대기). iOS는 macOS/Xcode 부재로 여전히 구조적으로 불가능. Spotify 로그인이 실제로 동작하는지도 실기기 로그인 시도로만 최종 확인 가능.
-2. **Firebase 연동 미완료 — 원인 2가지**: ① `google-services.json`(저장소 루트, 미커밋)의 패키지명 오타(`come.mobile`→`com.mobile` 재등록 필요). ② RTDB/Firestore 둘 다 콘솔 미활성화. `docs/decisions-needed.md` 참고.
+1. **Spotify 검색 기능 막힘**: Development Mode 앱이라 `/v1/search` 등 카탈로그 엔드포인트 접근 자체가 Spotify 정책(2024-11-27 변경)으로 차단됨 — Extended Quota Mode 신청 필요(`docs/decisions-needed.md`). 로그인 자체는 실기기에서 정상 동작 확인됨.
+2. **Firebase — 이제 DB 선택만 남음**: 패키지명 재등록 + `google-services.json` 배치 + Gradle 플러그인 연결까지 전부 완료(Round 16 통과). Realtime Database vs Firestore 결정만 남음(`docs/spikes/firebase-rtdb-vs-firestore.md` 참고자료 있음) — 결정되면 `@react-native-firebase` SDK 설치+`firebaseClient.ts` 실제 초기화로 이어짐.
 3. **YouTube Data API v3 미완료** — YouTube 검색이 여전히 목업 상태.
-4. **iOS 배포 방향 미정(보류)**: 사용자가 두 차례 "추후 논의"로 보류.
-5. **적응형 아이콘(Android 8.0+) 없음**: legacy 아이콘 교체만으로 이번 스코프 완료, 추후 별도 결정 사항.
-6. 화면별 갭 목록(초대 코드 미표시, 플레이리스트 서비스 칩 미연결 등)은 `docs/roadmap.md`에 정리됨 — 여기 중복 기재하지 않는다.
+4. **iOS**: macOS 부재로 빌드/실행 구조적으로 불가능(Docker로도 확인 — 컨테이너가 다른 커널을 못 담는 원리적 한계 + Apple SLA 라이선스 제약 이중으로 막힘, `docs/spikes/docker-virtualization-for-mobile-verification.md`). 배포 방향도 사용자가 두 차례 "추후 논의"로 보류 중.
+5. **Android 실기기급 검증 역량 확보**: Docker+KVM으로 이 머신에서는 실제 설치/실행/화면 검증까지 가능함을 실측 확인(Round 15) — 정책상 "주요 기능 추가 시에만" 적용(CLAUDE.md 명문화).
+6. 화면별 갭 목록은 `docs/roadmap.md`에 정리됨 — 여기 중복 기재하지 않는다.
 
 ### 현재 진행중인 task
 
-1. **완료됨(2026-07-26, 이번 세션 전체)**: YouTube 실제 재생 연동(Round 5→6) → 혼합 세션 모드(Round 7→8) → Spotify Client ID 반영 + Premium 안내 모달(Round 9) → 사용자 여정 지도 제작+Artifact 발행(`https://claude.ai/code/artifact/42f555f5-eb71-4f57-8657-66ee9d858bf8`) → **"코드로 참여하기" + 세션 설정 화면(2.13/2.13a/2.13b) 병렬 구현(격리 worktree) 및 리더 수동 병합 → Round 10 검증 31개 항목 전부 통과**(커밋 `caea14d`). 하네스에 스파이크 역할(`spiker`)·세션 한도 복구 스킬(`session-limit-recovery`) 신설. `docs/roadmap.md`(화면별 현황+진행순서 살아있는 문서) 신규 작성.
-2. **완료(2026-07-26 계속)**: 로드맵 1·2번(초대 코드 표시, 플레이리스트 서비스 칩 연결) 구현(커밋 `bedbc72`) + Round 11 검증 19개 항목 전부 통과. `docs/roadmap.md` 갱신 완료.
-- 외부 액션: 사용자가 "push" 명시적 요청 → `git push origin main` 실행, `122fcc9..de3d983` 22개 커밋 push 완료(Round 5~11 전체).
-- 요청: 사용자가 "로드맵 검토 후 다음 진행" 요청. 리더가 `docs/roadmap.md` 재검토 → 액션 가능한 항목은 "낮은 우선순위" 절뿐임을 확인, iOS 배포는 재차 거론하지 않음(이미 두 차례 보류됨). AskUserQuestion으로 우선순위 확인 → 스플래시 화면, 2.14 엣지 상태 화면, 적응형 아이콘 3개 선택받음. 적응형 아이콘 추가 여부는 순수 결정 사항이라 별도로 재확인 → "추가한다" 확정.
-- 분배: 파일 겹침 없는 두 그룹으로 나눠 병렬 위임(백그라운드) — (1) implementer: 스플래시 화면(2.1)+엣지 상태 화면(2.14, 재접속 오버레이/호스트 마이그레이션 토스트 — Firebase 미연동이라 실제 트리거 로직 없이 UI+TODO로 한정 지시). (2) implementer: 적응형 아이콘(mipmap-anydpi-v26, 기존 SVG 재사용해 전경/배경 레이어 분리).
+1. **완료(2026-07-26~27)**: YouTube 재생 연동, 혼합 세션 모드, 코드로 참여하기+세션 설정 화면, 초대코드/서비스칩 연결, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원, 스플래시/엣지상태/적응형아이콘 — Round 5~16 전부 검증 통과. 상세는 `docs/roadmap.md`와 `docs/qa/spotify-mvp-round1-checklist.md` 참고.
+2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가 — 둘 다 로그인 벽 없이/실제로 화면을 검증할 수 있는 인프라. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료.
+3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase RTDB vs Firestore 결정 — 논의 중, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보.
+4. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태.
 - 결과: 둘 다 완료. (1) `SplashScreen.tsx` 신규(최소 노출 900ms 후 Home/Onboarding 자동 전환, 토큰 영속화 없어 SpotifyConnect 직행 분기는 의도적으로 생략), `ReconnectingOverlay.tsx` 신규+`RoomScreen.tsx` 호스트 마이그레이션 토스트 배선 — 둘 다 정직하게 "실제 트리거 없음, connectionStatus/hostParticipantId를 바꾸는 코드가 없어 지금은 발동 안 함"을 TODO로 명시(가짜 데모 없음). (2) `mipmap-anydpi-v26` 적응형 아이콘 신규(벡터 드로어블 배경+래스터 전경), legacy 아이콘 유지. 두 에이전트가 같은 res/ 디렉토리를 통한 빌드 과정에서 서로 다른 시점에 동일한 XML 네임스페이스 오타(`.../apis/res/android`)를 겪었으나 아이콘 에이전트가 발견해 수정, 최종적으로 둘 다 정상 빌드됨.
 - 리더 검증: `tsc`/`eslint`/`jest`/Android 증분 빌드 독립 재현(전부 일치) 후 커밋 `41dab27`.
 - 후속 분배: verifier에게 Round 12(세 기능 통합) 위임(백그라운드) — clean 재빌드 포함, "실제 트리거 없음" 주장의 grep 재확인 지시.
