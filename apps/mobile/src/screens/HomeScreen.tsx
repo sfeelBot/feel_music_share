@@ -36,7 +36,7 @@ export default function HomeScreen({navigation}: Props) {
   // 'form' → 'platform' 전환과 동일한 패턴(00-ux-flow.md 2.6c 개념을 참여자 쪽에도 그대로 적용,
   // Round 7 검증 R7.31 갭 해소). Spotify/YouTube 전용 세션 참여는 이 단계 자체를 거치지 않는다.
   const [step, setStep] = useState<'code' | 'platform'>('code');
-  const [joiningPlatform, setJoiningPlatform] = useState<MixedParticipantPlatform>('spotify');
+  const [joiningPlatform, setJoiningPlatform] = useState<MixedParticipantPlatform>('youtube');
 
   const attemptJoin = async (platform?: MixedParticipantPlatform) => {
     if (!profile || !firebaseUid) {

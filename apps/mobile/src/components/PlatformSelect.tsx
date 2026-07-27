@@ -30,14 +30,14 @@ export default function PlatformSelect({value, onChange}: PlatformSelectProps) {
       </Text>
 
       <PlatformRow
-        label="Spotify로 참여"
-        selected={value === 'spotify'}
-        onPress={() => onChange('spotify')}
-      />
-      <PlatformRow
         label="YouTube로 참여"
         selected={value === 'youtube'}
         onPress={() => onChange('youtube')}
+      />
+      <PlatformRow
+        label="Spotify로 참여"
+        selected={value === 'spotify'}
+        onPress={() => onChange('spotify')}
       />
 
       <Text style={[styles.infoBanner, {color: theme.textSecondary, backgroundColor: theme.cardBg}]}>

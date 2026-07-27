@@ -660,3 +660,21 @@
   4. **혼합 세션 매칭 결과가 이제 실제 YouTube 검색에 의존한다**(위 5번) — 이전에는 5곡 고정 목업이라 매칭 성공률이 인위적으로 높거나 재현 가능했지만, 이제는 실제 검색 결과에 따라 결과가 달라진다. `docs/spikes/matching-confidence-benchmark.md`가 언급한 "실측 스파이크" 전제 조건 중 하나(YouTube 실제 검색)가 이제 충족됐으니, 리더가 판단해 매칭 정확도 실측 라운드를 다시 검토할 수 있다.
   5. `docs/decisions-needed.md` 항목 3("YouTube Data API v3 활성화")을 삭제하고 나머지 항목 번호를 재정렬(4→3, 5→4)했다. "YouTube 실기기 검증" 항목(현재 4번)은 검색이 아니라 IFrame Player 재생 자체의 실기기 검증(광고 노출, 명령 응답 지연)을 다루는 별개 항목이라 그대로 유지했다 — 지시문에서 명시한 대로 이번 라운드는 코드 연동까지만.
   6. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.
+
+## 2026-07-27 (세션 생성/참여 서비스 선택 기본값 YouTube 우선 전환)
+- 작업: `docs/decision-log.md`(2026-07-27, "개발 우선순위를 YouTube 중심으로 전환")에 따라, 세션 생성·참여 시점의 음악 서비스/플랫폼 선택 UI 기본값과 노출 순서를 Spotify 우선에서 YouTube 우선으로 변경. Spotify 지원 자체는 그대로 유지 — 기본값과 순서만 교체.
+  1. `CreateSessionScreen.tsx`: `service` state 기본값 `'spotify'` → `'youtube'`, 혼합 모드에서 호스트 본인 참여 플랫폼 `hostPlatform` 기본값도 `'spotify'` → `'youtube'`. 서비스 선택 라디오 렌더링 순서를 YouTube → Spotify → 혼합으로 교체(JSX가 배열 `.map()`이 아니라 `<RadioRow>` 세 개를 직접 나열하는 구조라 JSX 배치만 바꾸면 됨 — 데이터 구조 변경 불필요).
+  2. `HomeScreen.tsx`: "코드로 참여하기" 시 혼합 세션이면 참여자 본인 플랫폼을 고르는 `joiningPlatform` state 기본값 `'spotify'` → `'youtube'`(CreateSessionScreen의 host 쪽과 동일 패턴).
+  3. `components/PlatformSelect.tsx`: 위 두 화면(호스트 2.6c 단계, 참여자 2.6c 단계) 모두 이 공용 컴포넌트를 재사용하고 있었고, 여기서도 `<PlatformRow>` 두 개를 JSX로 직접 나열하는 구조(배열 기반 아님) — Spotify → YouTube 순서를 YouTube → Spotify로 교체. 이 컴포넌트를 안 고쳤으면 CreateSessionScreen/HomeScreen의 state 기본값만 바뀌고 화면상 라디오 노출 순서는 여전히 Spotify가 먼저 보이는 불일치가 남을 뻔했음.
+  4. `sessionName` 기본값("우리 둘의 플레이리스트")은 서비스명을 포함하지 않아 손대지 않음(지시문 확인 사항).
+  5. 범위 확인을 위해 `grep -rn "'spotify'" apps/mobile/src`로 20개 파일을 훑었으나, `SessionSettingsView.tsx`(세션 생성이 아니라 이미 활성화된 세션 내부의 서비스 *전환* UI — `activeService`/`requestServiceSwitch` 기반, "기본값" 개념 자체가 없음)를 포함해 나머지는 전부 지시문이 명시한 범위(생성/참여 시점 선택 UI) 밖이라 그대로 두었다.
+- 상태: 완료(검증 대기)
+- 변경 파일:
+  - `apps/mobile/src/screens/CreateSessionScreen.tsx`
+  - `apps/mobile/src/screens/HomeScreen.tsx`
+  - `apps/mobile/src/components/PlatformSelect.tsx`
+- 비고(검증 시 주의):
+  1. `npx tsc --noEmit`(0 errors), `npx eslint .`(0 errors, 기존부터 있던 `react-native/no-inline-styles` 경고 25건만 — 이번 변경으로 신규 경고 없음), `npx jest`(9 suites / 48 tests 전부 통과, 신규 실패 없음) 확인.
+  2. Android 빌드(`assembleDebug`)는 생략 — 순수 JSX 배치·state 초기값 리터럴 변경뿐이라 네이티브 산출물에 영향 없음(지시문에서도 Android 빌드 불필요로 명시).
+  3. 기존 테스트 스위트 중 CreateSessionScreen/HomeScreen/PlatformSelect의 기본 선택값이 `'spotify'`임을 전제로 검증하는 테스트는 없었다(전부 통과) — 다만 검증 에이전트가 수동 QA 체크리스트(`docs/qa/`)에 "세션 생성 화면 진입 시 기본 선택이 YouTube인지" 항목이 있다면 그 기준도 이번 변경에 맞춰 갱신됐는지 확인 필요.
+  4. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.

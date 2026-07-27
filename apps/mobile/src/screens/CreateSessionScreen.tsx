@@ -44,13 +44,13 @@ export default function CreateSessionScreen({navigation}: Props) {
   const {createSession} = useSession();
 
   const [sessionName, setSessionName] = useState('우리 둘의 플레이리스트');
-  const [service, setService] = useState<MusicService>('spotify');
+  const [service, setService] = useState<MusicService>('youtube');
   const [capacity, setCapacity] = useState(SESSION_CAPACITY_DEFAULT);
   const [isCreating, setIsCreating] = useState(false);
   // 혼합 세션 전용 2단계 흐름 (2.6 → 2.6c) — 'form'은 기존 세션 생성 폼, 'platform'은 호스트 본인의
   // 참여 플랫폼 선택 화면. Spotify/YouTube 전용 세션은 이 단계 자체가 없다(09문서 "결정 3").
   const [step, setStep] = useState<'form' | 'platform'>('form');
-  const [hostPlatform, setHostPlatform] = useState<MixedParticipantPlatform>('spotify');
+  const [hostPlatform, setHostPlatform] = useState<MixedParticipantPlatform>('youtube');
 
   const finalizeCreate = async (resolvedHostPlatform?: MixedParticipantPlatform) => {
     if (!profile || !firebaseUid) {
@@ -127,8 +127,8 @@ export default function CreateSessionScreen({navigation}: Props) {
 
         <View>
           <Text style={[styles.label, {color: theme.textSecondary}]}>음악 서비스</Text>
-          <RadioRow label="Spotify" selected={service === 'spotify'} disabled={false} onPress={() => setService('spotify')} />
           <RadioRow label="YouTube" selected={service === 'youtube'} disabled={false} onPress={() => setService('youtube')} />
+          <RadioRow label="Spotify" selected={service === 'spotify'} disabled={false} onPress={() => setService('spotify')} />
           <RadioRow
             label="혼합 (Mixed)"
             selected={service === 'mixed'}
