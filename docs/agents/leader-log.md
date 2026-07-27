@@ -52,6 +52,9 @@
 - 후속 분배: verifier에게 Round 13(코어 데이터 모델 변경, 파급효과 큼) 위임(백그라운드) — 서비스별 격리·재생위치 복원·혼합 세션 무영향·소비 화면 전수 확인·기존 라운드 회귀 확인을 특히 꼼꼼히 지시, clean Android 재빌드 포함.
 - 결과(verifier Round 13 완료): 통과(19/19), clean Android 재빌드 포함. 비차단 관찰 2건 — (1) 구현 로그 서술 오기(신규 테스트 개수), (2) **실질적 갭**: 복원된 `positionMs`가 YouTube IFrame Player 실제 시크에 반영 안 됨(`loadVideoById`/`cueVideoById` 호출부가 `startSeconds` 파라미터를 안 씀).
 - 외부 액션: 커밋 `75d39b9`(Round 13 QA), `fc6dbad`(roadmap.md 갭 기록). 사용자가 "push 진행하고 youtube 진행해" 요청 → `git push origin main`(`0f74d30..fc6dbad`) 완료 → implementer에게 YouTube 시크 갭 수정 위임(백그라운드) — 원인·정확한 수정 지점(`youtubePlayerHtml.ts`의 `playerVars.start`, `YouTubeNowPlayingView.tsx`의 `initialHtml` useMemo)을 이미 파악해 정확히 지시, `loadVideoById`/`cueVideoById` 경로는 건드리지 말라고 명시(트랙 전환 시 0초 시작은 기존 정책이 맞음).
+- 결과(implementer 완료): 리더 지시대로 정확히 수정 — `buildYoutubePlayerHtml`에 `startSeconds` 옵션(정수 클램프) 추가, `initialHtml`이 비혼합 세션에 한해 `session.playback.positionMs`를 전달하도록 배선. 단위 테스트 5건 추가.
+- 리더 검증: diff 리뷰 + `tsc`/`eslint`/`jest`(9 suites/48 tests)/Android 빌드 독립 재현 후 커밋 `a256190`.
+- 후속 분배: verifier에게 Round 14(좁은 범위, YouTube 시크 복원 단일 갭) 위임(백그라운드) — 혼합 세션 제외 로직·트랙 전환 시 회귀 없음 재확인 지시.
 3. **대기 중(사용자 액션)**: Firebase 패키지명 재등록 + `google-services.json` 재공유, RTDB/Firestore 중 최소 하나 활성화, YouTube Data API 설정 공유. 갤럭시폰 USB 연결도 대기(필수 아님).
 4. **주의**: 저장소 루트의 `google-services.json`은 패키지명 오타가 있어 커밋하지 않고 그대로 둠 — 재공유받으면 교체 후 `apps/mobile/android/app/`로 옮기고 커밋.
 
