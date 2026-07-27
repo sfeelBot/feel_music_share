@@ -27,7 +27,7 @@
 
 1. **완료(2026-07-26~27)**: YouTube 재생 연동, 혼합 세션 모드, 코드로 참여하기+세션 설정 화면, 초대코드/서비스칩 연결, 서비스별 플레이리스트 독립 보존, YouTube 시크 복원, 스플래시/엣지상태/적응형아이콘 — Round 5~16 전부 검증 통과. 상세는 `docs/roadmap.md`와 `docs/qa/spotify-mvp-round1-checklist.md` 참고.
 2. **완료(2026-07-27)**: 하네스에 Docker 기반 Android 실기기급 검증 역량 추가(스파이크로 실측 확인 후 정책 명문화) + 디버그 전용 데모 로그인 바이패스(`loginAsDemo`, `__DEV__` 한정) 추가. Firebase 패키지명 문제 완전 해소 + Gradle 플러그인 연결 완료 + RTDB vs Firestore 결정(RTDB, `docs/decision-log.md`) + SDK 설치/`firebaseClient.ts` 실제 초기화 완료(커밋 `58317c2`).
-3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase 콘솔 RTDB 활성화(사용자 액션, 유일한 남은 블로커) → 되는 대로 `sessionService.ts` 실제 RTDB 연동 착수, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보. verifier에게 이번 SDK 설치 라운드 검증 위임 여부 판단 필요(빌드 성공 확인은 리더가 이미 독립 재현 완료, 런타임 동작 변화 없어 build-only로 충분하다고 잠정 판단 — 아래 로그 참고).
+3. **다음 우선순위(사용자 확인 필요)**: (a) Firebase 콘솔 RTDB 활성화(사용자 액션, 유일한 남은 블로커) → 되는 대로 `sessionService.ts` 실제 RTDB 연동 착수, (b) Spotify Extended Quota Mode 신청(사용자 액션), (c) 로그인 벽 이후 화면(세션 생성~매칭 등) 실기기/데모 바이패스 기반 실행 검증 — Round 15가 못 채운 공백, 다음 후보. Round 17(RTDB SDK 설치+초기화, build-only) 검증 통과 완료(15/15) — 이번 Firebase 관련 코드 준비 라운드는 완전히 끝났고, 다음은 콘솔 활성화 대기.
 4. **주의**: `docs/roadmap.md` "다음 순서" 절의 액션 가능 항목은 대부분 소진 — 외부 계정 대기 또는 사용자 우선순위 재확인이 필요한 상태.
 
 - 요청: 사용자가 "RTDB로 구축해줘" + "위 rtdb 결정 관련 내용은 회의록 형식으로 정리해서 docs 폴더에 하나 만들도 넣어놔".
@@ -98,6 +98,9 @@
 - 결과(implementer 완료): `@react-native-firebase/app`+`/database` `25.1.0` 정확히 고정 설치, `firebaseClient.ts` STUB → 모듈러 API(`getApps`/`getDatabase`) 기반 실제 초기화로 교체, `getFirebaseDatabase()` 헬퍼 신규(인스턴스만, read/write 없음), `getFirebaseConnectionStatus()`를 `isAppInitialized`/`isDatabaseVerified`/`isConfigured` 세 필드로 재설계(단 `isDatabaseVerified`는 아직 `isAppInitialized`와 동일 로직 — 실제 RTDB 활성화는 read/write 응답 전까진 알 수 없다는 한계를 주석에 명시, 다음 라운드에서 `sessionService.ts` 실연동 시 자연히 해소될 예정). `.env.example`/`jest.config.js`/`firebase-integration-guide.md` 체크리스트도 함께 갱신.
 - 리더 검증: diff 리뷰(scope 준수 확인) + `tsc`/`eslint`(0 errors, 23 pre-existing warnings)/`jest`(9 suites/48 tests) 독립 재현 일치 + Android 빌드 독립 재현(증분 BUILD SUCCESSFUL + **clean 재빌드도 별도 수행** BUILD SUCCESSFUL in 2m 2s, androidx.browser류 네이티브 버전 충돌 이번엔 없음) 후 커밋 `58317c2`.
 - 후속 분배: verifier에게 Round 17(SDK 설치+초기화, 런타임 동작 변화 없어 build-only 범위로 한정 — CLAUDE.md 정책상 Docker 실기기 검증은 "주요 기능 추가"에만 적용, 이번 라운드는 해당 안 된다고 판단) 위임(백그라운드) — 코드 리뷰(모듈러 API 사용, `isDatabaseVerified` 한계 주석 일치)+정적 검증 3종+Android 증분/clean 빌드 교차 재현+회귀(diff 범위 밖 영향 없음) 확인 지시.
+- 결과(verifier Round 17 완료): **통과(15/15)**. 리더의 사전 판단("런타임 동작 변화 없음, build-only로 충분")을 코드 리뷰로 재확인 — `sessionService.ts`/`SessionContext.tsx` 여전히 인메모리 목업(TODO만 4곳), 어떤 화면/서비스도 `firebaseClient.ts`를 아직 import 안 함(grep 확인). `firebaseClient.ts`가 모듈러 API만 쓰고 레거시 네임스페이스드 API 없음, `isDatabaseVerified` 한계 주석과 코드 로직 일치(과장 없음), `getFirebaseDatabase()` 네트워크 요청 없음을 코드 리뷰로 확인. 정적 검증 3종 + Android `clean`→`assembleDebug` 완전 재빌드 독립 재현 전부 리더 보고와 일치, 회귀 없음. iOS는 이번 커밋이 건드리지 않아 무영향(구조적 미검증 상태는 기존과 동일, 회귀 아님).
+- 리더 검토: 산출물(`docs/qa/spotify-mvp-round1-checklist.md` "Round 17 검증" 절, `docs/agents/verification-log.md`) diff 리뷰 후 그대로 커밋 `eeb47d5` — 리더의 독립 재현 결과와 정확히 일치해 추가 재검증 없이 신뢰.
+- **이것으로 "RTDB로 구축해줘" 요청 중 코드 준비 단계는 완전히 종료.** 다음 단계(`sessionService.ts` 실제 RTDB 연동)는 사용자의 Firebase 콘솔 RTDB 활성화가 선행돼야 하므로 현재는 대기 상태 — 활성화되면 즉시 착수 가능.
 
 ## 2026-07-23 (회고 기록 — leader-log.md 신설 이전 작업 재구성)
 
