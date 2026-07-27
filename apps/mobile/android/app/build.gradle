@@ -1,6 +1,10 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+// google-services.json(패키지명 com.mobile)을 defaultConfig.applicationId와 매칭시켜
+// google-services.google-services.json 리소스를 생성하는 Firebase 플러그인.
+// (범위 밖: 실제 @react-native-firebase SDK 설치·초기화는 다음 라운드)
+apply plugin: "com.google.gms.google-services"
 
 /**
  * This is the configuration block to customize your React Native Android app.

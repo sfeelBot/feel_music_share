@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1000609556712",
+    "project_id": "feel-music-share",
+    "storage_bucket": "feel-music-share.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1000609556712:android:24105986b8836b9795015d",
+        "android_client_info": {
+          "package_name": "com.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBY0cylLN4LCPd6Jlg_-heuGeSeqdKr1g0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1000609556712:android:d7e7371132bad03e95015d",
+        "android_client_info": {
+          "package_name": "come.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBY0cylLN4LCPd6Jlg_-heuGeSeqdKr1g0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

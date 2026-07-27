@@ -23,6 +23,10 @@ buildscript {
         classpath("com.android.tools.build:gradle:8.10.1")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        // Firebase(google-services.json) 파싱 + google-services 매핑 리소스 생성 플러그인.
+        // 4.5.0 = 이 시점(2026-07-27) Google Maven(dl.google.com) maven-metadata.xml 기준 최신
+        // 안정 버전. AGP 최소 요구치가 낮아(3.4+) 우리 AGP 8.10.1/Gradle 8.11.1과 호환된다.
+        classpath("com.google.gms:google-services:4.5.0")
     }
 }
 
