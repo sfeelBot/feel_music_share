@@ -265,3 +265,17 @@
   - 결과적으로 지시받은 6개 항목 중 1~5번(세션 생성/참여/메인 화면/곡 검색/세션 설정)은 로그인 벽을 넘을 방법이 없어(실제 계정 로그인은 지시상 금지, 코드 수정은 이번 라운드 범위 밖) **전혀 검증하지 못했다** — 가짜로 채우지 않고 정직하게 "구조적으로 불가능했음"으로 기록. 6번(다크모드/뒤로가기/logcat)은 로그인 벽 이전 화면 한정으로 재확인해 전부 통과(회귀 없음, 크래시 0건).
   - 부가 발견(코드 리뷰): 설령 이 버그를 고치더라도 `loginAsDemo()`가 항상 고정 `participantId: 'demo-user'`를 반환해 "코드로 참여하기"의 진짜 신규 참여자 경로(특히 `capacity_full` 거부)는 단일 데모 계정으로는 구조적으로 검증 불가능하다는 한계도 함께 기록해 다음 수정 라운드에 전달.
   - **버그 리포트를 구현 에이전트로 반려 필요** — 코드 수정 없이 원인·재현 경로·수정 방향 제안(3가지 옵션) 세 가지를 `docs/qa/spotify-mvp-round1-checklist.md` Round 18 절 말미에 남겨뒀다. 이번 라운드에서는 코드를 직접 고치지 않았다(검증 라운드 범위 준수).
+
+## 2026-07-28 (Round 20, 로그인 벽 이후 화면 재시도 — `debuggableVariants=[]` 수정 후, Docker+KVM 실기기급)
+- 검증 대상: Round 19(`debuggableVariants=[]` 버그 수정, 커밋 `d7b3789`) 이후 처음으로 로그인 벽 이후 화면(세션 생성/설정/플레이리스트 스와이프 삭제/YouTube 곡 검색)을 실기기급으로 검증하려는 시도. `apps/mobile` 소스는 HEAD `d7b3789` 그대로 로컬 재빌드(`git status --short` 클린 확인). `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 20 검증" 절 추가.
+- 플랫폼: Android (Docker+KVM 실기기급, `budtmo/docker-android:emulator_11.0`, KVM 가속 확인). iOS는 이번 라운드도 macOS 부재로 대상 아님(기존 구조적 제약 동일, 이번 변경은 Android 전용이라 iOS 코드 자체가 무관).
+- 결과: **부분 통과 — 지시받은 7개 항목 중 4개(1/2/6/7번)는 완전히 검증, 새 버그 1건 발견, 3개(3/4/5번)는 이번에도 구조적으로 미검증.**
+- 상세:
+  - Round 19의 `__DEV__` 데모 바이패스 fix가 이번 독립 빌드에서도 완전히 재현됨(회귀 없음) — 스플래시→온보딩 3컷→SpotifyConnect→"데모로 둘러보기" 탭→HomeScreen까지 크래시 없이 도달.
+  - **세션 생성 화면(`CreateSessionScreen.tsx`) — 지시 1번, 전부 통과**: 서비스 기본값 YouTube 확인, 라디오 순서(YouTube→Spotify→혼합) 확인, Spotify/혼합 전환 시 안내 배너 텍스트 정확히 교체됨, 정원 스테퍼 44×44 터치 타겟을 `uiautomator dump` bounds(176px = 44dp×4x밀도)로 실측 확인 + 실제 탭으로 2명→4명 증가와 min 비활성화 상태 확인, 공통 `BackButton` 탭/하드웨어 백 양쪽 정상.
+  - **세션 생성 시도 — 지시 2번, "정상적으로 실패"는 확인했으나 사용자 피드백 부재 발견**: `adb logcat`에서 `RepoOperation: updateChildren at / failed: DatabaseError: Permission denied` 정확히 포착(예상된 실패, 회귀 아님). 화면 크래시는 없으나 `finalizeCreate`(`CreateSessionScreen.tsx`)에 `catch`가 없어 사용자에게 보이는 에러 메시지가 전혀 없음(개발자 전용 LogBox 배너만 뜸, 릴리즈에는 없음) — 버그로 판정하진 않았으나(크래시 아님) 개선 여지로 기록.
+  - **신규 버그 발견 — HomeScreen "코드로 참여하기" 버튼이 로딩 스피너에 영구히 멈춤**: `attemptJoin`(`HomeScreen.tsx`)이 `await joinSession(...)`을 try/catch/finally 없이 호출 — RTDB 읽기가 `Listen at /inviteCodes/ABCDEF failed: DatabaseError: Permission denied`로 reject되면 `setIsJoining(false)`가 실행되지 않아 버튼이 로딩 스피너에서 90초+ 동안(다른 화면 이동 후 복귀해도) 복귀하지 않음을 실측 확인. 앱 전체는 먹통이 되지 않음(다른 버튼은 정상 반응). RTDB 규칙이 배포된 뒤에도 다른 이유(네트워크 예외 등)로 재발 가능한 구조적 버그라 별도로 보고.
+  - **세션 설정/플레이리스트 스와이프 삭제/YouTube 곡 검색 — 지시 3, 4, 5번, 이번에도 미검증**: 로그인 벽은 뚫렸지만 세션 생성(RTDB 쓰기 거부)과 참여(RTDB 읽기 거부)가 둘 다 실패해 `RoomScreen`(세 화면이 전부 그 하위에서만 마운트됨)에 정상적으로 진입할 방법이 구조적으로 없음을 코드 추적(`CreateSessionScreen.tsx`/`sessionService.ts`/`HomeScreen.tsx`/`SessionSettingsView.tsx`/`PlaylistView.tsx`)과 실기기 시도 양쪽으로 확정. `docs/decisions-needed.md`의 "RTDB 보안 규칙 배포"가 아직 처리되지 않은 결과이며 코드 결함이 아니므로 검증 실패로 판정하지 않고 "구조적으로 불가능함"으로 정직하게 기록. YouTube API 키가 실제 값이고 에뮬레이터 인터넷 연결이 살아있음(`ping 8.8.8.8` 성공)은 미리 확인해둬 RTDB만 풀리면 곧바로 다음 라운드에서 검증 가능한 상태로 남겨뒀다.
+  - 혼합 세션 참여자별 검증은 애초에 세션 생성 자체가 안 되어 이번에도 시도조차 못함(기존 알려진 단일 데모 계정 한계와는 별개로, 더 앞단인 세션 생성 실패가 먼저 막음).
+  - 다크모드(HomeScreen/CreateSessionScreen 재확인) + 전체 세션 `adb logcat`(493줄) 크래시 스캔 — 전부 통과, `FATAL EXCEPTION`/`ANR`/`AndroidRuntime.*com.mobile` 0건. `ReactNativeJNI: ... Failed to connect to /10.0.2.2:8081` 반복 로그는 Round 19의 `__DEV__=true` fix로 인한 예상된 부작용(Metro 재연결 시도 실패 후 폴백)으로 판단, 실패 아님.
+  - **버그 리포트를 구현 에이전트로 반려 필요** — 코드 수정 없이 (1) HomeScreen 로딩 스피너 영구 고정 버그, (2) CreateSessionScreen 에러 피드백 부재 개선 여지, (3) RTDB 규칙 배포가 다음 검증의 선행 조건임을 `docs/qa/spotify-mvp-round1-checklist.md` Round 20 절 말미에 남겨뒀다. 코드는 직접 고치지 않았다(검증 라운드 범위 준수).

@@ -1316,3 +1316,100 @@ Round 13에서 발견된 비차단 갭(R13.19) 하나만 좁게 고치는 커밋
 1. **핵심 버그**: `apps/mobile/android/app/build.gradle`의 `react { debuggableVariants = [] }` 설정 때문에 `assembleDebug`로 만든 모든 APK에서 `__DEV__`가 런타임에 `false`로 평가된다 — `SpotifyConnectScreen.tsx`의 `{__DEV__ && (...)}` 데모 바이패스 버튼(커밋 `8f3b9cd`)이 이 빌드 구성에서는 영구적으로 렌더링되지 않는다. 재현: `cd apps/mobile/android && ./gradlew.bat assembleDebug` → 설치 → SpotifyConnect 화면까지 진행 → "Premium이 없으신가요?" 링크 아래에 "데모로 둘러보기" 섹션이 없음을 확인(`uiautomator dump`로 재확인 가능).
 2. **제안(결정은 구현/리더 몫, 검증자는 강제하지 않음)**: (a) `__DEV__` 대신 별도의 명시적 플래그(예: `BuildConfig.DEBUG`를 네이티브에서 JS로 브릿지하거나, `react-native-config` 등으로 별도 `ENABLE_DEMO_LOGIN` 환경변수를 두는 방법)로 게이팅을 바꾸거나, (b) 데모 바이패스가 필요한 QA 빌드에 한해서만 `debuggableVariants`에 `debug`를 포함하는 별도 그레이들 variant/flavor를 만들거나, (c) `metro.config.js`/CI 스크립트에서 QA용 빌드일 때만 `--dev true`로 강제 번들링하는 방법 등이 있다 — 어느 쪽이든 "사이드로드 배포용 debug APK는 Metro 없이 동작해야 한다"(`4f5c32a`의 원래 요구사항)와 "데모 바이패스는 릴리즈에 노출되면 안 된다"(`8f3b9cd`의 원래 요구사항)를 **동시에** 만족시켜야 한다.
 3. **부가 사항**: 위 버그가 고쳐진 뒤 재검증할 때도, `loginAsDemo()`의 고정 ID 문제(2절 참고) 때문에 "코드로 참여하기"의 신규 참여자 경로는 여전히 부분적으로만 검증 가능하다는 점을 다음 라운드 지시에 미리 반영해두면 좋겠다.
+
+---
+
+## Round 20 검증 (`debuggableVariants=[]` 수정 후 — 로그인 벽 이후 화면, Docker+KVM 실기기급)
+
+> 검증 대상 커밋: `d7b3789`("Fix debuggableVariants=[] permanently disabling __DEV__ in debug builds", HEAD) 소스로 로컬에서 직접 재빌드. `git status --short`가 완전히 클린함을 확인(작업 시작 시점 untracked/modified 파일 없음).
+> 검증일: 2026-07-28
+> 검증 담당: 검증(Verification) 서브에이전트
+> 지시자: 리더 — Round 19에서 `debuggableVariants=[]` 버그가 수정되고 데모 바이패스가 end-to-end(HomeScreen 도달)로 확인된 직후, Round 18이 "로그인 벽 때문에 전혀 검증 못함"으로 남긴 로그인 벽 이후 화면들을 이번에야말로 실제로 검증하라는 명시적 요청("주요 기능 검증"급 Docker+KVM 절차 지시).
+> 참고 문서: `docs/spikes/docker-virtualization-for-mobile-verification.md`, Round 15/18/19.
+> 환경: Windows 11 Pro (10.0.26200), Docker Desktop 29.2.0(WSL2 backend), `budtmo/docker-android:emulator_11.0`(로컬 캐시 재사용) 컨테이너 위 Android 11 에뮬레이터(Samsung Galaxy S10 프로필, 1440x3040, KVM 가속: `CPU Acceleration status: KVM (version 12) is installed and usable.`, `Boot completed in 33786 ms`). Android 빌드: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`.
+> **결론 먼저**: 지시받은 7개 항목 중 **1, 2, 6, 7번은 실제 기기에서 완전히 검증했다**(전부 통과, 회귀 없음, 크래시 0건). 그 과정에서 이전 라운드에 없던 **새 버그 1건**(HomeScreen "코드로 참여하기" 버튼이 RTDB 읽기 실패 시 로딩 스피너에 영구히 멈춤)을 발견했다. **3, 4, 5번(세션 설정/플레이리스트 스와이프 삭제/곡 검색)은 이번에도 검증하지 못했다** — Round 18과는 다른 이유(데모 바이패스 자체는 이제 정상 작동)로, RTDB 보안 규칙이 아직 미배포라 세션 생성/참여가 둘 다 실제로 실패하기 때문에 `RoomScreen`(이 세 화면이 전부 그 안에서만 렌더링됨)에 진입할 방법이 구조적으로 없다. 아래 0절에서 이 인과관계를 코드 추적으로 먼저 확정한다.
+
+### 0. 사전 코드 추적 — "왜 RoomScreen에 도달할 수 없는가" (실기기 시도 전에 근거를 먼저 확정)
+
+| # | 확인 내용 | 근거 |
+|---|---|---|
+| R20.0a | `CreateSessionScreen.tsx`의 `finalizeCreate`가 `await createSession(...)`을 `try { ... } finally { setIsCreating(false) }`로만 감싸고 **catch가 없다** — `sessionService.createSession`이 RTDB `update()` 거부로 reject하면 `navigation.replace('Room', ...)`에 도달하지 못하고 예외가 처리되지 않은 채(unhandled) 그대로 전파된다. | `apps/mobile/src/screens/CreateSessionScreen.tsx` 55~76행 직접 읽음. |
+| R20.0b | `sessionService.createSession`은 `sessions.set(sessionId, session); return session;`을 `await update(ref(db), updates);` **다음 줄**에 두고 있어, RTDB 쓰기가 거부되면 로컬 캐시에도 세션이 만들어지지 않는다(우회 경로 없음). `database.rules.json`은 작성돼 있으나 아직 Firebase 콘솔에 배포되지 않은 상태(`docs/decisions-needed.md` 1번 항목, 이번 검증 시작 시점에도 여전히 미결). | `apps/mobile/src/services/session/sessionService.ts` 216~252행, `docs/decisions-needed.md`. |
+| R20.0c | `HomeScreen.tsx`의 `attemptJoin`은 `await joinSession(...)`을 **try/catch/finally 어느 것도 없이** 직접 호출한다 — `joinSession`(`SessionContext`)이 내부적으로 호출하는 `sessionService.joinSessionByCode` → `getSessionByInviteCode`가 `get(ref(db, 'inviteCodes/...'))` **읽기**부터 거부되어 reject하면, `setIsJoining(false)`(61행)가 영원히 실행되지 않는다. | `apps/mobile/src/screens/HomeScreen.tsx` 41~89행, `apps/mobile/src/services/session/sessionService.ts` 288~300행. |
+| R20.0d | `SessionSettingsView.tsx`/`PlaylistView.tsx`는 둘 다 `useSession()`이 반환하는 `session`이 `null`이 아닐 때만 실질적인 UI를 그린다(`SessionSettingsView`는 `!session`이면 "세션 정보를 찾을 수 없어요" 플레이스홀더만, `PlaylistView`는 `!session`이면 `return null`). 두 화면 모두 `RootStackParamList`의 `Room` 화면 하위 탭으로만 마운트되므로, `Room`에 도달하는 유일한 경로(createSession 성공 / joinSession 성공)가 둘 다 막힌 지금은 **정상적인 방법으로는 어느 쪽도 렌더링될 기회 자체가 없다.** | `apps/mobile/src/screens/room/SessionSettingsView.tsx` 79~90행, `apps/mobile/src/screens/room/PlaylistView.tsx` 177~179행. |
+
+**결론(사전 판단)**: R20.0a~d에 따라, RTDB 규칙이 배포되기 전까지는 세션 생성/참여 둘 다 코드 구조상 항상 실패하고, `Room` 화면(및 그 하위의 `SessionSettingsView`/`PlaylistView`/`AddTrackModal`)에는 **정상 플로우로 도달할 방법이 없다.** 이는 이번 라운드나 Round 19가 새로 만든 문제가 아니라 RTDB 마이그레이션 로드맵의 이미 알려진 순서(`sessionService.ts` 183~186행 자체 주석에도 "규칙 배포 전까지 이 함수는 reject된 Promise를 던진다"라고 명시돼 있음)이지만, **"데모 바이패스가 고쳐지면 3~5번을 실기기로 검증할 수 있을 것"이라는 기존 가정(Round 18 말미)이 절반만 맞았다는 것**을 이번에 실측으로 확정한 것이 의미 있는 발견이다 — 로그인 벽은 뚫렸지만 그 다음에 "세션 생성 벽"이 있다는 것이 이번에 처음 명확해졌다.
+
+### 1. 빌드 + 설치 준비
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.1a | 현재 HEAD(`d7b3789`) 소스로 로컬 직접 재빌드(`assembleDebug --no-daemon`) | 통과 | **BUILD SUCCESSFUL in 2m**(335 actionable tasks: 32 executed, 303 up-to-date). |
+| R20.1b | APK 무결성 — 스크래치 사본 SHA256을 2회 연속 확인 후 컨테이너 전송, 컨테이너 내부에서 재확인 | 통과 | `b05b5f1e...` 로컬 원본/스크래치 사본(2회 연속 동일)/컨테이너 전송본 3자 완전 일치. `unzip -tq` 무결성 이상 없음. |
+| R20.1c | `docker run`(`--device /dev/kvm`, `MSYS_NO_PATHCONV=1`) 컨테이너 기동 | 통과 | `budtmo/docker-android:emulator_11.0` 로컬 캐시 재사용, `Boot completed in 33786 ms`, `CPU Acceleration status: KVM ... usable`. `adb devices` → `emulator-5554 device`. |
+| R20.1d | `adb install -r` + `pm list packages` | 통과 | `Performing Streamed Install / Success`, `package:com.mobile` 확인. |
+
+### 2. `__DEV__` 데모 바이패스 → HomeScreen 도달 재확인 (Round 19 fix가 이 빌드에서도 유효한지)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.2 | 스플래시 → 온보딩 3컷 → SpotifyConnect → "데모로 둘러보기" 탭 → HomeScreen | 통과(회귀 없음) | `uiautomator dump` 좌표 기반으로 순서대로 진행, 매 단계 스크린샷 확인. SpotifyConnect 화면에 "⚠ 개발자 전용 (릴리즈 빌드에서 제외됨)" + "데모로 둘러보기 (로그인 건너뛰기)" 두 노드가 접근성 트리에 정상 존재(Round 19와 동일). 탭 후 HomeScreen("지금 이 순간을 함께", "+ 새 세션 만들기", "# 코드로 참여하기") 완전히 렌더링됨을 스크린샷으로 확인. |
+
+### 3. 세션 생성 화면(`CreateSessionScreen.tsx`) — 지시 1번
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.3a | 서비스 선택 기본값이 YouTube인지, 라디오 순서가 YouTube → Spotify → 혼합(Mixed)인지 | 통과 | 화면 진입 시 YouTube 라디오가 이미 선택된 채(코랄색 채움) 렌더링됨, 순서도 정확히 YouTube → Spotify → 혼합(Mixed) — `CreateSessionScreen.tsx` 47행 `useState<MusicService>('youtube')` 및 130~137행 렌더 순서와 정확히 일치. |
+| R20.3b | Spotify/혼합 선택 시 실제로 전환되고 안내 배너(`INFO_BY_SERVICE`) 텍스트가 바뀌는가 | 통과 | Spotify 탭 → 라디오 상태 전환 + 배너가 "이 방은 Spotify 전용이에요. 참여자 모두 Spotify Premium이 필요해요..."로 정확히 교체됨을 스크린샷으로 확인. 다시 YouTube로 전환도 정상 동작. |
+| R20.3c | 정원 스테퍼(PB-09, 44×44 터치 타겟) — `uiautomator dump`로 실제 버튼 바운즈 측정 | 통과 | "정원 늘리기"/"정원 줄이기" 버튼의 접근성 bounds가 176×176px(이 에뮬레이터 프로필 밀도 4x 기준 44×44dp로 역산 일치) — 소스의 `stepBtn: {width:44, height:44}`와 정확히 일치함을 실측으로 확인. `+` 2회 탭 → 2명→4명으로 정상 증가, 슬라이더 점 위치도 비례해 이동, `value<=MIN`일 때 `−` 버튼이 `enabled="false"`로 정확히 비활성화됨(uiautomator 속성으로 확인). |
+| R20.3d | 헤더 뒤로가기(공통 `BackButton`) — 화면 내 탭 + Android 하드웨어 백 양쪽 | 통과 | 하드웨어 백(`keyevent 4`)과 화면 내 "←" 아이콘 직접 탭(정확한 accessibility bounds 중심 좌표로) 둘 다 크래시 없이 HomeScreen으로 정확히 복귀. |
+
+### 4. 세션 생성 시도 — 지시 2번 (RTDB 실패가 "정상적으로" 처리되는지)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.4a | "세션 만들기" 탭 → RTDB `update()` 호출이 실제로 시도되고 permission-denied로 거부되는가 | 통과(예상된 실패) | `adb logcat -c` 직후 탭 → `W RepoOperation: updateChildren at / failed: DatabaseError: Permission denied` 로그를 정확히 포착. RTDB 규칙 미배포 상태에서 예상된 거부(회귀 아님)임을 실측으로 재확인. |
+| R20.4b | 화면이 깨지지 않는가(크래시/멈춤 없음) | 통과 | 탭 직후~3초 뒤 스크린샷에서 CreateSessionScreen이 입력값(4명, YouTube) 그대로 유지된 채 정상 표시, 크래시 없음. |
+| R20.4c | 사용자에게 실패가 어떻게 전달되는가(에러 처리의 "매끄러움") | 🟡 **부분적으로만 매끄러움 — 개선 여지 발견** | `finalizeCreate`에 `catch` 블록이 없어(R20.0a) 사용자에게 보이는 **Alert/Toast/인라인 에러 메시지가 전혀 뜨지 않는다.** 유일하게 관찰된 신호는 화면 하단에 나타난 React Native 개발자 전용 LogBox 배너("Open debugger to view warnings.", 노란 느낌표 아이콘) — 이는 **debug 빌드에서만 보이는 개발자 진단 UI**이고 릴리즈 빌드에는 존재하지 않는다(즉 프로덕션에서는 사용자가 "세션 만들기"를 눌러도 버튼이 그냥 원래 상태로 돌아갈 뿐 아무 피드백도 못 받는다). 크래시는 없지만 "매끄러운 에러 처리"라기보다는 "조용한 무반응"에 가깝다 — 지금 시점(RTDB 규칙 미배포)에는 실패가 항상 나므로 사용자 영향이 크지만, 이는 이번 라운드의 새 버그라기보다 **RTDB 규칙이 배포된 뒤에도 남아있을 잠재적 갭**(진짜 네트워크 에러 등 다른 이유로도 언제든 재발 가능)이라 구현 에이전트에게 전달할 가치가 있다고 판단했다. |
+
+### 5. **새로 발견한 버그 — HomeScreen "코드로 참여하기" 버튼이 로딩 스피너에 영구히 멈춤**
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.5a | 초대 코드 "ABCDEF" 입력 후 "코드로 참여하기" 탭 → RTDB 읽기 시도 확인 | 통과(예상된 실패 자체는) | `adb logcat -c` 직후 탭 → `W SyncTree: Listen at /inviteCodes/ABCDEF failed: DatabaseError: Permission denied` 로그 포착 — 읽기 시도 자체는 정상적으로 이뤄지고 예상대로 거부됨. |
+| R20.5b | 탭 직후 버튼이 로딩 스피너(`ActivityIndicator`, `isJoining=true`)로 바뀌는가 | 통과 | 탭 2초 후 스크린샷에서 버튼 라벨 텍스트가 사라지고 회전 스피너 프레임이 캡처됨(정상적인 로딩 상태 진입). |
+| R20.5c | **RTDB 실패 후 스피너가 원래 상태(버튼 라벨)로 복귀하는가** | ❌ **실패(신규 버그)** | 탭 후 7초/25초/약 90초(다른 화면으로 이동했다가 되돌아온 뒤까지 포함) 시점 스크린샷 전부에서 스피너가 계속 회전 중인 채로 멈춰있다 — **버튼이 영구적으로 "로딩 중" 상태에 갇힌다.** 근본 원인은 R20.0c에서 코드로 먼저 확정한 대로 `HomeScreen.tsx`의 `attemptJoin`(41~89행)이 `await joinSession(...)`을 **try/catch/finally 없이 직접 호출**하기 때문 — RTDB 읽기가 reject되면 62번째 줄의 `setIsJoining(false)`가 아예 실행되지 않고 예외가 unhandled로 전파된다. `CreateSessionScreen.tsx`의 `finalizeCreate`는 최소한 `finally`가 있어(R20.0a) 로딩 상태는 정상 복귀하는 것과 대조적이다(단 그쪽도 사용자에게 보이는 에러 메시지는 없음, R20.4c). |
+| R20.5d | 스피너가 멈춰있는 동안 앱 전체가 먹통이 되는지(전역 크래시/프리징) | 통과(전역 영향 없음) | 스피너가 멈춰있는 상태에서 같은 화면의 "+ 새 세션 만들기" 버튼을 탭하자 정상적으로 CreateSessionScreen으로 전환됨 — 이 버그는 해당 버튼/컴포넌트 상태(`isJoining`)에만 국한되고 앱 전체를 멈추게 하지는 않는다. |
+| R20.5e | 재현 경로(구현 에이전트 전달용) | — | 1) `__DEV__` 데모 바이패스로 로그인. 2) HomeScreen에서 초대 코드 입력란에 아무 문자열(존재 여부 무관, 예: "ABCDEF") 입력. 3) "코드로 참여하기" 탭. 4) RTDB 읽기 권한이 거부되는 환경(현재 이 프로젝트의 기본 상태 — RTDB 규칙 미배포)에서는 버튼이 로딩 스피너에서 영구히 복귀하지 않음. **RTDB 규칙이 배포된 뒤에도** 다른 이유(네트워크 끊김, 존재하지 않는 코드가 아니라 진짜 서버/네트워크 예외 등)로 `getSessionByInviteCode`/`joinSessionByCode`가 reject되면 동일하게 재현될 수 있다 — RTDB 규칙 배포로 저절로 사라지는 버그가 아니다. 제안(강제하지 않음): `attemptJoin`에 `try { ... } catch (err) { Alert.alert(...) } finally { setIsJoining(false) }`를 추가. |
+
+### 6. 세션 설정 / 플레이리스트 스와이프 삭제 / 곡 검색 — 지시 3, 4, 5번
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.6 | `SessionSettingsView.tsx`(진입/뒤로가기), `PlaylistView.tsx`(스와이프 삭제/Undo), `AddTrackModal.tsx`(YouTube 실검색) | **미검증(구조적으로 불가, 가짜로 채우지 않음)** | 0절에서 코드로 먼저 확정하고, 4절/5절의 실기기 시도로 실측 재확인한 대로 — 세션 생성(RTDB 쓰기 거부)과 세션 참여(RTDB 읽기 거부)가 둘 다 실패해 `RoomScreen`에 정상적으로 진입할 방법이 없다. 세 화면 모두 `RoomScreen`의 하위 탭/모달로만 마운트되므로 이번 라운드에서 실기기 화면을 단 한 번도 띄워보지 못했다. YouTube Data API 키(`ENV.YOUTUBE_API_KEY`)가 실제 값으로 하드코딩돼 있고(코드 리뷰로 확인), 에뮬레이터의 일반 인터넷 연결 자체는 살아있음(`adb shell ping 8.8.8.8` → 왕복 227~270ms 성공)을 별도로 확인해뒀다 — **RTDB 규칙이 배포되어 세션 생성이 실제로 성공하게 되면, 이 세 화면은 그 다음 라운드에서 바로 검증 가능한 상태**라는 것만 미리 확인해둔다. |
+
+### 7. 다크모드 + 전체 세션 crash 스캔 — 지시 7번
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R20.7a | `cmd uimode night yes` 후 HomeScreen 재확인 | 통과 | 네이비 배경, 흰 텍스트, 인풋/버튼 다크 톤 전환 정상. |
+| R20.7b | 다크모드에서 CreateSessionScreen 재확인 | 통과 | 배경/라디오/스테퍼/배너 카드 전부 다크 톤으로 정확히 전환, "←" 아이콘도 흰색으로 잘 보임. 다크모드에서도 BackButton 탭 정상 동작(HomeScreen 복귀 확인). |
+| R20.7c | 전체 세션(빌드~설치~데모 바이패스~생성 시도~참여 시도~다크모드) `adb logcat -d` 전수 캡처(493줄) 후 크래시 마커 검색 | 통과(크래시 없음) | `FATAL EXCEPTION`/`ANR in`/`AndroidRuntime.*com\.mobile`/`Process: com\.mobile` 패턴 0건. `com.mobile` 관련 로그 12건은 전부 `chatty: uid=10167(com.mobile) identical N line` 형태의 중복 로그 축약 메시지일 뿐 에러 아님. |
+| R20.7d | (관찰, 실패 아님) `ReactNativeJNI: Error occurred, shutting down websocket connection: WebSocket exception Failed to connect to /10.0.2.2:8081`이 약 2초 간격으로 반복 | 📝 관찰(예상된 부작용) | Round 19가 `__DEV__=true`로 고친 것의 **직접적인 부작용**으로 보인다 — `__DEV__=true`가 되면서 RN의 `DevSupportManager`가 Metro 개발 서버(에뮬레이터 기준 호스트 루프백 `10.0.2.2:8081`)에 지속적으로 재연결을 시도하고(사이드로드 환경이라 Metro가 실제로 없음), 매번 실패해 즉시 폴백하는 패턴이 반복된다. 구현 에이전트가 이미 남긴 주석(`implementation-log.md` "Metro가 응답하지 않을 때... APK에 내장된 번들로 폴백")과 정확히 일치하는 동작이라 **버그가 아니라 의도된 폴백 메커니즘의 정상 부작용**으로 판단했다 — 다만 배터리/네트워크 요청이 계속 발생한다는 점은 실사용 시나리오(사이드로드 debug APK를 오래 켜두는 경우)에서 참고할 만해 기록해둔다(이번 라운드의 실패 항목은 아님). |
+
+### Round 20 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 통과 | 14 (R20.1a~d, R20.2, R20.3a~d, R20.4a~b, R20.5a~b/d, R20.7a~c) |
+| 🟡 부분적으로만 매끄러움(실패는 아니되 개선 여지) | 1 (R20.4c) |
+| ❌ **실패(신규 버그)** | 1 (R20.5c) |
+| 📝 관찰(실패 아님) | 1 (R20.7d) |
+| 구조적으로 미검증(가짜로 채우지 않음) | 3 화면(R20.6 — SessionSettingsView/PlaylistView/AddTrackModal) |
+
+**결론: 부분 통과.** Round 19의 `debuggableVariants=[]` 수정은 이번 라운드에서도 완전히 재현됐다(R20.2, 회귀 없음) — 데모 바이패스는 이제 이 프로젝트의 표준 debug 빌드에서 안정적으로 작동한다. 이번 라운드가 처음으로 실기기에서 검증한 `CreateSessionScreen`(YouTube 기본값, 라디오 순서, 정원 스테퍼 44×44 터치 타겟, 서비스별 안내 배너, 공통 BackButton)은 지시받은 대로 전부 정확히 동작했다(R20.3). 세션 생성 시도는 예상대로 RTDB permission-denied로 실패했고 앱이 깨지지는 않았지만(R20.4a~b), 사용자에게 실패를 알리는 UI가 전혀 없다는 점(R20.4c)과 — 더 심각하게는 — "코드로 참여하기" 경로에서 같은 RTDB 실패가 **버튼을 영구적으로 로딩 스피너에 가두는 진짜 버그**로 이어진다는 것(R20.5)을 이번에 처음 실측으로 발견했다. 다크모드와 크래시 스캔은 전부 통과했다(R20.7). 반면 이번 라운드의 원래 핵심 목표였던 세션 설정/플레이리스트 스와이프 삭제/YouTube 곡 검색 3개 화면은, 데모 바이패스라는 첫 번째 장벽이 뚫렸음에도 그 다음에 있는 "RTDB 규칙 미배포로 인한 세션 생성/참여 전면 실패"라는 두 번째 장벽 때문에 이번에도 실기기 화면을 띄우지 못했다(R20.0, R20.6) — 이는 코드 결함이 아니라 이미 `decisions-needed.md`에 등록된 사용자 액션(Firebase 콘솔에서 RTDB 규칙 배포)이 아직 완료되지 않은 결과이므로, 검증 실패로 판정하지 않고 "구조적으로 불가능함"으로 정직하게 남겨둔다. 혼합 세션의 참여자별 검증(단일 데모 계정 한계)은 애초에 세션 생성 자체가 안 되므로 이번에도 시도조차 하지 못했다.
+
+**리더/구현 에이전트에게 전달 (버그 리포트, 코드 수정 없이 보고만 함):**
+1. **신규 버그(R20.5)**: `apps/mobile/src/screens/HomeScreen.tsx`의 `attemptJoin`(41~89행)이 `await joinSession(...)`을 try/catch/finally 없이 호출해, `joinSession`이 reject하면(현재는 RTDB 읽기 권한 거부, 규칙 배포 후에도 네트워크 예외 등으로 재발 가능) `isJoining`이 `true`로 영구히 고정되고 "코드로 참여하기" 버튼이 로딩 스피너에서 복귀하지 못한다. 제안: `CreateSessionScreen.tsx`의 `finalizeCreate`처럼 최소 `finally { setIsJoining(false) }`를 추가하고, 가능하면 `catch`로 사용자에게 실패를 알리는 `Alert`도 함께 추가.
+2. **개선 여지(R20.4c, 버그는 아니되 UX 갭)**: `CreateSessionScreen.tsx`의 `finalizeCreate`는 `finally`는 있지만 `catch`가 없어 세션 생성 실패 시 사용자에게 아무 피드백도 가지 않는다(현재는 RTDB 규칙 미배포로 100% 실패하는 상황이라 영향이 큼). `HomeScreen.tsx`의 다른 실패 사유(예: `not_found`/`capacity_full`)처럼 `Alert.alert`로 안내하는 패턴을 세션 생성 실패에도 동일하게 적용하는 것을 제안.
+3. **다음 라운드 선행 조건 재확인**: `docs/decisions-needed.md`의 "RTDB 보안 규칙 배포" 항목이 아직 처리되지 않았다 — 이게 완료돼야 세션 생성/참여가 실제로 성공하고, 그래야 이번 라운드가 검증하지 못한 세션 설정/플레이리스트 스와이프 삭제/YouTube 곡 검색 3개 화면을 다음 Docker+KVM 라운드에서 검증할 수 있다. YouTube API 키와 에뮬레이터 인터넷 연결은 이번에 미리 확인해뒀다(R20.6) — RTDB만 풀리면 곧바로 진행 가능.
