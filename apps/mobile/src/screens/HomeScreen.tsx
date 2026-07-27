@@ -49,42 +49,47 @@ export default function HomeScreen({navigation}: Props) {
     }
 
     setIsJoining(true);
-    const result = await joinSession({
-      inviteCode: trimmedCode,
-      joiningUser: {
-        participantId: firebaseUid,
-        displayName: profile.displayName,
-        accountTier: profile.isPremium ? 'premium' : 'free',
-      },
-      platform,
-    });
-    setIsJoining(false);
+    try {
+      const result = await joinSession({
+        inviteCode: trimmedCode,
+        joiningUser: {
+          participantId: firebaseUid,
+          displayName: profile.displayName,
+          accountTier: profile.isPremium ? 'premium' : 'free',
+        },
+        platform,
+      });
 
-    if (result.ok) {
-      setStep('code');
-      navigation.navigate('Room', {sessionId: result.session.sessionId});
-      return;
-    }
+      if (result.ok) {
+        setStep('code');
+        navigation.navigate('Room', {sessionId: result.session.sessionId});
+        return;
+      }
 
-    switch (result.reason) {
-      case 'not_found':
-        Alert.alert(
-          '세션을 찾을 수 없어요',
-          '입력한 초대 코드로 참여 가능한 세션이 없어요. 코드를 다시 확인해주세요.',
-        );
-        break;
-      case 'capacity_full':
-        Alert.alert(
-          '이 세션은 정원이 가득 찼어요',
-          '방장이 세션을 만들 때 정한 최대 인원에 도달해서 더 이상 참여할 수 없어요.',
-        );
-        break;
-      case 'platform_required':
-        // 혼합 세션 — 참여자 본인의 플랫폼을 먼저 고르게 한다.
-        setStep('platform');
-        break;
-      default:
-        break;
+      switch (result.reason) {
+        case 'not_found':
+          Alert.alert(
+            '세션을 찾을 수 없어요',
+            '입력한 초대 코드로 참여 가능한 세션이 없어요. 코드를 다시 확인해주세요.',
+          );
+          break;
+        case 'capacity_full':
+          Alert.alert(
+            '이 세션은 정원이 가득 찼어요',
+            '방장이 세션을 만들 때 정한 최대 인원에 도달해서 더 이상 참여할 수 없어요.',
+          );
+          break;
+        case 'platform_required':
+          // 혼합 세션 — 참여자 본인의 플랫폼을 먼저 고르게 한다.
+          setStep('platform');
+          break;
+        default:
+          break;
+      }
+    } catch {
+      Alert.alert('참여하지 못했어요', '세션에 참여하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsJoining(false);
     }
   };
 

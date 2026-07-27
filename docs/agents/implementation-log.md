@@ -701,3 +701,16 @@
   2. `loginAsDemo()`가 고정된 `participantId: 'demo-user'`를 반환하는 기존 알려진 한계(R18에서 이미 지적)는 이번 라운드 범위 밖이라 그대로 남아있음 — "코드로 참여하기"의 신규 참여자 경로는 여전히 단일 데모 계정으로는 완전히 검증 불가.
   3. `iOS`는 이번에도 macOS 부재로 빌드/검증 미수행 — 이번 변경은 `apps/mobile/android/` 전용 Gradle 설정이라 iOS 빌드 자체에 영향을 줄 수 없음(구조적으로 무관).
   4. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.
+
+## 2026-07-28
+- 작업: Round 20 검증(`docs/qa/spotify-mvp-round1-checklist.md` R20.5)이 보고한 버그 수정 — `HomeScreen.tsx`의 `attemptJoin`이 `await joinSession(...)`을 try/catch/finally 없이 직접 호출해, `joinSession`이 reject(현재는 RTDB 보안 규칙 미배포로 인한 permission-denied가 주 원인, 규칙 배포 후에도 네트워크 예외 등으로 재발 가능)하면 `setIsJoining(false)`가 끝내 실행되지 않아 "코드로 참여하기" 버튼이 로딩 스피너에 영구히 갇히는 문제(R20.5, 실기기에서 90초+ 확인). 추가로 R20.4c가 함께 지적한 `CreateSessionScreen.tsx`의 `finalizeCreate`(로딩 복귀는 `finally`로 이미 보장되지만 `catch`가 없어 세션 생성 실패 시 사용자 피드백이 전혀 없는 문제)도 같은 라운드에서 함께 수정.
+- 상태: 완료(검증 대기)
+- 변경 파일:
+  - `apps/mobile/src/screens/HomeScreen.tsx` — `attemptJoin`의 `await joinSession(...)` 이하 로직 전체를 `try { ... } catch { Alert.alert(...) } finally { setIsJoining(false); }`로 감쌈. 기존 `result.ok`/`result.reason`(`not_found`/`capacity_full`/`platform_required`) 분기 처리 로직은 그대로 유지(변경 없음), `catch`만 새로 추가.
+  - `apps/mobile/src/screens/CreateSessionScreen.tsx` — 기존 `try { ... } finally { setIsCreating(false) }` 구조에 `catch { Alert.alert(...) }`만 추가(`finally`의 로딩 복귀 로직은 건드리지 않음). `Alert` import 추가.
+- 비고:
+  1. 에러 메시지 문구는 지시대로 RTDB 세부 에러(permission-denied 등)를 노출하지 않고, HomeScreen에 이미 있던 `not_found`/`capacity_full` 안내와 같은 톤의 일반 문구로 작성함: 참여 실패 시 "참여하지 못했어요 / 세션에 참여하지 못했어요. 잠시 후 다시 시도해주세요.", 생성 실패 시 "세션을 만들지 못했어요 / 세션을 만들지 못했어요. 잠시 후 다시 시도해주세요."
+  2. `catch` 블록에서 에러 객체 자체는 사용하지 않음(`catch {}`, 타입 무관하게 항상 동일한 사용자 문구를 보여주는 것이 지시받은 범위 — 에러 종류별 세분화는 요청받지 않음).
+  3. 새 테스트는 추가하지 않음 — 기존 `__tests__/joinSessionByCode.test.ts` 등 어떤 테스트도 `joinSession`/`createSession`의 reject 경로를 다루지 않아(모두 정상/`ok:false` 응답만 mock), 이번 변경으로 회귀는 없으나 reject 경로 자체를 커버하는 자동화 테스트는 여전히 부재 — 검증 에이전트가 실기기/에뮬레이터에서 RTDB 규칙 미배포 상태(permission-denied 실제 발생 환경) 그대로 "코드로 참여하기"/"세션 만들기"를 눌러 로딩 스피너가 정상 복귀하고 Alert가 뜨는지 직접 확인 필요.
+  4. 검증: `npx tsc --noEmit`(에러 0), `npx eslint .`(에러 0, 기존부터 있던 `react-native/no-inline-styles` 경고 25건은 이번 변경과 무관해 그대로 남아있음, 두 수정 파일 중 새 경고 없음), `npx jest`(9 suites / 48 tests 전부 통과, 회귀 없음) 모두 통과. Android 빌드는 순수 JS/TSX 로직 변경(Gradle/네이티브 설정 무변경)이라 지시대로 생략함.
+  5. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.

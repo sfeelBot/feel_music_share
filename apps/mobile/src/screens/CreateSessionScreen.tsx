@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
+import {Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation/types';
@@ -70,6 +70,8 @@ export default function CreateSessionScreen({navigation}: Props) {
         },
       });
       navigation.replace('Room', {sessionId: session.sessionId});
+    } catch {
+      Alert.alert('세션을 만들지 못했어요', '세션을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsCreating(false);
     }
