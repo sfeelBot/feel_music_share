@@ -49,6 +49,11 @@
 - 요청: 사용자가 "YouTube Data API v3 활성화, 진행 방식 알려줘" → Google Cloud Console 단계(프로젝트는 Firebase와 동일한 것 재사용, API 활성화, API 키 발급+제한 설정 — RN이 REST 직접 호출이라 앱 제한은 걸지 말 것을 권고) 안내, 쿼터 참고사항(하루 10,000유닛, 검색 1회 100유닛) 설명. 사용자 액션(키 발급) 대기 중, 아직 구현 미착수.
 - 요청: 사용자가 "firebase가 하는 역할과 전체 환경/데이터 관리/서버 위치를 알 수 있는 md 파일 하나 만들어줘".
 - 외부 액션(리더 직접 작성 — 기존 결정/설계 문서 종합, 새 결정/설계 아님): `docs/infrastructure-overview.md` 신규 — Firebase 역할(RTDB+Auth, Cloud Functions 미도입), 전체 구조(Spotify/YouTube는 Firebase를 거치지 않고 클라이언트가 직접 연결), 데이터 저장 위치(`asia-southeast1`), 현재 진행 상태 표, 결정 이력 요약, mermaid 다이어그램 포함. 커밋 `d5e0f86`.
+
+- 요청: 사용자가 "이런것들 나중에 기록으로 하나 남겨줬으면 해. 다음에 내가 이거 보면서 할 수 있도록"(방금 준 YouTube API 콘솔 안내를 가리킴).
+- 외부 액션(리더 직접 작성): `docs/external-service-setup-guide.md` 신규 — `decisions-needed.md`(무엇을 해야 하는지)와 성격 다른 "어떻게 하는지" 절차서. Firebase(콘솔 접속/RTDB 활성화/익명 인증/규칙 배포)·Google Cloud(YouTube API)·Spotify Dashboard 절차를 완료/대기 상태 표시와 함께 정리. RTDB 규칙은 JSON을 문서에 직접 박지 않고 "저장소의 최신 `database.rules.json`을 복사" 방식으로 안내(라운드가 진행되며 파일이 계속 바뀌므로 문서-파일 드리프트 방지). 커밋 `b32fcd6`.
+- 요청: 사용자가 YouTube Data API v3 키(`AIzaSyDf6Y7iMR0qMXnERoBRBueNB46jr_KZY3U`) 전달.
+- 분배: implementer에게 위임(백그라운드) — `env.ts`에 `YOUTUBE_API_KEY` 반영, `youtubeMockSearch.ts`를 실제 `search.list`+`videos.list`(duration 보강) 호출로 교체, `AddTrackModal.tsx` import 교체, 목업 파일 삭제(참조 여부 확인 후). curl로 실제 키 응답 형식 최소 1회 확인 지시(쿼터 소모 인지시킴). `decisions-needed.md` YouTube 항목은 코드 연동 완료로 삭제하되 실기기 검증 항목은 별도 유지 지시.
 - push는 아직 안 함(사용자 명시적 요청 대기).
 - 외부 액션(리더 직접): `docs/decision-log.md` 신규 작성(살아있는 append-only 결정 회의록, `decisions-needed.md`와 성격 다름을 문서 서두에 명시) — RTDB 확정 배경/논의/결정/후속조치 정리. `decisions-needed.md`·`firebase-integration-guide.md`도 결정 반영해 갱신. 커밋 `e193a4d`.
 - 분배: implementer에게 위임(백그라운드) — `@react-native-firebase/app`+`@react-native-firebase/database` 설치, `firebaseClient.ts` STUB을 실제 초기화 코드로 교체(콘솔 DB 활성화 전이라 실제 read/write는 안 되는 게 정상, 목업으로 덮지 말라고 명시). `sessionService.ts` 실제 데이터 연동은 명확히 범위 밖으로 한정(다음 라운드). 새 네이티브 의존성 2개라 androidx.browser 사례처럼 빌드 충돌 리스크 큼 — 발생 시 근본 원인 추적해 해결하라고 지시(포기/롤백 금지).
