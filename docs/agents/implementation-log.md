@@ -702,6 +702,28 @@
   3. `iOS`는 이번에도 macOS 부재로 빌드/검증 미수행 — 이번 변경은 `apps/mobile/android/` 전용 Gradle 설정이라 iOS 빌드 자체에 영향을 줄 수 없음(구조적으로 무관).
   4. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.
 
+## 2026-07-28 (마이그레이션 라운드 1 — 데이터 모델 + 세션 서비스 계층)
+- 작업: `docs/specs/11-youtube-only-migration-plan.md` "라운드 1" 착수. `docs/decision-log.md`(2026-07-28, "Spotify 지원 완전 제거 + 혼합 세션 모드 제거") 근거로 YouTube 단일 플랫폼 전환 1단계.
+  1. `apps/mobile/src/types/domain.ts`: 계획 문서 1-D절 그대로 `MusicService`/`SingleMusicService`/`MixedParticipantPlatform`/`AccountTier`/`MatchConfidenceLevel`/`MatchConfirmState`/`ParticipantMatchStatus`/`MatchedTrackCandidate`/`ParticipantMatch`/`MixedPlaylistEntry`/`ServicePlaybackMemory`/`ServicePlaylistState` 전부 제거. `ParticipantInfo.accountTier`/`platform?` 필드 제거. `SessionState.service`/`playlists`/`mixedPlaylist` 제거 → `entries: PlaylistEntry[]` 단일 배열로 교체.
+  2. `apps/mobile/src/services/session/sessionService.ts`: `switchService`/`addMixedTrack`/`removeMixedTrack`/`reorderMixedPlaylist`/`setParticipantMatch`/`emptyServicePlaylistState`/`ServiceSwitchResult` 전부 제거. `createSession`/`joinSessionByCode` 시그니처에서 `service`/`hostPlatform`/`platform`/`accountTier` 파라미터 제거. `addTrack`/`removeTrack`/`reorderPlaylist`가 `session.entries`를 직접 다루도록 단순화. `JoinSessionFailureReason`에서 `'platform_required'` 제거. `appointAdmin`/`revokeAdmin`/`getSession`/`getSessionByInviteCode`/`subscribeToSession`/RTDB 다중 경로 `update()` 패턴은 그대로 유지.
+  3. `apps/mobile/src/state/SessionContext.tsx`: `requestServiceSwitch`/`myPlatform`/`addMixedTrack`/`confirmMyMatch`/`selectMyMatchCandidate`/`manualMatchTrack`/`skipMyMatch`/`myPendingMatchEntryIds` 전부 제거. `requestNextTrack`/`requestPrevTrack`/`removeTrack`/`requestMoveTrack`의 `mixed` 분기 삭제하고 `session.entries` 직접 접근으로 단순화.
+  4. `apps/mobile/src/state/activeServicePlaylist.ts`: **파일 자체를 삭제**(계획 문서가 "권장"으로 남겨둔 판단 지점 — `session.entries` 직접 접근으로 바뀌며 완전히 무참조 상태가 됨).
+  5. `apps/mobile/src/state/sessionPermissions.ts`: `canSwitchService`/`shouldShowServiceSwitch`/`oppositeService`/`serviceLabel` 제거, `canResignAdmin`/`roleDisplayLabel`만 유지.
+  6. 테스트: `__tests__/serviceSwitchPlaylistIsolation.test.ts` 파일째 삭제. `__tests__/sessionPermissions.test.ts`는 서비스 전환 관련 describe 블록 제거. `__tests__/joinSessionByCode.test.ts`는 `service`/`hostPlatform`/`platform`/`accountTier` 인자 제거 + 혼합 세션 참여 2개 케이스 삭제, 나머지 5개 유지.
+- 계획 문서와의 차이: 없음 — 계획 문서(11번 문서) 1-D절 서술과 실제 파일 내용이 100% 일치했다. 임의 판단이 필요했던 지점(activeServicePlaylist.ts 삭제 여부, 테스트 3종 포함 여부)은 둘 다 계획 문서가 "판단 위임"으로 남겨뒀던 부분이며 근거를 로그에 남겼다.
+- 검증 결과:
+  1. `npx tsc --noEmit`: 116줄, 전부 이번 라운드에서 의도적으로 건드리지 않은 파일(화면/컴포넌트 전체, 2라운드가 삭제할 혼합모드 파일들, `mockSessionSeed.ts`)에서만 발생 — 실제로 수정한 4개 파일 자체의 에러는 0건. 예상된 정상 상태.
+  2. `npx eslint .`: 에러 0건, 경고 25건(전부 기존 `no-inline-styles`, 무관).
+  3. `npx jest`: 8개 스위트 중 7개 PASS(34개 테스트), `App.test.tsx` 1개만 `RoomScreen.tsx`→`NowPlayingView.tsx`의 삭제된 모듈 참조로 FAIL(2라운드 몫, 예상됨).
+- 상태: 완료(검증 대기)
+- 변경 파일: `types/domain.ts`(재작성), `sessionService.ts`(재작성), `SessionContext.tsx`(재작성), `sessionPermissions.ts`(재작성), `activeServicePlaylist.ts`(삭제), `__tests__/serviceSwitchPlaylistIsolation.test.ts`(삭제), `__tests__/sessionPermissions.test.ts`(재작성), `__tests__/joinSessionByCode.test.ts`(재작성).
+- 비고:
+  1. **의도된 컴파일 실패 상태다** — 이번 라운드 종료 시점에 앱 전체는 컴파일되지 않는다(작업 지시가 명시적으로 예고한 정상 상태). 2라운드(화면 UI)가 이 116줄을 해소할 대상.
+  2. 컴파일이 안 되므로 이번 라운드 단독으로는 실기기 설치/실행 검증이 불가능 — 2라운드까지 묶어서 검증하는 게 합리적(리더 판단 몫).
+  3. `mockSessionSeed.ts`는 이번 라운드 대상이 아니었지만 domain.ts 변경으로 이미 컴파일이 깨진 상태 — 계획 문서상 "라운드 4" 몫, 처리 방식(정리 vs 완전 삭제) 재확인 필요.
+  4. **중요 — worktree 정리 시 주의**: 이 작업은 별도 git worktree에서 진행했고, `apps/mobile/node_modules`를 메인 워킹트리로의 Windows 정션(junction, `mklink /J`)으로 연결해뒀다(git에는 안 잡힘). worktree 정리 시 일반 재귀 삭제 도구를 쓰면 정션을 따라가 메인 워킹트리의 실제 `node_modules`까지 삭제될 위험이 있다 — 반드시 `rmdir`(링크만 제거)로 처리할 것.
+  5. 커밋은 하지 않았다 — 리더가 diff 리뷰 후 직접 처리 예정.
+
 ## 2026-07-28
 - 작업: Round 20 검증(`docs/qa/spotify-mvp-round1-checklist.md` R20.5)이 보고한 버그 수정 — `HomeScreen.tsx`의 `attemptJoin`이 `await joinSession(...)`을 try/catch/finally 없이 직접 호출해, `joinSession`이 reject(현재는 RTDB 보안 규칙 미배포로 인한 permission-denied가 주 원인, 규칙 배포 후에도 네트워크 예외 등으로 재발 가능)하면 `setIsJoining(false)`가 끝내 실행되지 않아 "코드로 참여하기" 버튼이 로딩 스피너에 영구히 갇히는 문제(R20.5, 실기기에서 90초+ 확인). 추가로 R20.4c가 함께 지적한 `CreateSessionScreen.tsx`의 `finalizeCreate`(로딩 복귀는 `finally`로 이미 보장되지만 `catch`가 없어 세션 생성 실패 시 사용자 피드백이 전혀 없는 문제)도 같은 라운드에서 함께 수정.
 - 상태: 완료(검증 대기)

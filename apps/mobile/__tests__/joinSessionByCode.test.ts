@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from '@jest/globals';
-import {createSession, getSessionByInviteCode, joinSessionByCode} from '../src/services/session/sessionService';
+import {createSession, joinSessionByCode} from '../src/services/session/sessionService';
 
 const {__resetMockDatabase} = require('@react-native-firebase/database');
 
@@ -13,6 +13,11 @@ const {__resetMockDatabase} = require('@react-native-firebase/database');
  * 실제 추가되어야 한다(sessionService.ts 상단 "데모 참여자/데모 플레이리스트 시드를 이 라운드에서
  * 제거했다" 주석 참고). 그래서 기존 "capacity-1까지 데모로 이미 채워져 있다"는 전제로 짜여있던
  * 정원 테스트도 이번에 다시 작성했다 — 정원까지 직접 join을 반복해 채운다.
+ *
+ * (2026-07-28 YouTube 단일화) createSession/joinSessionByCode 시그니처에서 service/hostPlatform/
+ * platform/accountTier 인자가 사라졌다 — 혼합(mixed) 세션 참여 관련 두 케이스(platform_required 반환,
+ * platform과 함께 참여)는 대상 개념 자체가 없어져 삭제했다(docs/specs/11-youtube-only-migration-plan.md
+ * 1-D "테스트 재작성 대상" 참고).
  */
 describe('joinSessionByCode', () => {
   afterEach(() => {
@@ -20,34 +25,31 @@ describe('joinSessionByCode', () => {
   });
 
   function host() {
-    return {participantId: 'host_1', displayName: '지은', accountTier: 'premium' as const};
+    return {participantId: 'host_1', displayName: '지은'};
   }
 
   it('참여자를 정상적으로 추가하고 정원/역할/링컬러를 채운다', async () => {
-    const session = await createSession({sessionName: '테스트 방', service: 'spotify', capacity: 4, host: host()});
+    const session = await createSession({sessionName: '테스트 방', capacity: 4, host: host()});
     expect(session.participants).toHaveLength(1);
 
     const result = await joinSessionByCode(session.inviteCode, {
       participantId: 'guest_1',
       displayName: '민준',
-      accountTier: 'free',
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) {return;}
     expect(result.participant.role).toBe('regular');
-    expect(result.participant.platform).toBeUndefined();
     expect(result.session.participants).toHaveLength(2);
     expect(result.session.participants.map(p => p.participantId)).toContain('guest_1');
   });
 
   it('초대 코드는 대소문자를 구분하지 않고, 앞뒤 공백도 허용한다', async () => {
-    const session = await createSession({sessionName: '테스트 방', service: 'spotify', capacity: 4, host: host()});
+    const session = await createSession({sessionName: '테스트 방', capacity: 4, host: host()});
 
     const result = await joinSessionByCode(`  ${session.inviteCode.toLowerCase()}  `, {
       participantId: 'guest_2',
       displayName: '수아',
-      accountTier: 'free',
     });
 
     expect(result.ok).toBe(true);
@@ -57,20 +59,18 @@ describe('joinSessionByCode', () => {
     const result = await joinSessionByCode('ZZZZZZ', {
       participantId: 'guest_3',
       displayName: '준호',
-      accountTier: 'free',
     });
 
     expect(result).toEqual({ok: false, reason: 'not_found'});
   });
 
   it('정원이 가득 찬 세션은 capacity_full을 반환하고 참여자를 추가하지 않는다', async () => {
-    const session = await createSession({sessionName: '둘만의 방', service: 'spotify', capacity: 2, host: host()});
+    const session = await createSession({sessionName: '둘만의 방', capacity: 2, host: host()});
     expect(session.participants).toHaveLength(1);
 
     const first = await joinSessionByCode(session.inviteCode, {
       participantId: 'guest_4',
       displayName: '민준',
-      accountTier: 'free',
     });
     expect(first.ok).toBe(true);
     if (first.ok) {
@@ -80,59 +80,15 @@ describe('joinSessionByCode', () => {
     const second = await joinSessionByCode(session.inviteCode, {
       participantId: 'guest_5',
       displayName: '수아',
-      accountTier: 'free',
     });
     expect(second).toEqual({ok: false, reason: 'capacity_full'});
   });
 
-  it('혼합 세션은 platform 없이 호출하면 platform_required를 반환하고 참여자를 추가하지 않는다', async () => {
-    const session = await createSession({
-      sessionName: '혼합 방',
-      service: 'mixed',
-      capacity: 4,
-      hostPlatform: 'spotify',
-      host: host(),
-    });
-    const before = session.participants.length;
-
-    const result = await joinSessionByCode(session.inviteCode, {
-      participantId: 'guest_6',
-      displayName: '민준',
-      accountTier: 'free',
-    });
-
-    expect(result).toEqual({ok: false, reason: 'platform_required'});
-    expect(before).toBe(1);
-    const stillJust1 = await getSessionByInviteCode(session.inviteCode);
-    expect(stillJust1?.participants).toHaveLength(1);
-  });
-
-  it('혼합 세션은 platform과 함께 호출하면 그 플랫폼으로 참여자를 추가한다', async () => {
-    const session = await createSession({
-      sessionName: '혼합 방',
-      service: 'mixed',
-      capacity: 4,
-      hostPlatform: 'spotify',
-      host: host(),
-    });
-
-    const result = await joinSessionByCode(
-      session.inviteCode,
-      {participantId: 'guest_7', displayName: '수아', accountTier: 'free'},
-      'youtube',
-    );
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) {return;}
-    expect(result.participant.platform).toBe('youtube');
-  });
-
   it('이미 참여 중인 참여자가 같은 코드로 다시 참여를 시도하면 정원 검사 없이 그대로 합류시킨다', async () => {
-    const session = await createSession({sessionName: '테스트 방', service: 'spotify', capacity: 2, host: host()});
+    const session = await createSession({sessionName: '테스트 방', capacity: 2, host: host()});
     const joined = await joinSessionByCode(session.inviteCode, {
       participantId: 'guest_8',
       displayName: '민준',
-      accountTier: 'free',
     });
     expect(joined.ok).toBe(true);
     if (!joined.ok) {return;}
@@ -143,7 +99,6 @@ describe('joinSessionByCode', () => {
     const rejoin = await joinSessionByCode(session.inviteCode, {
       participantId: 'guest_8',
       displayName: '민준',
-      accountTier: 'free',
     });
     expect(rejoin.ok).toBe(true);
     if (!rejoin.ok) {return;}

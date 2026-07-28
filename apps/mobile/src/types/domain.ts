@@ -1,31 +1,29 @@
 /**
- * 도메인 타입 정의 (MVP 스코프 — Spotify 전용 세션)
+ * 도메인 타입 정의 (MVP 스코프 — YouTube 단일 플랫폼 세션)
  *
  * 근거 문서: docs/specs/04-playlist.md, docs/specs/05-sync-architecture.md,
- *           docs/specs/01-user-stories.md (US-106~US-210 권한/정원/Free 계정)
+ *           docs/specs/01-user-stories.md (US-106~US-210 권한/정원),
+ *           docs/decision-log.md 2026-07-28 "Spotify 지원 완전 제거 + 혼합(Mixed) 세션 모드 제거",
+ *           docs/specs/11-youtube-only-migration-plan.md (삭제/수정 범위 계획, 라운드 1)
  *
  * NOTE: 백엔드가 커스텀 서버(REST/WebSocket)에서 Firebase로 확정됨에 따라(CLAUDE.md, 2026-07-24),
  * 이 타입들은 향후 Firestore/Realtime Database 문서 구조의 클라이언트 측 표현으로도 재사용될 것을
  * 전제로 정의했다. 실제 컬렉션/경로 설계는 구현 단계(Firebase 프로젝트 생성 이후) 몫이다.
+ *
+ * NOTE(2026-07-28, YouTube 단일화): 이전에는 Spotify 전용/YouTube 전용/혼합(Mixed) 세 가지 세션
+ * 유형을 지원했고 그에 맞춰 MusicService/SingleMusicService/MixedParticipantPlatform/AccountTier/
+ * 매칭 관련 타입(MatchConfidenceLevel/MatchConfirmState/ParticipantMatchStatus/
+ * MatchedTrackCandidate/ParticipantMatch/MixedPlaylistEntry)과 서비스별 독립 플레이리스트 구조
+ * (ServicePlaybackMemory/ServicePlaylistState)가 있었다. 세션이 항상 YouTube 하나뿐이면 "이 세션의
+ * 서비스가 무엇인지"를 굳이 필드/타입으로 들고 다닐 이유가 없어 전부 제거했다 — 과거 구현은
+ * `spotify-mixed-legacy` 브랜치(2026-07-28 보존)에서 참고할 수 있다.
  */
-
-/** 세 가지 세션 유형 — Spotify 전용/YouTube 전용/혼합(Mixed, 2026-07-26 구현) */
-export type MusicService = 'spotify' | 'youtube' | 'mixed';
-
-/**
- * 혼합 세션에서 참여자 개인이 선택한 참여 플랫폼 (00-ux-flow.md 2.6c, US-105d).
- * 멜론/지니뮤직은 09문서 결론에 따라 참여 불가 — 혼합 세션은 실질적으로 Spotify/YouTube 두 값만 쓴다.
- */
-export type MixedParticipantPlatform = 'spotify' | 'youtube';
 
 /** 3단계 권한 체계 (04-playlist.md "권한 체계" 절, 2026-07-24 확정: 임명권은 방장 보유) */
 export type ParticipantRole = 'host' | 'admin' | 'regular';
 
-/** Spotify 계정 등급. Free는 동기화 재생에 참여 불가(재생 인원에서 제외) — US-106 */
-export type AccountTier = 'premium' | 'free';
-
 export interface Track {
-  /** Spotify track URI (예: spotify:track:xxxx) */
+  /** YouTube video ID (예: dQw4w9WgXcQ) */
   serviceTrackId: string;
   title: string;
   artist: string;
@@ -40,15 +38,9 @@ export interface ParticipantInfo {
   /** 아바타 컬러 링에 쓰이는 참여자별 고유 색 (01-style-guide.md 4절 — 자동 배정, 사용자 변경 불가) */
   ringColor: string;
   role: ParticipantRole;
-  accountTier: AccountTier;
   connectionStatus: 'connected' | 'reconnecting' | 'disconnected';
   /** 개인 단위 동기화 지연(초). 정상이면 0. (02-key-ui-patterns.md 2.3절 "참여자별 상세 상태") */
   delaySeconds: number;
-  /**
-   * 혼합 세션에서만 값을 갖는다 — 이 참여자가 2.6c에서 선택한 개인 참여 플랫폼.
-   * Spotify 전용/YouTube 전용 세션에서는 session.service로 이미 알 수 있으므로 undefined로 둔다.
-   */
-  platform?: MixedParticipantPlatform;
 }
 
 export interface PlaylistEntry {
@@ -58,114 +50,6 @@ export interface PlaylistEntry {
   addedByDisplayName: string;
   addedAt: number; // epoch ms
   playedStatus: 'pending' | 'playing' | 'played';
-}
-
-/**
- * 세션의 "활성화될 수 있는 단일 서비스" — MusicService에서 'mixed'를 제외한 부분집합.
- * 서비스별 독립 플레이리스트(`SessionState.playlists`)는 혼합 세션에는 없는 개념이라
- * 이 타입으로 키를 제한한다 (04-playlist.md "플레이리스트 구조" 절, 2026-07-26 구현).
- *
- * 참고: 구조적으로는 `MixedParticipantPlatform`과 동일한 값 집합('spotify'|'youtube')이지만
- * 의도적으로 별도 타입으로 유지한다 — 전자는 "세션 전체의 활성 서비스", 후자는 "혼합 세션에서
- * 참여자 개인이 고른 플랫폼"으로 개념이 다르고, 두 개념이 우연히 같은 값 집합을 갖는다고 해서
- * 타입을 합치면 "이 값이 세션 단위인지 참여자 단위인지"가 코드 상에서 흐려진다고 판단했다.
- */
-export type SingleMusicService = Exclude<MusicService, 'mixed'>;
-
-/**
- * 서비스 전환(US-105b) 시 비활성화되는 쪽이 "어디까지 재생했는지" 기억해두는 스냅샷.
- * 다시 그 서비스로 돌아오면(US-105c/US-308) 이 값으로부터 재생 위치를 복원한다.
- *
- * 판단 근거(구현 로그에도 동일하게 남김): currentEntryId뿐 아니라 positionMs도 서비스별로
- * 독립시켰다 — "이어서 쓸 수 있다"(04-playlist.md 13행)는 서술이 단순히 "어느 곡이었는지"뿐
- * 아니라 "그 곡의 어느 지점이었는지"까지 자연스럽게 포함한다고 해석했다(재생 중이던 3분짜리
- * 곡을 1분 지점에서 전환했다가 되돌아왔는데 다시 처음부터 재생되면 "이어서 쓴다"는 사용자
- * 기대와 어긋난다). isPlaying/serverTimestamp/updatedByParticipantId는 스냅샷에 포함하지
- * 않았다 — 전환은 항상 "재동기화" 성격의 이벤트라 복귀 시점에 항상 새로 재생 시작(isPlaying:
- * true, serverTimestamp: now)하는 기존 정책(SessionContext.requestServiceSwitch)을 그대로
- * 따르는 편이 "몇 분 전에 멈춰 있던 상태 그대로 멈춰서 복귀"보다 실시간 동기화 앱의 성격에
- * 맞다고 판단했다.
- */
-export interface ServicePlaybackMemory {
-  currentEntryId: string | null;
-  positionMs: number;
-}
-
-/**
- * 서비스(Spotify 또는 YouTube) 하나에 종속된 플레이리스트 묶음 — 곡 목록 + 그 서비스가
- * 비활성화되기 직전의 재생 위치 기억(위 ServicePlaybackMemory).
- */
-export interface ServicePlaylistState {
-  entries: PlaylistEntry[];
-  lastPlayback: ServicePlaybackMemory;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * 혼합(Mixed) 세션 전용 플레이리스트 구조 (04-playlist.md "혼합 모드 플레이리스트 구조" 절, 2026-07-26 구현)
- *
- * 혼합 세션은 세션당 플레이리스트가 하나뿐이고(플랫폼 중립), 곡 항목이 두 계층으로 구성된다:
- *   1) 공통 식별자 계층 — MixedPlaylistEntry의 title/artist/representative* 필드
- *   2) 참여자별 매칭 트랙 계층 — MixedPlaylistEntry.matches[participantId] (ParticipantMatch)
- *
- * 구현 판단(로그에도 동일하게 남김): 유니온 타입으로 PlaylistEntry와 통합하지 않고 완전히 별도 타입
- * (MixedPlaylistEntry)으로 분리했다 — 04문서/09문서가 "근본적으로 다른 구조"라고 명시했고, 기존
- * Spotify/YouTube 전용 세션 코드(PlaylistView/NowPlayingView 등)가 이미 PlaylistEntry.track 구조에
- * 강하게 의존하고 있어 유니온으로 합치면 모든 소비처에 타입 좁히기 분기가 강제된다. 대신
- * SessionState.service(='mixed')로 어느 배열(playlist vs mixedPlaylist)을 쓸지 판별하는 방식을 택했다.
- * ---------------------------------------------------------------------------------------------- */
-
-/** 매칭 일치율 등급 3단계 (02-key-ui-patterns.md 5.3절) */
-export type MatchConfidenceLevel = 'high' | 'medium' | 'low';
-
-/**
- * 참여자의 매칭 확인 상태.
- * pending: 자동 매칭 결과가 나왔으나 아직 참여자가 확정/교체하지 않음 (2.11b 대기)
- * confirmed: 참여자가 "확정하기"를 눌러 그대로 채택
- * manual: 참여자가 "다른 결과 보기(후보 선택)" 또는 "직접 검색하기"로 교체
- */
-export type MatchConfirmState = 'pending' | 'confirmed' | 'manual';
-
-/** 참여자 개인의 매칭 시도 자체의 진행 상태 (검색 중/매칭됨/실패) */
-export type ParticipantMatchStatus = 'searching' | 'matched' | 'failed';
-
-/** 매칭 후보 하나(1차 매칭 결과 또는 대체 후보 목록의 항목 공통 셰이프) — 02-key-ui-patterns.md 5.2절 */
-export interface MatchedTrackCandidate {
-  service: MixedParticipantPlatform;
-  serviceTrackId: string;
-  title: string;
-  artist: string;
-  albumArtUrl?: string;
-  durationMs: number;
-  /** 0~100 — 09문서 "결정 2"의 수치 표시 요구사항. 정확한 산출 공식/가중치는 TODO(실측 필요), services/matching/trackMatcher.ts 참고 */
-  matchScore: number;
-  confidenceLevel: MatchConfidenceLevel;
-}
-
-/** 곡 항목 하나에 대한 "참여자 한 명"의 매칭 상태 (04-playlist.md "참여자별 매칭 트랙 계층") */
-export interface ParticipantMatch {
-  status: ParticipantMatchStatus;
-  /** status === 'matched'일 때 현재 표시 중인(대기/확정/수동교체 상관없이) 트랙 */
-  track?: MatchedTrackCandidate;
-  confirmState: MatchConfirmState;
-  /** "다른 결과 보기"에서 노출할 차순위 후보들(현재 track 제외, 점수 내림차순). 없으면 빈 배열. */
-  candidates: MatchedTrackCandidate[];
-  /** status==='failed'일 때, 참여자가 "이 곡 없이 넘어가기"를 선택했는지 (2.11d) */
-  skipped: boolean;
-}
-
-export interface MixedPlaylistEntry {
-  entryId: string;
-  // --- 공통 식별자 계층 (플랫폼 중립, 모든 참여자 공유) ---
-  title: string;
-  artist: string;
-  representativeThumbnailUrl?: string;
-  representativeDurationMs: number;
-  addedByParticipantId: string;
-  addedByDisplayName: string;
-  addedAt: number;
-  playedStatus: 'pending' | 'playing' | 'played';
-  // --- 참여자별 매칭 트랙 계층 (key: participantId) ---
-  matches: Record<string, ParticipantMatch>;
 }
 
 /**
@@ -191,7 +75,7 @@ export interface SyncStatusValue {
   state: SyncState;
   /** '지연' 상태일 때 표시할 초 단위 지연값 */
   delaySeconds?: number;
-  /** '맞추는 중' 상태의 원인 보조 텍스트 (예: YouTube 광고 재생 중 — 이번 라운드 Spotify 전용이라 항상 undefined) */
+  /** '맞추는 중' 상태의 원인 보조 텍스트 (예: YouTube 광고 재생 중) */
   reasonLabel?: string;
 }
 
@@ -199,31 +83,17 @@ export interface SessionState {
   sessionId: string;
   inviteCode: string;
   sessionName: string;
-  service: MusicService;
   hostParticipantId: string;
   /** 세션 정원 2~12명, 기본값 2명 (04-playlist.md "세션 정원" 절, 2026-07-24 확정) */
   capacity: number;
   participants: ParticipantInfo[];
   /**
-   * Spotify 전용/YouTube 전용 세션에서 쓰는 서비스별 독립 플레이리스트
-   * (04-playlist.md "플레이리스트 구조" 절 — 세션 1 : 서비스별 플레이리스트 N, 현재 N=2, 2026-07-26
-   * 데이터 수준 구현). 세션 도중 활성 서비스를 전환해도(US-105b) 비활성화되는 쪽의 `entries`/
-   * `lastPlayback`은 그대로 보존되어 나중에 다시 그 서비스로 돌아오면 이어서 쓸 수 있다
-   * (US-105c/US-308) — `services/session/sessionService.ts`의 `switchService` 참고.
-   * 혼합 세션(service==='mixed')에서는 `spotify`/`youtube` 두 값 모두 항상
-   * `{entries: [], lastPlayback: {currentEntryId: null, positionMs: 0}}`로 두고 쓰지 않는다
-   * (mixedPlaylist를 대신 쓴다 — 04-playlist.md "혼합 모드 플레이리스트 구조" 절, "근본적으로
-   * 다른 구조"라고 명시되어 있어 억지로 통합하지 않았다).
+   * 세션의 플레이리스트 — 서비스가 YouTube 하나뿐이므로 서비스별 분기 없이 단일 배열로 관리한다
+   * (2026-07-28 YouTube 단일화, docs/specs/11-youtube-only-migration-plan.md 2절). 배열 순서 =
+   * 재생 순서(커서 = playback.currentEntryId의 인덱스) — state/playlistSequencing.ts 참고.
    */
-  playlists: Record<SingleMusicService, ServicePlaylistState>;
-  /** 혼합 세션 전용 플레이리스트(플랫폼 중립, 04-playlist.md). Spotify/YouTube 전용 세션에서는 항상 빈 배열이다. */
-  mixedPlaylist: MixedPlaylistEntry[];
-  /**
-   * 현재 활성 서비스(또는 혼합 세션)의 "라이브" 재생 상태 — 단일 진실 공급원(05-sync-architecture.md
-   * 모델 A). Spotify/YouTube 전용 세션에서 서비스가 전환되면(switchService) 전환 직전 값이
-   * `playlists[oldService].lastPlayback`에 저장되고, 이 필드는 `playlists[newService].lastPlayback`
-   * 으로부터 다시 채워진다.
-   */
+  entries: PlaylistEntry[];
+  /** 현재 세션의 "라이브" 재생 상태 — 단일 진실 공급원(05-sync-architecture.md 모델 A). */
   playback: PlaybackState;
 }
 
