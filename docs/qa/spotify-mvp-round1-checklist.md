@@ -1413,3 +1413,71 @@ Round 13에서 발견된 비차단 갭(R13.19) 하나만 좁게 고치는 커밋
 1. **신규 버그(R20.5)**: `apps/mobile/src/screens/HomeScreen.tsx`의 `attemptJoin`(41~89행)이 `await joinSession(...)`을 try/catch/finally 없이 호출해, `joinSession`이 reject하면(현재는 RTDB 읽기 권한 거부, 규칙 배포 후에도 네트워크 예외 등으로 재발 가능) `isJoining`이 `true`로 영구히 고정되고 "코드로 참여하기" 버튼이 로딩 스피너에서 복귀하지 못한다. 제안: `CreateSessionScreen.tsx`의 `finalizeCreate`처럼 최소 `finally { setIsJoining(false) }`를 추가하고, 가능하면 `catch`로 사용자에게 실패를 알리는 `Alert`도 함께 추가.
 2. **개선 여지(R20.4c, 버그는 아니되 UX 갭)**: `CreateSessionScreen.tsx`의 `finalizeCreate`는 `finally`는 있지만 `catch`가 없어 세션 생성 실패 시 사용자에게 아무 피드백도 가지 않는다(현재는 RTDB 규칙 미배포로 100% 실패하는 상황이라 영향이 큼). `HomeScreen.tsx`의 다른 실패 사유(예: `not_found`/`capacity_full`)처럼 `Alert.alert`로 안내하는 패턴을 세션 생성 실패에도 동일하게 적용하는 것을 제안.
 3. **다음 라운드 선행 조건 재확인**: `docs/decisions-needed.md`의 "RTDB 보안 규칙 배포" 항목이 아직 처리되지 않았다 — 이게 완료돼야 세션 생성/참여가 실제로 성공하고, 그래야 이번 라운드가 검증하지 못한 세션 설정/플레이리스트 스와이프 삭제/YouTube 곡 검색 3개 화면을 다음 Docker+KVM 라운드에서 검증할 수 있다. YouTube API 키와 에뮬레이터 인터넷 연결은 이번에 미리 확인해뒀다(R20.6) — RTDB만 풀리면 곧바로 진행 가능.
+
+## Round 21 검증 (스터크 스피너 버그 수정 확인 + 화면별 스크린샷 갤러리 캡처, Docker+KVM 실기기급)
+
+> 검증 대상: 커밋 `d8f1a46`("Fix HomeScreen join button getting stuck in loading spinner (R20.5)") — Round 20이 발견한 두 버그(HomeScreen "코드로 참여하기" 버튼 로딩 스피너 영구 고정, CreateSessionScreen 세션 생성 실패 시 무피드백)의 수정. HEAD(`477317a`) 소스로 로컬 재빌드(`git status --short` 클린 확인 — 세션 시작 시 `leader-log.md`만 unrelated로 modified 상태였고 `apps/mobile` 쪽은 완전히 클린했음).
+> 검증일: 2026-07-28
+> 검증 담당: 검증(Verification) 서브에이전트
+> 지시자: 리더 — 리소스 절약을 위해 한 Docker+KVM 세션에서 파트 A(버그 수정 검증)와 파트 B(화면별 스크린샷 갤러리 캡처, 사용자 요청)를 함께 처리하라는 명시적 지시.
+> 참고 문서: `docs/spikes/docker-virtualization-for-mobile-verification.md`, Round 15/18/19/20.
+> 환경: Windows 11 Pro (10.0.26200), Docker Desktop(WSL2 backend), `budtmo/docker-android:emulator_11.0`(로컬 캐시 재사용) 컨테이너 위 Android 11 에뮬레이터(Samsung Galaxy S10 프로필, 1440×3040), KVM 가속 확인(`CPU Acceleration status: KVM (version 12) is installed and usable.`, `Boot completed in 83587 ms`). Android 빌드: `JAVA_HOME=D:\Android Studio\jbr`, `ANDROID_HOME`/`ANDROID_SDK_ROOT=E:\Android\Sdk`, `GRADLE_USER_HOME=E:\gradle-home`. **결론 먼저**: 파트 A 지시 항목 3개 전부 통과(스피너 정상 복귀 + Alert 노출 + 크래시 없음, 회귀 없음). 파트 B는 지시받은 10개 스크린샷 항목을 전부 캡처했고(선택 항목이던 실패 Alert 2종 포함), `docs/screenshots/`에 12개 파일로 저장했다. RoomScreen 계열(세션 설정/플레이리스트/Now Playing)은 지시대로 이번에도 RTDB 규칙 미배포로 캡처 불가능함을 재확인했을 뿐 억지로 채우지 않았다.
+
+### 0. 빌드 + 설치 준비
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R21.0a | HEAD(`477317a`, `apps/mobile` 기준 `d8f1a46`와 동일 소스) 로컬 재빌드(`assembleDebug --no-daemon`) | 통과 | **BUILD SUCCESSFUL in 2m 25s**(335 actionable tasks: 36 executed, 299 up-to-date). |
+| R21.0b | APK 무결성 — 로컬 원본 SHA256 → 스크래치 사본 → 컨테이너 전송본 3자 일치 확인 | 통과 | `d66d22fc...` 3자 완전 일치(로컬 `app/build/outputs/apk/debug/app-debug.apk`, 스크래치 사본, `docker cp` 이후 컨테이너 내부 `sha256sum`). |
+| R21.0c | `docker run`(`--device /dev/kvm`, `MSYS_NO_PATHCONV=1`) 컨테이너 기동 + KVM 가속 확인 | 통과 | `budtmo/docker-android:emulator_11.0` 로컬 캐시 재사용, `CPU Acceleration status: KVM (version 12) is installed and usable.`, `Boot completed in 83587 ms`. `adb devices` → `emulator-5554 device` / `localhost:5555 device`(호스트 `adb.exe`로 포트포워딩 통해 이중 연결, 둘 다 정상). |
+| R21.0d | `adb install -r` + `pm list packages` | 통과 | `Performing Streamed Install / Success`, `package:com.mobile` 확인. |
+
+### 1. 파트 A — 스터크 스피너/무피드백 버그 수정 검증 (지시 1~3번)
+
+| # | 항목 | 결과 | 상세 |
+|---|---|---|---|
+| R21.1a | HomeScreen에서 존재하지 않는 초대 코드("ABCDEF") 입력 후 "코드로 참여하기" 탭 → 로딩 스피너 노출 | 통과 | 탭 직후 스크린샷에서 버튼 라벨이 사라지고 회전 스피너로 전환됨을 확인(`join_loading.png`). |
+| R21.1b | RTDB 읽기가 실제로 시도되고 permission-denied로 거부되는가 | 통과(예상된 실패, 회귀 아님) | `adb logcat -c` 직후 탭 → 3초 뒤 `W SyncTree: Listen at /inviteCodes/ABCDEF failed: DatabaseError: Permission denied` 정확히 포착 — RTDB 규칙 미배포 상태 그대로(`docs/decisions-needed.md` 미해결 항목과 일치). |
+| R21.1c | **핵심 — 로딩 스피너가 몇 초 안에 원래 버튼 라벨로 복귀하는가** | ✅ **통과(Round 20.5 버그 수정 확인)** | RTDB 거부 로그 포착과 거의 동시(3초 이내) 시점 스크린샷에서 스피너가 사라지고 "참여하지 못했어요" Alert가 화면에 뜬 상태로 캡처됨(`join_after3s.png` = `2.8_join-fail-alert.png`) — Round 20이 지적한 "90초+ 동안 영구 고정"이 재현되지 않음. |
+| R21.1d | **"참여하지 못했어요" Alert 다이얼로그 노출** | 통과 | 제목 "참여하지 못했어요", 본문 "세션에 참여하지 못했어요. 잠시 후 다시 시도해주세요.", "OK" 버튼 — `HomeScreen.tsx`의 신규 `catch { Alert.alert('참여하지 못했어요', ...) }` 블록과 정확히 일치하는 문구. |
+| R21.1e | Alert를 "OK"로 닫으면 화면이 정상 상태로 복귀하는가(입력값 유지, 버튼 라벨 정상, 크래시 없음) | 통과 | `uiautomator dump`로 정확한 OK 버튼 bounds(`[1036,1661][1292,1877]`) 확인 후 탭 → Alert 소멸, 입력 필드에 "ABCDEF" 값 그대로 유지, "# 코드로 참여하기" 버튼이 스피너 없이 원래 라벨로 완전히 복귀(`join_recovered.png`). |
+| R21.2a | CreateSessionScreen에서 "세션 만들기" 탭 → RTDB 쓰기 시도 확인 | 통과(예상된 실패) | 혼합 세션 설정 상태에서 "세션 만들기" 탭 → 호스트 자신의 참여 플랫폼을 먼저 고르는 "혼합 세션 참여" 화면(2.6c, US-105d 스펙대로)으로 정상 진입 → 거기서 "확인하고 입장" 탭 시 실제 `createSession` 호출 발생. `adb logcat -c` 이후 탭 → `W RepoOperation: updateChildren at / failed: DatabaseError: Permission denied` 정확히 포착. |
+| R21.2b | 로딩 스피너 노출 → 실패 시 **"세션을 만들지 못했어요" Alert** 노출 | 통과 | 탭 직후 버튼이 스피너로 전환(`after_confirm.png`), 약 2초 뒤 "세션을 만들지 못했어요" / "세션을 만들지 못했어요. 잠시 후 다시 시도해주세요." Alert 정확히 노출(`create_fail_alert.png` = `2.6_create-fail-alert.png`) — `CreateSessionScreen.tsx`의 신규 `catch { Alert.alert('세션을 만들지 못했어요', ...) }` 문구와 일치. |
+| R21.3 | 두 Alert 모두 "OK"로 닫히고 화면이 정상 상태로 돌아오는지, 크래시 없는지 | 통과 | 두 Alert 전부 OK 탭 한 번으로 소멸, 밑에 있던 화면(HomeScreen/혼합 세션 참여 화면)이 입력값 보존한 채 정상 렌더링으로 복귀. 세션 종료 시점까지 전체 `adb logcat`(4227줄)에서 `FATAL EXCEPTION`/`ANR in`/`AndroidRuntime.*com\.mobile`/`has crashed` 패턴 0건 — 크래시 없음. |
+
+### 2. 파트 B — 화면별 스크린샷 갤러리 캡처
+
+| # | 화면 | 파일 | 결과 | 비고 |
+|---|---|---|---|---|
+| R21.B1 | 2.1 스플래시 | `2.1_splash.png` | 캡처 성공 | 노출 시간이 900ms(`SPLASH_MIN_DISPLAY_MS`)로 짧아 단순 지연 후 캡처로는 놓침(백색 네이티브 런치 화면만 잡힘) — 앱 재시작 직후 0.4초 간격 버스트 캡처(8연발)로 재시도해 스플래시 프레임(로고+"Samewave"+태그라인+스피너)을 정확히 포착. |
+| R21.B2 | 2.2 온보딩 1/2/3 | `2.2_onboarding-1.png`/`-2.png`/`-3.png` | 캡처 성공 | `uiautomator dump`로 "다음"/"Spotify로 시작하기" 버튼의 정확한 clickable bounds를 찾아 순서대로 탭하며 3컷 전부 캡처. 점 인디케이터(●○○ → ○●○ → ○○●) 진행도 육안 확인. |
+| R21.B3 | 2.3 Spotify 연동 안내 | `2.3_spotify-connect.png` | 캡처 성공 | "Spotify로 로그인" 버튼, "Premium이 없으신가요? →" 링크, "⚠ 개발자 전용(릴리즈 빌드에서 제외됨)" + "데모로 둘러보기" 섹션까지 전부 포함된 완전한 화면. |
+| R21.B4 | 2.4 Premium 안내 모달 | `2.4_premium-modal.png` | 캡처 성공 | "Premium이 없으신가요?" 탭 → "Free 계정이어도 괜찮아요" 모달(로그인 계속하기/Spotify Premium 알아보기/닫기) 정상 렌더링, 하드웨어 백으로 닫아도 SpotifyConnect로 정상 복귀함을 별도 확인(크래시 없음). |
+| R21.B5 | 2.5 홈 화면(라이트) | `2.5_home.png` | 캡처 성공 | 데모 바이패스로 도달. "지금 이 순간을 함께", "+ 새 세션 만들기", 초대 코드 입력란, "# 코드로 참여하기" 전부 정상 렌더링. |
+| R21.B6 | 2.6 세션 생성 — YouTube 기본값 | `2.6_create-session-youtube.png` | 캡처 성공 | 진입 시 YouTube 라디오 기본 선택, 정원 2명, YouTube 전용 안내 배너 정상. |
+| R21.B7 | 2.6 세션 생성 — Spotify 전환 | `2.6_create-session-spotify.png` | 캡처 성공 | Spotify 라디오 탭 → 선택 전환 + 배너가 "이 방은 Spotify 전용이에요..." 문구로 정확히 교체됨. |
+| R21.B8 | 2.6 세션 생성 — 혼합 선택 | `2.6_create-session-mixed.png` | 캡처 성공 | 혼합(Mixed) 라디오 탭 → 배너가 "이 방은 혼합 모드예요..." 문구로 교체됨. |
+| R21.B9 | 2.5 홈 화면(다크모드) | `2.5_home-dark.png` | 캡처 성공 | `adb shell cmd uimode night yes` 적용 후 재캡처 — 네이비 배경/흰 텍스트/버튼 다크 톤 전환 정상, 캡처 후 `night no`로 원복. |
+| R21.B10 | (선택) 참여 실패 Alert | `2.8_join-fail-alert.png` | 캡처 성공 | 파트 A R21.1c~d 증거 겸용. |
+| R21.B11 | (선택) 세션 생성 실패 Alert | `2.6_create-fail-alert.png` | 캡처 성공 | 파트 A R21.2b 증거 겸용. |
+| R21.B12 | RoomScreen 계열(Now Playing/플레이리스트/세션 설정) | — | **캡처 불가(구조적, 실패 아님)** | Round 20의 0절 코드 추적 결론(`CreateSessionScreen.tsx`/`sessionService.ts`/`HomeScreen.tsx`)이 이번에도 그대로 재현됨 — 세션 생성(RTDB 쓰기 거부, R21.2a)과 참여(RTDB 읽기 거부, R21.1b) 둘 다 실패해 `RoomScreen`에 정상 진입할 방법이 여전히 없다. `docs/decisions-needed.md`의 "RTDB 보안 규칙 배포"가 미해결 상태로 남아있는 한 다음 라운드에도 동일하게 막힐 것으로 예상된다. 지시대로 억지로 채우지 않고 정직하게 미캡처로 남긴다. |
+
+### 3. 부가 발견 (버그 아님, 참고용)
+
+| # | 내용 |
+|---|---|
+| R21.4 | 혼합(Mixed) 모드에서 "세션 만들기"를 탭하면 곧바로 `createSession`이 호출되는 게 아니라, 호스트 자신의 참여 플랫폼을 먼저 고르는 "혼합 세션 참여" 화면(2.6c)을 한 번 더 거친 뒤에야 실제 생성 시도가 일어난다. `00-ux-flow.md` 252행의 "혼합 선택: 호스트 자신도 이 세션의 참여자이므로, 먼저 호스트 본인이 참여할 플랫폼을 선택/확인하는 화면(2.6c)을 거친 뒤..."와 정확히 일치하는 의도된 동작이며, Round 20이 YouTube/Spotify 단일 서비스 세션만 시도했던 터라 이번에 처음 실기기로 확인됐다. 버그 아님, 기록만 남김. |
+| R21.5 | 데모 로그인(`loginAsDemo`) 이후 앱을 재시작하지 않고 온보딩 화면으로 뒤로가기(하드웨어 백 2회)했다가 다시 "다음"/"Spotify로 시작하기"를 탭해 진행하면, `AuthContext.status`가 이미 `signed_in`으로 메모리에 남아있어 SpotifyConnect 화면을 거치지 않고 곧바로 HomeScreen으로 도달한다. `SplashScreen.tsx`가 아니라 온보딩 화면 자체의 네비게이션 로직이 이 상태를 반영하는 것으로 보이며, 이번 검증 진행 중 스크린샷 재촬영 목적으로 뒤로 갔다가 우연히 관찰했다. 의도된 세션 내 상태 유지로 보이나 코드 트레이스까지는 하지 않았다 — 버그로 판정하지 않고 참고 관찰로만 남긴다. |
+
+### Round 21 종합
+
+| 구분 | 개수 |
+|---|---|
+| ✅ 파트 A 통과 | 8개 항목(R21.1a~e, R21.2a~b, R21.3) — Round 20.5가 발견한 두 버그(스터크 스피너/무피드백) 모두 수정 확인, 회귀 없음, 크래시 0건 |
+| ✅ 파트 B 캡처 성공 | 12개 파일(지시받은 10개 전부 + 선택 2개) |
+| ⛔ 구조적으로 캡처 불가(실패 아님) | RoomScreen 계열 3화면(Now Playing/플레이리스트/세션 설정) — RTDB 규칙 미배포가 원인, Round 20과 동일한 결론 재확인 |
+| 실패 | 없음 |
+
+**결론: 통과.** 파트 A — Round 20이 발견한 "코드로 참여하기" 버튼 영구 로딩 스피너 버그(R20.5)는 이번 라운드에서 완전히 재현되지 않았다: RTDB 읽기 거부 후 3초 이내에 스피너가 사라지고 "참여하지 못했어요" Alert가 정확히 노출되며(R21.1c~d), OK로 닫으면 입력값을 유지한 채 버튼이 정상 상태로 복귀한다(R21.1e). CreateSessionScreen의 세션 생성 실패도 이제 "세션을 만들지 못했어요" Alert로 사용자에게 전달된다(R21.2b, 기존 R20.4c가 지적한 무피드백 갭도 함께 해소). 두 Alert 모두 크래시 없이 OK로 닫히고, 전체 세션 로그(4227줄)에서 FATAL/ANR 패턴이 0건이었다(R21.3). 파트 B — 사용자가 요청한 화면별 스크린샷 갤러리를 `docs/screenshots/`에 12개 파일로 채웠다: 스플래시(버스트 캡처로 900ms 창을 포착하는 기법 사용), 온보딩 3컷, Spotify 연동 안내, Premium 모달, 홈 화면(라이트/다크), 세션 생성 화면 3가지 서비스 상태(YouTube/Spotify/혼합), 그리고 파트 A 증거를 겸하는 실패 Alert 2종. RoomScreen 계열 3화면은 RTDB 보안 규칙이 여전히 미배포 상태라(`docs/decisions-needed.md`) 이번에도 구조적으로 캡처 불가능했다는 것을 정직하게 기록했다 — Round 20과 동일한 원인이며 이번 라운드가 새로 발견한 회귀는 아니다. 부가적으로 혼합 세션 생성 플로우가 2.6c(호스트 본인 플랫폼 선택)를 거친다는 것(R21.4)과 데모 로그인 상태가 온보딩 재방문 시에도 메모리에 유지된다는 것(R21.5)을 관찰했다 — 둘 다 버그 아님, 참고 기록.
+
+**리더에게 전달**: RTDB 보안 규칙 배포(`docs/decisions-needed.md`)가 여전히 유일한 차단 요인이다. 이게 해결되면 다음 Docker+KVM 라운드에서 RoomScreen 계열 3화면(세션 설정/플레이리스트 스와이프 삭제/YouTube 곡 검색)과 그 스크린샷을 곧바로 이어서 검증·캡처할 수 있는 상태로 남겨둔다.

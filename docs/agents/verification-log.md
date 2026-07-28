@@ -279,3 +279,15 @@
   - 혼합 세션 참여자별 검증은 애초에 세션 생성 자체가 안 되어 이번에도 시도조차 못함(기존 알려진 단일 데모 계정 한계와는 별개로, 더 앞단인 세션 생성 실패가 먼저 막음).
   - 다크모드(HomeScreen/CreateSessionScreen 재확인) + 전체 세션 `adb logcat`(493줄) 크래시 스캔 — 전부 통과, `FATAL EXCEPTION`/`ANR`/`AndroidRuntime.*com.mobile` 0건. `ReactNativeJNI: ... Failed to connect to /10.0.2.2:8081` 반복 로그는 Round 19의 `__DEV__=true` fix로 인한 예상된 부작용(Metro 재연결 시도 실패 후 폴백)으로 판단, 실패 아님.
   - **버그 리포트를 구현 에이전트로 반려 필요** — 코드 수정 없이 (1) HomeScreen 로딩 스피너 영구 고정 버그, (2) CreateSessionScreen 에러 피드백 부재 개선 여지, (3) RTDB 규칙 배포가 다음 검증의 선행 조건임을 `docs/qa/spotify-mvp-round1-checklist.md` Round 20 절 말미에 남겨뒀다. 코드는 직접 고치지 않았다(검증 라운드 범위 준수).
+
+## 2026-07-28 (Round 21, 스터크 스피너 버그 수정 검증 + 화면별 스크린샷 갤러리 캡처, Docker+KVM 실기기급)
+- 검증 대상: 커밋 `d8f1a46`(Round 20.5가 발견한 두 버그 — HomeScreen "코드로 참여하기" 버튼 로딩 스피너 영구 고정, CreateSessionScreen 세션 생성 실패 무피드백 — 의 수정). HEAD(`477317a`, `apps/mobile` 소스 기준 `d8f1a46`와 동일) 로컬 재빌드. 리소스 절약을 위해 리더 지시로 파트 A(버그 수정 검증)와 파트 B(사용자 요청 화면별 스크린샷 갤러리 캡처)를 한 Docker+KVM 세션에서 함께 수행. `docs/qa/spotify-mvp-round1-checklist.md`에 "## Round 21 검증" 절 추가.
+- 플랫폼: Android (Docker+KVM 실기기급, `budtmo/docker-android:emulator_11.0`, KVM 가속 확인, `Boot completed in 83587 ms`). iOS는 이번 라운드도 macOS 부재로 대상 아님(기존 구조적 제약 동일, 이번 변경은 Android 전용 코드라 iOS 자체가 무관).
+- 결과: **통과.** 파트 A 버그 수정 확인(회귀 없음, 크래시 0건) + 파트 B 스크린샷 12개 캡처 성공.
+- 상세:
+  - **파트 A — 스터크 스피너 버그(R20.5) 수정 확인**: HomeScreen에서 존재하지 않는 초대 코드("ABCDEF") 입력 후 "코드로 참여하기" 탭 → RTDB 읽기 거부(`SyncTree: Listen at /inviteCodes/ABCDEF failed: DatabaseError: Permission denied`, 예상된 실패) → **3초 이내에 스피너가 사라지고 "참여하지 못했어요" Alert가 정확히 노출**됨을 실측 확인(Round 20이 지적한 "90초+ 동안 영구 고정"이 재현되지 않음). OK로 닫으면 입력값 유지한 채 버튼이 정상 라벨로 완전히 복귀.
+  - **파트 A — CreateSessionScreen 무피드백 개선(R20.4c) 확인**: 혼합 세션 생성 시도(호스트 참여 플랫폼 선택 화면 2.6c를 거친 뒤) → RTDB 쓰기 거부(`RepoOperation: updateChildren at / failed: DatabaseError: Permission denied`) → **"세션을 만들지 못했어요" Alert가 정확히 노출**됨을 확인 — 기존에는 개발자 전용 LogBox 배너만 뜨고 사용자에게 아무 피드백이 없었던 갭이 해소됨.
+  - 두 Alert 모두 OK 탭 한 번으로 크래시 없이 닫히고 화면이 정상 상태로 복귀. 전체 세션 `adb logcat`(4227줄) 크래시 스캔에서 `FATAL EXCEPTION`/`ANR in`/`AndroidRuntime.*com.mobile`/`has crashed` 패턴 0건.
+  - **파트 B — 화면별 스크린샷 갤러리**: `docs/screenshots/`에 12개 파일 저장 — 스플래시(`2.1_splash.png`, 900ms 노출 시간을 0.4초 간격 버스트 캡처 기법으로 포착), 온보딩 3컷(`2.2_onboarding-1/2/3.png`), Spotify 연동 안내(`2.3_spotify-connect.png`), Premium 안내 모달(`2.4_premium-modal.png`), 홈 화면 라이트/다크(`2.5_home.png`/`2.5_home-dark.png`), 세션 생성 화면 YouTube/Spotify/혼합 3상태(`2.6_create-session-youtube/spotify/mixed.png`), 참여 실패·생성 실패 Alert(`2.8_join-fail-alert.png`/`2.6_create-fail-alert.png`, 파트 A 증거 겸용). RoomScreen 계열(Now Playing/플레이리스트/세션 설정) 3화면은 RTDB 보안 규칙이 여전히 미배포라(`docs/decisions-needed.md`) Round 20과 동일한 구조적 이유로 이번에도 캡처 불가능했음을 정직하게 기록(가짜로 채우지 않음).
+  - **부가 발견(버그 아님, 참고용)**: (1) 혼합 모드에서 "세션 만들기"를 탭하면 곧바로 생성되지 않고 호스트 본인의 참여 플랫폼을 먼저 고르는 2.6c 화면을 거친 뒤에야 실제 생성 시도가 일어난다는 것을 이번에 처음 실기기로 확인(스펙 `00-ux-flow.md`와 정확히 일치, 의도된 동작). (2) 데모 로그인 상태가 앱 재시작 없이 온보딩으로 되돌아가도 메모리에 유지되어 SpotifyConnect를 건너뛰고 곧바로 HomeScreen에 도달하는 것을 스크린샷 재촬영 중 우연히 관찰(코드 트레이스는 하지 않음, 버그로 판정 안 함).
+  - 코드는 건드리지 않았다(순수 검증+캡처 라운드, 지시 범위 준수). 커밋도 하지 않았다 — 리더가 리뷰 후 이미지 파일 포함 커밋 처리 예정.
